@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 4.3)
 # Enable experimental standard library modules (CMake 4.3)
 set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "451f2fe2-a8a2-47c3-bc32-94786d8fc91b")
 
-project(starter LANGUAGES CXX)
+project(starter LANGUAGES C CXX)
 
 set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 set(CMAKE_CXX_MODULE_STD ON)
@@ -40,6 +40,8 @@ endif()
 # ------------------------
 # Library
 # ------------------------
+include(Dependencies.cmake)
+
 file(GLOB_RECURSE cpp_sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
 file(GLOB_RECURSE module_sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/modules/*.cppm")
 
@@ -59,23 +61,22 @@ target_include_directories(${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURR
 
 target_link_libraries(${PROJECT_NAME}
     PRIVATE ${PROJECT_NAME}_config
-    # add dependencies here
+    yogacore
+    SDL3::SDL3
+    bgfx
 )
 
 # ------------------------
 # Examples
 # ------------------------
 if(BUILD_EXAMPLES)
-    FetchContent_Declare(spdlog GIT_REPOSITORY https://github.com/gabime/spdlog.git GIT_TAG v1.x GIT_SHALLOW TRUE)
-    FetchContent_MakeAvailable(spdlog)
-
     file(GLOB example_sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/examples/*.cpp")
 
     foreach(example_source IN LISTS example_sources)
         get_filename_component(example_name "${example_source}" NAME_WE)
         set(example_target "${PROJECT_NAME}_${example_name}")
         add_executable(${example_target} "${example_source}")
-        target_link_libraries(${example_target} PRIVATE ${PROJECT_NAME}::${PROJECT_NAME} ${PROJECT_NAME}_config spdlog::spdlog)
+        target_link_libraries(${example_target} PRIVATE ${PROJECT_NAME}::${PROJECT_NAME} ${PROJECT_NAME}_config spdlog::spdlog SDL3::SDL3 yogacore bgfx)
     endforeach()
 endif()
 
@@ -83,9 +84,6 @@ endif()
 # Tests
 # ------------------------
 if(BUILD_TESTS)
-    FetchContent_Declare(Catch2 GIT_REPOSITORY https://github.com/catchorg/Catch2.git GIT_TAG v3.14.0 GIT_SHALLOW TRUE)
-    FetchContent_MakeAvailable(Catch2)
-
     file(GLOB_RECURSE test_sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp")
 
     if(test_sources)

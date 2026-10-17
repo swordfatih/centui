@@ -1,9 +1,14 @@
-#include <spdlog/spdlog.h>
-
-import starter;
-import std;
+import centui.window;
 
 int main()
 {
-    spdlog::info("{}", starter::starter::to_string());
+    centui::window window{"CentUI", 800, 600};
+
+    while(window.pollEvents())
+    {
+        if(window.beginFrame())
+        {
+            window.endFrame();
+        }
+    }
 }
