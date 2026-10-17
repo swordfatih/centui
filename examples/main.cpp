@@ -4,11 +4,11 @@ int main()
 {
     centui::window window{"CentUI", 800, 600};
 
-    while(window.pollEvents())
+    while(window.poll_events())
     {
-        if(window.beginFrame())
+        if(window.begin_frame())
         {
-            window.endFrame();
+            window.end_frame();
         }
     }
 }
