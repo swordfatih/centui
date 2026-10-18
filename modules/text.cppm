@@ -14,14 +14,14 @@ public:
     constexpr explicit text(std::string&& value)
         : node{
               .children = {},
-              .type = centui::node::type::text,
-              .style = centui::style::resolve<styles...>(),
+              .type = node::type::text,
+              .style = style::resolve<styles...>(),
           },
           value{value}
     {
     }
 
-    centui::node node;
+    node node;
     std::string  value;
 };
 

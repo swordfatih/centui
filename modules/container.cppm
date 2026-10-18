@@ -16,14 +16,14 @@ public:
     explicit container(children&&... items)
         : node{
               .children = {},
-              .type = centui::node::type::container,
-              .style = centui::style::resolve<styles...>(),
+              .type = node::type::container,
+              .style = style::resolve<styles...>(),
           }
     {
         (node.children.push_back(std::move(items.node)), ...);
     }
 
-    centui::node node;
+    node node;
 };
 
 } // namespace centui
