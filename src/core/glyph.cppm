@@ -6,7 +6,7 @@ module;
 #include <hb-ft.h>
 #include <hb.h>
 
-export module centui.font;
+export module centui.glyph;
 
 import std;
 import centui.unit;
@@ -19,6 +19,13 @@ struct shaped_glyph
     std::uint32_t id;
     float         x;
     float         y;
+};
+
+struct text_layout
+{
+    std::vector<shaped_glyph> glyphs;
+    rect                     bounds{};
+    float                    ascender = 0;
 };
 
 struct glyph_bitmap
@@ -44,7 +51,8 @@ public:
     font(font&&) noexcept;
     font& operator=(font&&) noexcept;
 
-    [[nodiscard]] rect measure(std::string_view text, float size);
+    [[nodiscard]] text_layout layout_text(std::string_view text, float size);
+    [[nodiscard]] rect        measure(std::string_view text, float size);
 
     [[nodiscard]] std::vector<shaped_glyph> shape(std::string_view text, float size);
     [[nodiscard]] glyph_bitmap              rasterize(std::uint32_t id, float size);
@@ -62,25 +70,46 @@ namespace centui
 
 struct font::data
 {
-    FT_Library library = nullptr;
-    FT_Face    face = nullptr;
-    hb_font_t* font = nullptr;
-
-    ~data()
+    struct library_deleter
     {
-        if(font)
+        void operator()(FT_Library library) const noexcept
         {
-            hb_font_destroy(font);
+            FT_Done_FreeType(library);
         }
+    };
 
-        if(face)
+    struct face_deleter
+    {
+        void operator()(FT_Face face) const noexcept
         {
             FT_Done_Face(face);
         }
+    };
 
-        if(library)
+    struct font_deleter
+    {
+        void operator()(hb_font_t* font) const noexcept
         {
-            FT_Done_FreeType(library);
+            hb_font_destroy(font);
+        }
+    };
+
+    // Reverse destruction: HarfBuzz, face, then FreeType library.
+    std::unique_ptr<std::remove_pointer_t<FT_Library>, library_deleter> library;
+    std::unique_ptr<std::remove_pointer_t<FT_Face>, face_deleter>       face;
+    std::unique_ptr<hb_font_t, font_deleter>                           font;
+
+    void set_size(float size)
+    {
+        if(size <= 0 || !std::isfinite(size) ||
+           static_cast<double>(std::round(size)) > std::numeric_limits<FT_UInt>::max())
+        {
+            throw std::invalid_argument("Font size must be positive, finite, and representable");
+        }
+
+        if(FT_Set_Pixel_Sizes(face.get(), 0, static_cast<FT_UInt>(std::max(1.0f, std::round(size)))))
+        {
+            throw std::runtime_error("Failed to set font size");
         }
     }
 };
@@ -107,22 +136,22 @@ font::font() : font(details::default_font_path())
 
 font::font(const std::filesystem::path& path) : _data(std::make_unique<data>())
 {
-    if(FT_Init_FreeType(&_data->library))
+    if(FT_Init_FreeType(std::out_ptr(_data->library)))
     {
         throw std::runtime_error("Failed to initialize FreeType");
     }
 
-    if(FT_New_Face(_data->library, path.string().c_str(), 0, &_data->face))
+    if(FT_New_Face(_data->library.get(), path.string().c_str(), 0, std::out_ptr(_data->face)))
     {
         throw std::runtime_error("Failed to load font: " + path.string());
     }
 
-    if(FT_Set_Pixel_Sizes(_data->face, 0, 16))
+    if(FT_Set_Pixel_Sizes(_data->face.get(), 0, 16))
     {
         throw std::runtime_error("Failed to set font size");
     }
 
-    _data->font = hb_ft_font_create_referenced(_data->face);
+    _data->font.reset(hb_ft_font_create_referenced(_data->face.get()));
 
     if(!_data->font)
     {
@@ -137,109 +166,67 @@ font& font::operator=(font&&) noexcept = default;
 
 rect font::measure(std::string_view text, float size)
 {
-    if(size <= 0 || !std::isfinite(size))
-    {
-        throw std::invalid_argument("Font size must be positive and finite");
-    }
-
-    if(FT_Set_Pixel_Sizes(_data->face, 0, static_cast<FT_UInt>(std::max(1.0f, std::round(size)))))
-    {
-        throw std::runtime_error("Failed to set font size");
-    }
-
-    hb_ft_font_changed(_data->font);
-
-    auto* buffer = hb_buffer_create();
-
-    if(!buffer)
-    {
-        throw std::runtime_error("Failed to create HarfBuzz buffer");
-    }
-
-    hb_buffer_add_utf8(buffer, text.data(), static_cast<int>(text.size()), 0, static_cast<int>(text.size()));
-    hb_buffer_guess_segment_properties(buffer);
-    hb_shape(_data->font, buffer, nullptr, 0);
-
-    unsigned int count = 0;
-    const auto*  positions = hb_buffer_get_glyph_positions(buffer, &count);
-
-    float width = 0;
-
-    for(unsigned int i = 0; i < count; ++i)
-    {
-        width += positions[i].x_advance / 64.0f;
-    }
-
-    hb_buffer_destroy(buffer);
-
-    return {
-        .width = width,
-        .height = _data->face->size->metrics.height / 64.0f};
+    return layout_text(text, size).bounds;
 }
-
 
 std::vector<shaped_glyph> font::shape(std::string_view text, float size)
 {
-    if(size <= 0 || !std::isfinite(size))
+    return layout_text(text, size).glyphs;
+}
+
+text_layout font::layout_text(std::string_view text, float size)
+{
+    _data->set_size(size);
+
+    if(text.size() > static_cast<std::size_t>(std::numeric_limits<int>::max()))
     {
-        throw std::invalid_argument("Invalid font size");
+        throw std::length_error("Text exceeds HarfBuzz input limits");
     }
 
-    if(FT_Set_Pixel_Sizes(_data->face, 0, static_cast<FT_UInt>(std::max(1.0f, std::round(size)))))
-    {
-        throw std::runtime_error("Failed to set font size");
-    }
+    hb_ft_font_changed(_data->font.get());
 
-    hb_ft_font_changed(_data->font);
-
-    auto* buffer = hb_buffer_create();
+    std::unique_ptr<hb_buffer_t, decltype(&hb_buffer_destroy)> buffer{hb_buffer_create(), hb_buffer_destroy};
 
     if(!buffer)
     {
         throw std::runtime_error("Failed to create HarfBuzz buffer");
     }
 
-    hb_buffer_add_utf8(buffer, text.data(), static_cast<int>(text.size()), 0, static_cast<int>(text.size()));
-    hb_buffer_guess_segment_properties(buffer);
-    hb_shape(_data->font, buffer, nullptr, 0);
+    hb_buffer_add_utf8(buffer.get(), text.data(), static_cast<int>(text.size()), 0, static_cast<int>(text.size()));
+    hb_buffer_guess_segment_properties(buffer.get());
+    hb_shape(_data->font.get(), buffer.get(), nullptr, 0);
 
     unsigned int count = 0;
-    const auto*  infos = hb_buffer_get_glyph_infos(buffer, &count);
-    const auto*  positions = hb_buffer_get_glyph_positions(buffer, nullptr);
+    const auto*  infos = hb_buffer_get_glyph_infos(buffer.get(), &count);
+    const auto*  positions = hb_buffer_get_glyph_positions(buffer.get(), nullptr);
 
-    std::vector<shaped_glyph> result;
-    result.reserve(count);
+    text_layout result;
+    result.glyphs.reserve(count);
 
     float x = 0.0f;
     float y = 0.0f;
 
     for(unsigned int i = 0; i < count; ++i)
     {
-        result.push_back({infos[i].codepoint,
-                          x + positions[i].x_offset / 64.0f,
-                          y + positions[i].y_offset / 64.0f});
+        result.glyphs.push_back({infos[i].codepoint,
+                                 x + positions[i].x_offset / 64.0f,
+                                 y + positions[i].y_offset / 64.0f});
 
         x += positions[i].x_advance / 64.0f;
         y += positions[i].y_advance / 64.0f;
     }
 
-    hb_buffer_destroy(buffer);
+    result.bounds.width = x;
+    result.bounds.height = _data->face->size->metrics.height / 64.0f;
+    result.ascender = _data->face->size->metrics.ascender / 64.0f;
     return result;
 }
 
 glyph_bitmap font::rasterize(std::uint32_t id, float size)
 {
-    if(size <= 0 || !std::isfinite(size))
-    {
-        throw std::invalid_argument("Invalid font size");
-    }
+    _data->set_size(size);
 
-    if(FT_Set_Pixel_Sizes(_data->face, 0, static_cast<FT_UInt>(std::max(1.0f, std::round(size)))))
-    {
-        throw std::runtime_error("Failed to set font size");
-    }
-
-    if(FT_Load_Glyph(_data->face, id, FT_LOAD_DEFAULT))
+    if(FT_Load_Glyph(_data->face.get(), id, FT_LOAD_DEFAULT))
     {
         throw std::runtime_error("Failed to load glyph");
     }
@@ -277,15 +264,7 @@ glyph_bitmap font::rasterize(std::uint32_t id, float size)
 
 float font::ascender(float size)
 {
-    if(size <= 0 || !std::isfinite(size))
-    {
-        throw std::invalid_argument("Invalid font size");
-    }
-
-    if(FT_Set_Pixel_Sizes(_data->face, 0, static_cast<FT_UInt>(std::max(1.0f, std::round(size)))))
-    {
-        throw std::runtime_error("Failed to set font size");
-    }
+    _data->set_size(size);
 
     return _data->face->size->metrics.ascender / 64.0f;
 }

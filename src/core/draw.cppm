@@ -5,6 +5,7 @@ import std;
 import centui.node;
 import centui.color;
 import centui.unit;
+import centui.glyph;
 
 export namespace centui
 {
@@ -17,14 +18,16 @@ struct rectangle_command
 
 struct text_command
 {
-    rect             bounds;
-    std::string_view value;
-    centui::color    color;
-    float            font_size;
+    rect                              bounds;
+    std::string_view                  value;
+    centui::color                     color;
+    float                             font_size;
+    std::optional<const text_layout&> shaped;
 };
 
 using draw_command = std::variant<rectangle_command, text_command>;
 
+// Commands borrow text and layout until the tree is mutated, moved, or destroyed.
 std::vector<draw_command> commands(const node& root)
 {
     std::vector<draw_command> result;
@@ -44,7 +47,11 @@ std::vector<draw_command> commands(const node& root)
         {
             if(current.style.text_color.a != 0 && !text->value.empty())
             {
-                result.emplace_back(text_command{bounds, text->value, current.style.text_color, current.style.font_size});
+                const auto shaped = text->shaped.transform([](const text_layout& value) -> const text_layout&
+                {
+                    return value;
+                });
+                result.emplace_back(text_command{bounds, text->value, current.style.text_color, current.style.font_size, shaped});
             }
         }
 

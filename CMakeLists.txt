@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 4.3)
 # Enable experimental standard library modules (CMake 4.3)
 set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "451f2fe2-a8a2-47c3-bc32-94786d8fc91b")
 
-project(starter LANGUAGES C CXX)
+project(centui LANGUAGES C CXX)
 
 set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 set(CMAKE_CXX_MODULE_STD ON)
@@ -19,6 +19,13 @@ endfunction()
 
 project_option(BUILD_EXAMPLES "Build all example executables" ON)
 project_option(BUILD_TESTS "Build the test executable" ON)
+
+option(CENTUI_BUILD_BGFX "Build the bgfx backend and shaders" ON)
+option(CENTUI_BUILD_SFML "Build the SFML backend" ON)
+option(CENTUI_BUILD_APP "Build the SDL3/bgfx application runner" ${CENTUI_BUILD_BGFX})
+if(CENTUI_BUILD_APP AND NOT CENTUI_BUILD_BGFX)
+    message(FATAL_ERROR "CENTUI_BUILD_APP requires CENTUI_BUILD_BGFX")
+endif()
 
 include(FetchContent)
 
@@ -37,65 +44,62 @@ if(MINGW)
     target_link_options(${PROJECT_NAME}_config INTERFACE -static -static-libgcc -static-libstdc++)
 endif()
 
-# ------------------------
-# Library
-# ------------------------
-include(Dependencies.cmake)
+# Keep module sets explicit so enabling one backend cannot pull in another.
+function(centui_module_library target alias)
+    add_library(${target} STATIC)
+    add_library(${alias} ALIAS ${target})
+    target_sources(${target} PUBLIC FILE_SET CXX_MODULES
+        BASE_DIRS "${PROJECT_SOURCE_DIR}/src" FILES ${ARGN})
+    target_compile_features(${target} PUBLIC cxx_std_26)
+    target_compile_options(${target} PUBLIC -freflection)
+    set_target_properties(${target} PROPERTIES CXX_MODULE_STD ON)
+    target_link_libraries(${target} PRIVATE ${PROJECT_NAME}_config)
+endfunction()
 
-file(GLOB_RECURSE cpp_sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
-file(GLOB_RECURSE module_sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/modules/*.cppm")
+include(src/core/Dependencies.cmake)
+centui_module_library(centui_values centui::values
+    "${PROJECT_SOURCE_DIR}/src/core/unit.cppm"
+    "${PROJECT_SOURCE_DIR}/src/core/color.cppm"
+    "${PROJECT_SOURCE_DIR}/src/core/viewport.cppm")
+centui_module_library(centui_glyph centui::glyph
+    "${PROJECT_SOURCE_DIR}/src/core/glyph.cppm"
+    "${PROJECT_SOURCE_DIR}/src/core/font.cppm")
+target_link_libraries(centui_glyph PUBLIC centui_values PRIVATE freetype harfbuzz)
+centui_module_library(centui_core centui::core
+    "${PROJECT_SOURCE_DIR}/src/core/style.cppm"
+    "${PROJECT_SOURCE_DIR}/src/core/layout.cppm"
+    "${PROJECT_SOURCE_DIR}/src/core/node.cppm"
+    "${PROJECT_SOURCE_DIR}/src/core/draw.cppm"
+    "${PROJECT_SOURCE_DIR}/src/core/element.cppm"
+    "${PROJECT_SOURCE_DIR}/src/core/container.cppm"
+    "${PROJECT_SOURCE_DIR}/src/core/text.cppm"
+    "${PROJECT_SOURCE_DIR}/src/core/ui.cppm")
+target_link_libraries(centui_core PUBLIC centui_glyph PRIVATE yogacore)
 
-add_library(${PROJECT_NAME} STATIC)
-add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
-
-target_sources(${PROJECT_NAME}
-    PRIVATE ${cpp_sources}
-    PUBLIC FILE_SET CXX_MODULES BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/modules" FILES ${module_sources}
-)
-
-target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_26)
-target_compile_options(${PROJECT_NAME} PUBLIC -freflection)
-set_target_properties(${PROJECT_NAME} PROPERTIES CXX_MODULE_STD ON)
-
-target_include_directories(${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
-
-target_link_libraries(${PROJECT_NAME}
-    PRIVATE ${PROJECT_NAME}_config
-    yogacore
-    SDL3::SDL3
-    bgfx
-    freetype
-    harfbuzz
-)
-
-include(Shaders.cmake)
-centui_compile_shaders(${PROJECT_NAME})
-
-# ------------------------
-# Examples
-# ------------------------
-if(BUILD_EXAMPLES)
-    file(GLOB example_sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/examples/*.cpp")
-
-    foreach(example_source IN LISTS example_sources)
-        get_filename_component(example_name "${example_source}" NAME_WE)
-        set(example_target "${PROJECT_NAME}_${example_name}")
-        add_executable(${example_target} "${example_source}")
-        target_link_libraries(${example_target} PRIVATE ${PROJECT_NAME}::${PROJECT_NAME} ${PROJECT_NAME}_config spdlog::spdlog SDL3::SDL3 yogacore bgfx)
-    endforeach()
+if(CENTUI_BUILD_BGFX)
+    add_subdirectory(src/backends/bgfx)
+    add_subdirectory(src/app)
+endif()
+if(CENTUI_BUILD_SFML)
+    add_subdirectory(src/backends/sfml)
 endif()
 
-# ------------------------
-# Tests
-# ------------------------
-if(BUILD_TESTS)
-    file(GLOB_RECURSE test_sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp")
-
-    if(test_sources)
-        set(test_target "${PROJECT_NAME}_tests")
-        add_executable(${test_target} ${test_sources})
-        target_link_libraries(${test_target} PRIVATE ${PROJECT_NAME}::${PROJECT_NAME} ${PROJECT_NAME}_config Catch2::Catch2WithMain)
-        include(${catch2_SOURCE_DIR}/extras/Catch.cmake)
-        catch_discover_tests(${test_target})
+if(BUILD_EXAMPLES)
+    if(CENTUI_BUILD_APP)
+        add_executable(centui_example_app examples/main.cpp)
+        target_link_libraries(centui_example_app PRIVATE centui::app ${PROJECT_NAME}_config)
     endif()
+    if(CENTUI_BUILD_SFML)
+        add_executable(centui_example_sfml examples/sfml.cpp)
+        target_link_libraries(centui_example_sfml PRIVATE centui::sfml ${PROJECT_NAME}_config)
+    endif()
+    add_executable(centui_example_custom_backend examples/custom_backend.cpp)
+    target_link_libraries(centui_example_custom_backend PRIVATE centui::core ${PROJECT_NAME}_config)
+endif()
+
+if(BUILD_TESTS)
+    add_executable(centui_tests tests/font.test.cpp tests/node.test.cpp tests/style.test.cpp)
+    target_link_libraries(centui_tests PRIVATE centui::core ${PROJECT_NAME}_config Catch2::Catch2WithMain)
+    include(${catch2_SOURCE_DIR}/extras/Catch.cmake)
+    catch_discover_tests(centui_tests)
 endif()

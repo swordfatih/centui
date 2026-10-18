@@ -1,11 +1,9 @@
 
 import std;
 
-import centui.window;
-import centui.renderer;
+import centui.app;
 import centui.container;
 import centui.text;
-import centui.font;
 import centui.color;
 import centui.unit;
 
@@ -32,31 +30,14 @@ struct title_style
 
 int main()
 {
-    centui::window   window{"CentUI", 800, 600};
-    centui::font     face;
-    centui::renderer renderer{face};
+    centui::app app{{.title = "CentUI", .width = 800, .height = 600}};
 
-    centui::container<panel_style> root{
+    auto root = centui::container<panel_style>{
         centui::text<title_style>{"Hello, CentUI!"},
         centui::container<child_style>{
             centui::text<title_style>{"This is a nested text..."},
         },
     };
 
-    root.node.attach(&face);
-
-    while(window.poll_events())
-    {
-        if(!window.begin_frame())
-        {
-            continue;
-        }
-
-        root.node.calculate(window.width(), window.height());
-
-        renderer.begin(window.width(), window.height());
-        renderer.draw(root.node);
-
-        window.end_frame();
-    }
+    app.run(root);
 }

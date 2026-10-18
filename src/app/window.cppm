@@ -11,6 +11,8 @@ module;
 
 export module centui.window;
 
+export import centui.viewport;
+
 namespace centui::detail
 {
 
@@ -84,10 +86,10 @@ export namespace centui
 class window final
 {
 public:
-    window(const char* title, int width, int height)
+    window(const std::string& title, int width, int height)
     {
         _window.reset(SDL_CreateWindow(
-            title,
+            title.c_str(),
             width,
             height,
             SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY));
@@ -111,12 +113,12 @@ public:
             throw std::runtime_error("Failed to obtain native window handle");
         }
 
-        if(!SDL_GetWindowSizeInPixels(_window.get(), &_width, &_height))
+        if(!SDL_GetWindowSizeInPixels(_window.get(), &_viewport.width, &_viewport.height))
         {
             throw std::runtime_error(SDL_GetError());
         }
 
-        if(_width <= 0 || _height <= 0)
+        if(_viewport.width <= 0 || _viewport.height <= 0)
         {
             throw std::runtime_error("Invalid window pixel dimensions");
         }
@@ -124,8 +126,8 @@ public:
         bgfx::Init init;
         init.swapChain.nwh = native_window;
         init.type = bgfx::RendererType::Direct3D11;
-        init.swapChain.width = static_cast<std::uint32_t>(_width);
-        init.swapChain.height = static_cast<std::uint32_t>(_height);
+        init.swapChain.width = static_cast<std::uint32_t>(_viewport.width);
+        init.swapChain.height = static_cast<std::uint32_t>(_viewport.height);
         init.reset = BGFX_RESET_VSYNC;
 
         _bgfx = std::make_unique<detail::bgfx_context>(init);
@@ -180,19 +182,19 @@ public:
             return false;
         }
 
-        if(width != _width || height != _height)
+        if(width != _viewport.width || height != _viewport.height)
         {
-            _width = width;
-            _height = height;
+            _viewport.width = width;
+            _viewport.height = height;
 
             bgfx::SwapChain swap_chain;
-            swap_chain.width = static_cast<std::uint32_t>(_width);
-            swap_chain.height = static_cast<std::uint32_t>(_height);
+            swap_chain.width = static_cast<std::uint32_t>(_viewport.width);
+            swap_chain.height = static_cast<std::uint32_t>(_viewport.height);
 
             bgfx::reset(BGFX_RESET_VSYNC, &swap_chain);
         }
 
-        bgfx::setViewRect(0, 0, 0, static_cast<std::uint16_t>(_width), static_cast<std::uint16_t>(_height));
+        bgfx::setViewRect(0, 0, 0, static_cast<std::uint16_t>(_viewport.width), static_cast<std::uint16_t>(_viewport.height));
 
         bgfx::touch(0);
 
@@ -206,12 +208,17 @@ public:
 
     [[nodiscard]] int width() const noexcept
     {
-        return _width;
+        return _viewport.width;
     }
 
     [[nodiscard]] int height() const noexcept
     {
-        return _height;
+        return _viewport.height;
+    }
+
+    [[nodiscard]] const centui::viewport& viewport() const noexcept
+    {
+        return _viewport;
     }
 
 private:
@@ -219,8 +226,7 @@ private:
     detail::window_ptr                    _window;
     std::unique_ptr<detail::bgfx_context> _bgfx;
 
-    int _width = 0;
-    int _height = 0;
+    centui::viewport _viewport;
 };
 
 } // namespace centui

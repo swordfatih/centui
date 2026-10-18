@@ -2,8 +2,8 @@
 include_guard(GLOBAL)
 
 function(centui_compile_shaders target)
-    set(shader_dir "${PROJECT_SOURCE_DIR}/shaders")
-    set(output_dir "${PROJECT_BINARY_DIR}/generated/shaders")
+    set(shader_dir "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/shaders")
+    set(output_dir "${CMAKE_CURRENT_BINARY_DIR}/generated/shaders")
     set(include_dir "${bgfx_cmake_SOURCE_DIR}/bgfx/src")
 
     file(GLOB_RECURSE vertex_shaders CONFIGURE_DEPENDS "${shader_dir}/vs_*.sc")

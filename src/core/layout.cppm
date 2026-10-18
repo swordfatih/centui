@@ -12,45 +12,100 @@ import centui.unit;
 namespace centui::details
 {
 
-template <typename Px, typename Percent, typename Fit = std::nullptr_t, typename Target = std::nullptr_t>
-void set_length(YGNodeRef node, length value, Px px, Percent percent, Fit fit = nullptr, Target target = nullptr)
+YGFlexDirection to_yoga(direction value)
 {
-    if constexpr(std::is_same_v<Target, std::nullptr_t>)
+    switch(value)
     {
-        switch(value.unit)
-        {
-        case unit::px:
-            px(node, value.value);
-            break;
-        case unit::percent:
-            percent(node, value.value);
-            break;
-        case unit::fit:
-            fit(node);
-            break;
-        }
+    case direction::column:
+        return YGFlexDirectionColumn;
+    case direction::column_reverse:
+        return YGFlexDirectionColumnReverse;
+    case direction::row:
+        return YGFlexDirectionRow;
+    case direction::row_reverse:
+        return YGFlexDirectionRowReverse;
     }
-    else
+
+    throw std::invalid_argument("Invalid layout enum value");
+}
+
+YGPositionType to_yoga(position value)
+{
+    switch(value)
     {
-        switch(value.unit)
-        {
-        case unit::px:
-            px(node, target, value.value);
-            break;
-        case unit::percent:
-            percent(node, target, value.value);
-            break;
-        case unit::fit:
-            if constexpr(std::is_same_v<Fit, std::nullptr_t>)
-            {
-                px(node, target, 0.0f);
-            }
-            else
-            {
-                fit(node, target);
-            }
-            break;
-        }
+    case position::fixed:
+        return YGPositionTypeStatic;
+    case position::relative:
+        return YGPositionTypeRelative;
+    case position::absolute:
+        return YGPositionTypeAbsolute;
+    }
+
+    throw std::invalid_argument("Invalid layout enum value");
+}
+
+YGAlign to_yoga(alignment value)
+{
+    switch(value)
+    {
+    case alignment::automatic:
+        return YGAlignAuto;
+    case alignment::start:
+        return YGAlignFlexStart;
+    case alignment::center:
+        return YGAlignCenter;
+    case alignment::end:
+        return YGAlignFlexEnd;
+    case alignment::stretch:
+        return YGAlignStretch;
+    case alignment::baseline:
+        return YGAlignBaseline;
+    case alignment::space_between:
+        return YGAlignSpaceBetween;
+    case alignment::space_around:
+        return YGAlignSpaceAround;
+    case alignment::space_evenly:
+        return YGAlignSpaceEvenly;
+    }
+
+    throw std::invalid_argument("Invalid layout enum value");
+}
+
+YGJustify to_yoga(justification value)
+{
+    switch(value)
+    {
+    case justification::start:
+        return YGJustifyFlexStart;
+    case justification::center:
+        return YGJustifyCenter;
+    case justification::end:
+        return YGJustifyFlexEnd;
+    case justification::space_between:
+        return YGJustifySpaceBetween;
+    case justification::space_around:
+        return YGJustifySpaceAround;
+    case justification::space_evenly:
+        return YGJustifySpaceEvenly;
+    }
+
+    throw std::invalid_argument("Invalid layout enum value");
+}
+
+template <typename px_function, typename percent_function, typename fit_function, typename... target_types>
+void set_length(YGNodeRef node, length value, px_function px, percent_function percent, fit_function fit, target_types... targets)
+{
+    switch(value.unit)
+    {
+    case unit::px:
+        std::invoke(px, node, targets..., value.value);
+        break;
+    case unit::percent:
+        std::invoke(percent, node, targets..., value.value);
+        break;
+    case unit::fit:
+        std::invoke(fit, node, targets...);
+        break;
     }
 }
 
@@ -64,8 +119,8 @@ void set_height(YGNodeRef node, length value)
     set_length(node, value, YGNodeStyleSetHeight, YGNodeStyleSetHeightPercent, YGNodeStyleSetHeightAuto);
 }
 
-template <typename Px, typename Percent, typename Fit = std::nullptr_t>
-void set_edges(YGNodeRef node, const edges& value, Px px, Percent percent, Fit fit = nullptr)
+template <typename px_function, typename percent_function, typename fit_function>
+void set_edges(YGNodeRef node, const edges& value, px_function px, percent_function percent, fit_function fit)
 {
     set_length(node, value.top, px, percent, fit, YGEdgeTop);
     set_length(node, value.right, px, percent, fit, YGEdgeRight);
@@ -75,7 +130,10 @@ void set_edges(YGNodeRef node, const edges& value, Px px, Percent percent, Fit f
 
 void set_padding(YGNodeRef node, const edges& value)
 {
-    set_edges(node, value, YGNodeStyleSetPadding, YGNodeStyleSetPaddingPercent);
+    set_edges(node, value, YGNodeStyleSetPadding, YGNodeStyleSetPaddingPercent, [](YGNodeRef target, YGEdge edge)
+    {
+        YGNodeStyleSetPadding(target, edge, 0.0f);
+    });
 }
 
 void set_margin(YGNodeRef node, const edges& value)
@@ -90,7 +148,10 @@ void set_inset(YGNodeRef node, const edges& value)
 
 void set_gap(YGNodeRef node, length value)
 {
-    set_length(node, value, YGNodeStyleSetGap, YGNodeStyleSetGapPercent, nullptr, YGGutterAll);
+    set_length(node, value, YGNodeStyleSetGap, YGNodeStyleSetGapPercent, [](YGNodeRef target, YGGutter gutter)
+    {
+        YGNodeStyleSetGap(target, gutter, 0.0f);
+    }, YGGutterAll);
 }
 
 } // namespace centui::details
@@ -106,7 +167,7 @@ struct node_deleter
     }
 };
 
-using measure_function = std::function<rect(float, float)>;
+using measure_function = std::move_only_function<rect(float, float) const>;
 
 class layout
 {
@@ -120,10 +181,10 @@ public:
 
         auto* node = _internal.get();
 
-        YGNodeStyleSetFlexDirection(node, static_cast<YGFlexDirection>(style.flex_direction));
-        YGNodeStyleSetPositionType(node, static_cast<YGPositionType>(style.position));
-        YGNodeStyleSetAlignItems(node, static_cast<YGAlign>(style.align_items));
-        YGNodeStyleSetJustifyContent(node, static_cast<YGJustify>(style.justify_content));
+        YGNodeStyleSetFlexDirection(node, details::to_yoga(style.flex_direction));
+        YGNodeStyleSetPositionType(node, details::to_yoga(style.position));
+        YGNodeStyleSetAlignItems(node, details::to_yoga(style.align_items));
+        YGNodeStyleSetJustifyContent(node, details::to_yoga(style.justify_content));
 
         details::set_width(node, style.width);
         details::set_height(node, style.height);
@@ -136,6 +197,26 @@ public:
     void insert_child(const layout& child)
     {
         YGNodeInsertChild(_internal.get(), child._internal.get(), YGNodeGetChildCount(_internal.get()));
+    }
+
+    void clear_children()
+    {
+        if(_internal)
+        {
+            YGNodeRemoveAllChildren(_internal.get());
+        }
+    }
+
+    void clear_measure()
+    {
+        if(_internal && YGNodeHasMeasureFunc(_internal.get()))
+        {
+            YGNodeMarkDirty(_internal.get());
+            YGNodeSetMeasureFunc(_internal.get(), nullptr);
+            YGNodeSetContext(_internal.get(), nullptr);
+        }
+
+        _measure.reset();
     }
 
     void calculate(float width, float height)
@@ -154,6 +235,12 @@ public:
 
     void set_measure(measure_function measure)
     {
+        if(!measure)
+        {
+            clear_measure();
+            return;
+        }
+
         if(!_internal)
         {
             _internal.reset(YGNodeNew());
@@ -191,7 +278,7 @@ public:
     }
 
 private:
-    std::unique_ptr<measure_function>     _measure;
+    std::unique_ptr<measure_function>    _measure;
     std::unique_ptr<YGNode, node_deleter> _internal;
 };
 
