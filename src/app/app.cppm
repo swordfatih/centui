@@ -35,6 +35,18 @@ public:
         return _window.poll_events();
     }
 
+    [[nodiscard]] bool poll_events(element& root)
+    {
+        if(!_window.poll_events())
+        {
+            return false;
+        }
+
+        const auto events = _window.take_input_events();
+        _ui.process_events(root, events);
+        return true;
+    }
+
     void render_frame(element& root)
     {
         if(_window.begin_frame())
@@ -46,7 +58,7 @@ public:
 
     void run(element& root)
     {
-        while(poll_events())
+        while(poll_events(root))
         {
             render_frame(root);
         }

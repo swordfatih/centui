@@ -11,7 +11,10 @@ struct panel_style
 {
     centui::length width = centui::px(320);
     centui::length height = centui::px(120);
-    centui::color background_color = centui::color::from_hex(0x243447);
+    struct
+    {
+        centui::color normal = centui::color::from_hex(0x243447);
+    } background_color;
 };
 
 class logging_backend

@@ -81,6 +81,8 @@ without calling `display()`.
 | `centui::values` | unit, color, viewport | Standard library |
 | `centui::glyph` | glyph; font compatibility re-export | Values, FreeType, HarfBuzz |
 | `centui::core` | style, layout, node, draw, element, container, text, ui | Glyph, Yoga |
+| `centui::input` | backend-independent pointer event types | Values |
+| `centui::button` | declarative button and visual interaction states | Core |
 | `centui::bgfx` | bgfx backend, GPU resources, shaders | Core, bgfx |
 | `centui::app` | app and optional window implementation | bgfx backend, SDL3 |
 | `centui::sfml` | renderer over a borrowed SFML render target | Core, SFML Graphics |
@@ -129,7 +131,22 @@ move, preparation or destruction. Backends must not retain command spans.
 
 Painter order is parent background, parent text, then children. The bgfx backend
 uses sequential view mode, preserving order across shader changes. Clipping,
-wrapping, focus/input, scrolling and CSS inheritance remain unimplemented.
+wrapping, keyboard navigation, scrolling and CSS inheritance remain unimplemented.
+
+## Pointer interaction
+
+`centui.button` stores its callback and interaction state with its owned node.
+The generic `centui::ui` accepts backend-independent `input_event` values through
+`process_event` or batches through `process_events`; event delivery is separate
+from `render`. Hit testing uses calculated Yoga bounds and painter order, and
+tracks hover, focus, primary-button capture, and release-to-click. Button style
+types can define `background_color` and `text_color` as inline structs with
+normal, hover, pressed, focused, and disabled color members. Existing styles
+that provide one `color` for either property apply that color to every state.
+`button_options` supplies `on_click` and initial
+`enabled` state. The SDL app translates mouse coordinates into drawable pixels
+and forwards them before rendering; a host using another backend forwards its
+own translated events to the same UI API.
 
 ## Limitations and verification
 

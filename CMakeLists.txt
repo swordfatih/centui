@@ -61,6 +61,9 @@ centui_module_library(centui_values centui::values
     "${PROJECT_SOURCE_DIR}/src/core/unit.cppm"
     "${PROJECT_SOURCE_DIR}/src/core/color.cppm"
     "${PROJECT_SOURCE_DIR}/src/core/viewport.cppm")
+centui_module_library(centui_input centui::input
+    "${PROJECT_SOURCE_DIR}/src/core/input.cppm")
+target_link_libraries(centui_input PUBLIC centui_values)
 centui_module_library(centui_glyph centui::glyph
     "${PROJECT_SOURCE_DIR}/src/core/glyph.cppm"
     "${PROJECT_SOURCE_DIR}/src/core/font.cppm")
@@ -73,8 +76,9 @@ centui_module_library(centui_core centui::core
     "${PROJECT_SOURCE_DIR}/src/core/element.cppm"
     "${PROJECT_SOURCE_DIR}/src/core/container.cppm"
     "${PROJECT_SOURCE_DIR}/src/core/text.cppm"
+    "${PROJECT_SOURCE_DIR}/src/core/button.cppm"
     "${PROJECT_SOURCE_DIR}/src/core/ui.cppm")
-target_link_libraries(centui_core PUBLIC centui_glyph PRIVATE yogacore)
+target_link_libraries(centui_core PUBLIC centui_glyph centui_input PRIVATE yogacore)
 
 if(CENTUI_BUILD_BGFX)
     add_subdirectory(src/backends/bgfx)

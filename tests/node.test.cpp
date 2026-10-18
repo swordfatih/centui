@@ -11,6 +11,12 @@ import centui.font;
 import centui.color;
 import centui.draw;
 import centui.ui;
+import centui.input;
+import centui.button;
+import centui.glyph;
+
+// Keep module-based tests in one translation unit for GCC 16's C++26 modules implementation.
+#include "input.test.inc"
 
 struct my_style
 {
@@ -237,7 +243,10 @@ struct test_panel_style
 {
     centui::length width = centui::px(200);
     centui::length height = centui::px(100);
-    centui::color  background_color = centui::color::from_hex(0x336699);
+    struct
+    {
+        centui::color normal = centui::color::from_hex(0x336699);
+    } background_color;
 };
 
 TEST_CASE("Generate rectangle draw commands", "[draw]")
@@ -268,7 +277,10 @@ TEST_CASE("Generate nested rectangle draw commands", "[draw]")
         centui::length width = centui::px(300);
         centui::length height = centui::px(200);
         centui::edges  padding = centui::edges::all(centui::px(20));
-        centui::color  background_color = centui::color::from_hex(0x222222);
+        struct
+        {
+            centui::color normal = centui::color::from_hex(0x222222);
+        } background_color;
     };
 
     centui::container<parent_style> root{
@@ -410,7 +422,7 @@ TEST_CASE("Borrowed draw commands preserve background and sibling order", "[draw
 {
     centui::font face;
     centui::container<test_panel_style> root{centui::text{"First"}, centui::text{"Last"}};
-    centui::details::element_access::get(root).children[0].style.background_color = centui::color::from_hex(0xFF0000);
+    centui::details::element_access::get(root).children[0].style.background_color.normal = centui::color::from_hex(0xFF0000);
     centui::details::element_access::get(root).attach(face);
     centui::details::element_access::get(root).calculate(800, 600);
     const auto result = centui::commands(centui::details::element_access::get(root));
@@ -432,7 +444,7 @@ TEST_CASE("Style updates preserve child links and existing shaping", "[node][lay
     const auto old_y = centui::details::element_access::get(root).children[1].layout.bounds().y;
     const auto* glyphs = std::get<centui::text_data>(centui::details::element_access::get(root).children[0].data).shaped->glyphs.data();
 
-    centui::details::element_access::get(root).style.background_color = centui::color::from_hex(0x123456);
+    centui::details::element_access::get(root).style.background_color.normal = centui::color::from_hex(0x123456);
     centui::details::element_access::get(root).update();
     // Removing and reinserting children would reset these calculated bounds.
     REQUIRE(centui::details::element_access::get(root).children[1].layout.bounds().y == old_y);
@@ -506,7 +518,7 @@ TEST_CASE("Public elements prepare without windows or graphics initialization", 
 {
     centui::font face;
     centui::container root{centui::text{"First"}, centui::text{"Last"}};
-    root.style().background_color = centui::color::from_hex(0x123456);
+    root.style().background_color.normal = centui::color::from_hex(0x123456);
     root.style().padding = centui::edges::all(centui::px(12));
 
     const auto result = centui::prepare(root, face, 400, 200);
@@ -524,7 +536,7 @@ TEST_CASE("Public preparation reflects viewport resizing", "[ui][headless]")
     centui::container root;
     root.style().width = centui::percent(50);
     root.style().height = centui::percent(50);
-    root.style().background_color = centui::color::from_hex(0x123456);
+    root.style().background_color.normal = centui::color::from_hex(0x123456);
     {
         const auto result = centui::prepare(root, face, viewport.width, viewport.height);
         REQUIRE(std::get<centui::rectangle_command>(result[0]).bounds.width == 200);
@@ -623,7 +635,7 @@ TEST_CASE("UI borrows a concrete backend without any window or graphics API", "[
     recording_backend backend;
     centui::ui ui{backend};
     centui::container root{centui::text{"HUD"}};
-    root.style().background_color = centui::color::from_hex(0x123456);
+    root.style().background_color.normal = centui::color::from_hex(0x123456);
     ui.render(root);
     REQUIRE(backend.submissions == 1);
     REQUIRE(backend.drawn_text == "HUD");

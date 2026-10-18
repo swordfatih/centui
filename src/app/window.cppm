@@ -3,8 +3,11 @@ module;
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include <SDL3/SDL.h>
 #include <bgfx/bgfx.h>
@@ -12,6 +15,7 @@ module;
 export module centui.window;
 
 export import centui.viewport;
+import centui.input;
 
 namespace centui::detail
 {
@@ -138,7 +142,13 @@ public:
             0x202840FF);
     }
 
-    ~window() = default;
+    ~window()
+    {
+        if(_mouse_captured)
+        {
+            SDL_CaptureMouse(false);
+        }
+    }
 
     window(const window&) = delete;
     window& operator=(const window&) = delete;
@@ -148,23 +158,72 @@ public:
 
     [[nodiscard]] bool poll_events()
     {
+        _input_events.clear();
         SDL_Event event;
+        bool running = true;
 
         while(SDL_PollEvent(&event))
         {
             if(event.type == SDL_EVENT_QUIT)
             {
-                return false;
+                running = false;
+                continue;
             }
 
             if(event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED &&
                event.window.windowID == SDL_GetWindowID(_window.get()))
             {
-                return false;
+                running = false;
+                continue;
+            }
+
+            if(event.type == SDL_EVENT_WINDOW_MOUSE_LEAVE && event.window.windowID == SDL_GetWindowID(_window.get()))
+            {
+                _input_events.push_back({.type = input_event_type::pointer_left});
+                continue;
+            }
+
+            if(event.type == SDL_EVENT_MOUSE_MOTION && event.motion.windowID == SDL_GetWindowID(_window.get()))
+            {
+                if(const auto position = to_pixel_position(event.motion.x, event.motion.y))
+                {
+                    _input_events.push_back({.type = input_event_type::pointer_moved, .x = position->first, .y = position->second});
+                }
+                continue;
+            }
+
+            if((event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) &&
+               event.button.windowID == SDL_GetWindowID(_window.get()))
+            {
+                if(const auto position = to_pixel_position(event.button.x, event.button.y))
+                {
+                    const auto type = event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ? input_event_type::pointer_pressed : input_event_type::pointer_released;
+                    if(event.button.button == SDL_BUTTON_LEFT)
+                    {
+                        if(type == input_event_type::pointer_pressed)
+                        {
+                            _mouse_captured = SDL_CaptureMouse(true);
+                        }
+                        else if(_mouse_captured)
+                        {
+                            SDL_CaptureMouse(false);
+                            _mouse_captured = false;
+                        }
+                    }
+                    _input_events.push_back({.type = type,
+                                             .x = position->first,
+                                             .y = position->second,
+                                             .button = translate_button(event.button.button)});
+                }
             }
         }
 
-        return true;
+        return running;
+    }
+
+    [[nodiscard]] std::vector<input_event> take_input_events()
+    {
+        return std::exchange(_input_events, {});
     }
 
     [[nodiscard]] bool begin_frame()
@@ -222,11 +281,46 @@ public:
     }
 
 private:
+    [[nodiscard]] std::optional<std::pair<float, float>> to_pixel_position(float x, float y) const
+    {
+        int logical_width = 0;
+        int logical_height = 0;
+        int pixel_width = 0;
+        int pixel_height = 0;
+        if(!SDL_GetWindowSize(_window.get(), &logical_width, &logical_height) ||
+           !SDL_GetWindowSizeInPixels(_window.get(), &pixel_width, &pixel_height) ||
+           logical_width <= 0 || logical_height <= 0 || pixel_width <= 0 || pixel_height <= 0)
+        {
+            return std::nullopt;
+        }
+
+        return std::pair{
+            x * static_cast<float>(pixel_width) / static_cast<float>(logical_width),
+            y * static_cast<float>(pixel_height) / static_cast<float>(logical_height)};
+    }
+
+    [[nodiscard]] static mouse_button translate_button(std::uint8_t button) noexcept
+    {
+        switch(button)
+        {
+        case SDL_BUTTON_LEFT:
+            return mouse_button::primary;
+        case SDL_BUTTON_RIGHT:
+            return mouse_button::secondary;
+        case SDL_BUTTON_MIDDLE:
+            return mouse_button::middle;
+        default:
+            return mouse_button::other;
+        }
+    }
+
     detail::sdl_context                   _sdl;
     detail::window_ptr                    _window;
     std::unique_ptr<detail::bgfx_context> _bgfx;
 
     centui::viewport _viewport;
+    std::vector<input_event> _input_events;
+    bool _mouse_captured = false;
 };
 
 } // namespace centui

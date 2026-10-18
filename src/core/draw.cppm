@@ -38,21 +38,58 @@ std::vector<draw_command> commands(const node& root)
         bounds.x += x;
         bounds.y += y;
 
-        if(current.style.background_color.a != 0 && bounds.width > 0 && bounds.height > 0)
-        {
-            result.emplace_back(rectangle_command{bounds, current.style.background_color});
-        }
+        auto background_color = current.style.background_color.normal;
+        auto text_color = current.style.text_color.normal;
+        const std::string* value = nullptr;
+        const std::optional<text_layout>* shaped_layout = nullptr;
 
         if(const auto* text = std::get_if<text_data>(&current.data))
         {
-            if(current.style.text_color.a != 0 && !text->value.empty())
+            value = &text->value;
+            shaped_layout = &text->shaped;
+        }
+        else if(const auto* button = std::get_if<details::button_data>(&current.data))
+        {
+            value = &button->value;
+            shaped_layout = &button->shaped;
+
+            const auto& interaction = *button->interaction;
+            const auto state_color = [&](const auto& colors)
             {
-                const auto shaped = text->shaped.transform([](const text_layout& value) -> const text_layout&
+                if(!interaction.enabled)
                 {
-                    return value;
-                });
-                result.emplace_back(text_command{bounds, text->value, current.style.text_color, current.style.font_size, shaped});
-            }
+                    return colors.disabled;
+                }
+                if(interaction.pressed)
+                {
+                    return colors.pressed;
+                }
+                if(interaction.hovered)
+                {
+                    return colors.hover;
+                }
+                if(interaction.focused)
+                {
+                    return colors.focused;
+                }
+                return colors.normal;
+            };
+            background_color = state_color(current.style.background_color);
+            text_color = state_color(current.style.text_color);
+        }
+
+        if(background_color.a != 0 && bounds.width > 0 && bounds.height > 0)
+        {
+            result.emplace_back(rectangle_command{bounds, background_color});
+        }
+
+        if(value && shaped_layout && text_color.a != 0 && !value->empty())
+        {
+            const auto shaped = shaped_layout->transform([](const text_layout& value) -> const text_layout&
+            {
+                return value;
+            });
+            result.emplace_back(text_command{bounds, *value, text_color, current.style.font_size, shaped});
         }
 
         for(const auto& child: current.children)

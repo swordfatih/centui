@@ -9,23 +9,23 @@ import centui.ui;
 
 struct panel_style
 {
-    centui::length width = centui::px(420);
-    centui::length height = centui::px(180);
-    centui::edges  padding = centui::edges::all(centui::px(24));
-    centui::color  background_color = centui::color::from_hex(0x243447);
+    centui::length       width = centui::px(420);
+    centui::length       height = centui::px(180);
+    centui::edges        padding = centui::edges::all(centui::px(24));
+    centui::states_color background_color = centui::states_color::all(centui::color::from_hex(0x243447));
 };
 
 struct child_style
 {
-    centui::length width = centui::fit();
-    centui::length height = centui::px(100);
-    centui::color  background_color = centui::color::from_hex(0x38BDF8);
+    centui::length       width = centui::fit();
+    centui::length       height = centui::px(100);
+    centui::states_color background_color = centui::states_color::all(centui::color::from_hex(0x38BDF8));
 };
 
 struct title_style
 {
-    float         font_size = 32;
-    centui::color text_color = centui::color::from_hex(0xFFFFFF);
+    float                font_size = 32;
+    centui::states_color text_color = centui::states_color::all(centui::color::from_hex(0xFFFFFF));
 };
 
 int main()

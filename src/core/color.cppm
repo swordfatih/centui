@@ -24,4 +24,25 @@ struct color
     constexpr bool operator==(const color&) const = default;
 };
 
+struct states_color
+{
+    color normal{};
+    color hover{};
+    color pressed{};
+    color focused{};
+    color disabled{};
+
+    static constexpr states_color all(color value)
+    {
+        return {value, value, value, value, value};
+    }
+
+    constexpr states_color& operator=(color value)
+    {
+        return *this = all(value);
+    }
+
+    constexpr bool operator==(const states_color&) const = default;
+};
+
 } // namespace centui

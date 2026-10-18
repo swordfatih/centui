@@ -28,19 +28,18 @@ public:
         return output;
     }
 
-    edges         padding = edges::all(px(0));
-    edges         margin = edges::all(px(0));
-    edges         inset = edges::all(fit());
-    length        gap = px(0);
-    position      position = position::relative;
-    length        width = fit();
-    length        height = fit();
-    direction     flex_direction = direction::column;
-    alignment     align_items = alignment::stretch;
-    justification justify_content = justification::start;
-
-    color          background_color = {0, 0, 0, 0};
-    color          text_color = {255, 255, 255, 255};
+    edges          padding = edges::all(px(0));
+    edges          margin = edges::all(px(0));
+    edges          inset = edges::all(fit());
+    length         gap = px(0);
+    position       position = position::relative;
+    length         width = fit();
+    length         height = fit();
+    direction      flex_direction = direction::column;
+    alignment      align_items = alignment::stretch;
+    justification  justify_content = justification::start;
+    states_color   background_color = states_color::all({0, 0, 0, 0});
+    states_color   text_color = states_color::all({255, 255, 255, 255});
     float          font_size = 16.0f;
     text_alignment text_align = text_alignment::left;
 
