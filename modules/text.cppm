@@ -14,15 +14,13 @@ public:
     constexpr explicit text(std::string&& value)
         : node{
               .children = {},
-              .type = node::type::text,
+              .data = text_data{value},
               .style = style::resolve<styles...>(),
-          },
-          value{value}
+          }
     {
     }
 
     node node;
-    std::string  value;
 };
 
 } // namespace centui

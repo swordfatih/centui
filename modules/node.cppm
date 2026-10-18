@@ -3,32 +3,43 @@ export module centui.node;
 import centui.style;
 import centui.unit;
 import centui.layout;
+import centui.font;
 import std;
 
 export namespace centui
 {
 
+struct container_data
+{
+};
+
+struct text_data
+{
+    std::string value;
+};
+
 struct node
 {
-    enum class type
-    {
-        container,
-        text,
-        button
-    };
+    std::vector<node>                       children{};
+    std::variant<container_data, text_data> data = container_data{};
+    centui::style                           style;
+    centui::layout                          layout{};
 
-    std::vector<node> children;
-    type              type;
-    style             style;
-    layout            layout{};
-
-    void attach()
+    void attach(font* face = nullptr)
     {
         layout.update(style);
 
+        if(auto* text = std::get_if<text_data>(&data); text && face)
+        {
+            layout.set_measure([value = text->value, size = style.font_size, face](float, float)
+            {
+                return face->measure(value, size);
+            });
+        }
+
         for(auto& child: children)
         {
-            child.attach();
+            child.attach(face);
             layout.insert_child(child.layout);
         }
     }

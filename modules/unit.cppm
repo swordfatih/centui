@@ -94,4 +94,11 @@ enum class alignment
     space_evenly
 };
 
+enum class text_alignment
+{
+    left,
+    center,
+    right
+};
+
 } // namespace centui

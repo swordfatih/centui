@@ -16,7 +16,7 @@ public:
     explicit container(children&&... items)
         : node{
               .children = {},
-              .type = node::type::container,
+              .data = container_data{},
               .style = style::resolve<styles...>(),
           }
     {

@@ -25,7 +25,7 @@ public:
             throw std::runtime_error(SDL_GetError());
         }
     }
-  
+
     ~sdl_context()
     {
         SDL_QuitSubSystem(SDL_INIT_VIDEO);
@@ -123,6 +123,7 @@ public:
 
         bgfx::Init init;
         init.swapChain.nwh = native_window;
+        init.type = bgfx::RendererType::Direct3D11;
         init.swapChain.width = static_cast<std::uint32_t>(_width);
         init.swapChain.height = static_cast<std::uint32_t>(_height);
         init.reset = BGFX_RESET_VSYNC;

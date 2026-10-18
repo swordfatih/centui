@@ -6,6 +6,9 @@ import centui.node;
 import centui.container;
 import centui.text;
 import centui.unit;
+import centui.font;
+import centui.color;
+import centui.draw;
 
 struct my_style
 {
@@ -35,19 +38,21 @@ TEST_CASE("Create a container node", "[node]")
         centui::text<my_second_style>{"how are you"},
     };
 
-    REQUIRE(container.node.type == centui::node::type::container);
     REQUIRE(container.node.style.gap == centui::length{20, centui::unit::px});
     REQUIRE(container.node.style.padding == centui::edges::all(centui::px(12)));
 
     REQUIRE(container.node.children.size() == 2);
 
-    REQUIRE(container.node.children[0].type == centui::node::type::text);
+    REQUIRE(std::holds_alternative<centui::text_data>(container.node.children[0].data));
+    REQUIRE(std::get<centui::text_data>(container.node.children[0].data).value == "hello");
     REQUIRE(container.node.children[0].style.gap == centui::length{30, centui::unit::px});
     REQUIRE(container.node.children[0].style.padding == centui::edges::all(centui::px(12)));
 
-    REQUIRE(container.node.children[1].type == centui::node::type::text);
+    REQUIRE(std::holds_alternative<centui::text_data>(container.node.children[1].data));
+    REQUIRE(std::get<centui::text_data>(container.node.children[1].data).value == "how are you");
     REQUIRE(container.node.children[1].style.gap == centui::length{30, centui::unit::px});
 }
+
 
 TEST_CASE("Create nested container nodes", "[node]")
 {
@@ -62,24 +67,27 @@ TEST_CASE("Create nested container nodes", "[node]")
         centui::text{"Last"},
     };
 
-    REQUIRE(root.node.type == centui::node::type::container);
+    REQUIRE(std::holds_alternative<centui::container_data>(root.node.data));
     REQUIRE(root.node.style.gap == centui::length{20, centui::unit::px});
     REQUIRE(root.node.children.size() == 3);
 
     const auto& nested = root.node.children[1];
 
-    REQUIRE(nested.type == centui::node::type::container);
+    REQUIRE(std::holds_alternative<centui::container_data>(nested.data));
     REQUIRE(nested.style.gap == centui::length{30, centui::unit::px});
     REQUIRE(nested.children.size() == 2);
 
     const auto& deep = nested.children[1];
 
-    REQUIRE(deep.type == centui::node::type::container);
+    REQUIRE(std::holds_alternative<centui::container_data>(deep.data));
     REQUIRE(deep.style.gap == centui::length{20, centui::unit::px});
     REQUIRE(deep.style.padding == centui::edges::all(centui::px(12)));
     REQUIRE(deep.children.size() == 1);
-    REQUIRE(deep.children[0].type == centui::node::type::text);
+
+    REQUIRE(std::holds_alternative<centui::text_data>(deep.children[0].data));
+    REQUIRE(std::get<centui::text_data>(deep.children[0].data).value == "Deeply nested");
 }
+
 
 TEST_CASE("Calculate container layout", "[node][layout]")
 {
@@ -205,4 +213,107 @@ TEST_CASE("Update node layout", "[node][layout]")
 
     REQUIRE(root.node.layout.bounds().width == 200);
     REQUIRE(root.node.layout.bounds().height == 50);
+}
+
+TEST_CASE("Calculate text layout", "[node][layout]")
+{
+    centui::font face;
+
+    centui::container<> root{
+        centui::text<>{"Hello CentUI"}};
+
+    root.node.attach(&face);
+    root.node.calculate(800, 600);
+
+    const auto bounds = root.node.children[0].layout.bounds();
+
+    REQUIRE(bounds.width > 0);
+    REQUIRE(bounds.height > 0);
+}
+
+struct test_panel_style
+{
+    centui::length width = centui::px(200);
+    centui::length height = centui::px(100);
+    centui::color  background_color = centui::color::from_hex(0x336699);
+};
+
+TEST_CASE("Generate rectangle draw commands", "[draw]")
+{
+    centui::container<test_panel_style> root;
+
+    root.node.attach();
+    root.node.calculate(800, 600);
+
+    const auto result = centui::commands(root.node);
+
+    REQUIRE(result.size() == 1);
+    REQUIRE(std::holds_alternative<centui::rectangle_command>(result[0]));
+
+    const auto& rectangle = std::get<centui::rectangle_command>(result[0]);
+
+    REQUIRE(rectangle.bounds.x == 0);
+    REQUIRE(rectangle.bounds.y == 0);
+    REQUIRE(rectangle.bounds.width == 200);
+    REQUIRE(rectangle.bounds.height == 100);
+    REQUIRE(rectangle.color == centui::color::from_hex(0x336699));
+}
+
+TEST_CASE("Generate nested rectangle draw commands", "[draw]")
+{
+    struct parent_style
+    {
+        centui::length width = centui::px(300);
+        centui::length height = centui::px(200);
+        centui::edges  padding = centui::edges::all(centui::px(20));
+        centui::color  background_color = centui::color::from_hex(0x222222);
+    };
+
+    centui::container<parent_style> root{
+        centui::container<test_panel_style>{}};
+
+    root.node.attach();
+    root.node.calculate(800, 600);
+
+    const auto result = centui::commands(root.node);
+
+    REQUIRE(result.size() == 2);
+    REQUIRE(std::holds_alternative<centui::rectangle_command>(result[0]));
+    REQUIRE(std::holds_alternative<centui::rectangle_command>(result[1]));
+
+    const auto& parent = std::get<centui::rectangle_command>(result[0]);
+    const auto& child = std::get<centui::rectangle_command>(result[1]);
+
+    REQUIRE(parent.bounds.x == 0);
+    REQUIRE(parent.bounds.y == 0);
+    REQUIRE(parent.bounds.width == 300);
+    REQUIRE(parent.bounds.height == 200);
+    REQUIRE(parent.color == centui::color::from_hex(0x222222));
+
+    REQUIRE(child.bounds.x == 20);
+    REQUIRE(child.bounds.y == 20);
+    REQUIRE(child.bounds.width == 200);
+    REQUIRE(child.bounds.height == 100);
+    REQUIRE(child.color == centui::color::from_hex(0x336699));
+}
+
+TEST_CASE("Generate text draw commands", "[draw]")
+{
+    centui::font   face;
+    centui::text<> label{"Hello"};
+
+    label.node.attach(&face);
+    label.node.calculate(800, 600);
+
+    const auto result = centui::commands(label.node);
+
+    REQUIRE(result.size() == 1);
+    REQUIRE(std::holds_alternative<centui::text_command>(result[0]));
+
+    const auto& text = std::get<centui::text_command>(result[0]);
+
+    REQUIRE(text.value == "Hello");
+    REQUIRE(text.font_size == 16.0f);
+    REQUIRE(text.bounds.width > 0);
+    REQUIRE(text.bounds.height > 0);
 }

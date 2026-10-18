@@ -5,6 +5,7 @@ module;
 export module centui.style;
 
 import centui.unit;
+import centui.color;
 
 export namespace centui
 {
@@ -38,6 +39,12 @@ public:
     alignment     align_items = alignment::stretch;
     justification justify_content = justification::start;
 
+    color          background_color = {0, 0, 0, 0};
+    color          text_color = {255, 255, 255, 255};
+    float          font_size = 16.0f;
+    text_alignment text_align = text_alignment::left;
+
+
 private:
     template <typename target_type, typename source_type>
     static consteval void merge(target_type& target, const source_type& source)
@@ -55,7 +62,7 @@ private:
                     using target_member = typename[:std::meta::type_of(target_field):];
                     using source_member = typename[:std::meta::type_of(source_field):];
 
-                    if constexpr(std::is_class_v<target_member> && std::is_class_v<source_member>)
+                    if constexpr(std::is_class_v<target_member> && std::is_class_v<source_member> && !std::is_same_v<target_member, length> && !std::is_same_v<target_member, color>)
                     {
                         merge(target.[:target_field:], source.[:source_field:]);
                     }

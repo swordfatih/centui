@@ -1,0 +1,39 @@
+
+include_guard(GLOBAL)
+
+function(centui_compile_shaders target)
+    set(shader_dir "${PROJECT_SOURCE_DIR}/shaders")
+    set(output_dir "${PROJECT_BINARY_DIR}/generated/shaders")
+    set(include_dir "${bgfx_cmake_SOURCE_DIR}/bgfx/src")
+
+    file(GLOB_RECURSE vertex_shaders CONFIGURE_DEPENDS "${shader_dir}/vs_*.sc")
+    file(GLOB_RECURSE fragment_shaders CONFIGURE_DEPENDS "${shader_dir}/fs_*.sc")
+
+    if(vertex_shaders)
+        bgfx_compile_shaders(
+            TYPE VERTEX
+            SHADERS ${vertex_shaders}
+            VARYING_DEF "${shader_dir}/varying.def.sc"
+            OUTPUT_DIR "${output_dir}"
+            INCLUDE_DIRS "${include_dir}"
+            AS_HEADERS
+            PROFILES spirv 430 300_es s_5_0
+        )
+    endif()
+
+    if(fragment_shaders)
+        bgfx_compile_shaders(
+            TYPE FRAGMENT
+            SHADERS ${fragment_shaders}
+            VARYING_DEF "${shader_dir}/varying.def.sc"
+            OUTPUT_DIR "${output_dir}"
+            INCLUDE_DIRS "${include_dir}"
+            AS_HEADERS
+            PROFILES spirv 430 300_es s_5_0
+        )
+    endif()
+
+    target_sources(${target} PRIVATE ${vertex_shaders} ${fragment_shaders})
+    target_include_directories(${target} PRIVATE "${output_dir}" "${bgfx_cmake_SOURCE_DIR}/bx/include")
+    target_link_libraries(${target} PRIVATE bgfx)
+endfunction()

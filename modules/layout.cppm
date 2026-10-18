@@ -106,6 +106,8 @@ struct node_deleter
     }
 };
 
+using measure_function = std::function<rect(float, float)>;
+
 class layout
 {
 public:
@@ -150,7 +152,46 @@ public:
             .height = YGNodeLayoutGetHeight(_internal.get())};
     }
 
+    void set_measure(measure_function measure)
+    {
+        if(!_internal)
+        {
+            _internal.reset(YGNodeNew());
+        }
+
+        if(!_measure)
+        {
+            _measure = std::make_unique<measure_function>();
+        }
+
+        *_measure = std::move(measure);
+        YGNodeSetContext(_internal.get(), _measure.get());
+
+        if(YGNodeHasMeasureFunc(_internal.get()))
+        {
+            YGNodeMarkDirty(_internal.get());
+            return;
+        }
+
+        YGNodeSetMeasureFunc(_internal.get(), [](YGNodeConstRef node, float width, YGMeasureMode width_mode, float height, YGMeasureMode height_mode) -> YGSize
+        {
+            const auto& measure = *static_cast<measure_function*>(YGNodeGetContext(node));
+
+            const auto available_width = width_mode == YGMeasureModeUndefined ? std::numeric_limits<float>::infinity() : width;
+            const auto available_height = height_mode == YGMeasureModeUndefined ? std::numeric_limits<float>::infinity() : height;
+
+            const auto size = measure(available_width, available_height);
+
+            return {
+                width_mode == YGMeasureModeExactly ? width : width_mode == YGMeasureModeAtMost ? std::min(size.width, width)
+                                                                                               : size.width,
+                height_mode == YGMeasureModeExactly ? height : height_mode == YGMeasureModeAtMost ? std::min(size.height, height)
+                                                                                                  : size.height};
+        });
+    }
+
 private:
+    std::unique_ptr<measure_function>     _measure;
     std::unique_ptr<YGNode, node_deleter> _internal;
 };
 

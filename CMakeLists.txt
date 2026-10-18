@@ -64,7 +64,12 @@ target_link_libraries(${PROJECT_NAME}
     yogacore
     SDL3::SDL3
     bgfx
+    freetype
+    harfbuzz
 )
+
+include(Shaders.cmake)
+centui_compile_shaders(${PROJECT_NAME})
 
 # ------------------------
 # Examples
