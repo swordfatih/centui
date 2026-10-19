@@ -1,6 +1,13 @@
+module;
+
+#include <functional>
+#include <memory>
+#include <string>
+#include <utility>
+#include <variant>
+
 export module centui.button;
 
-import std;
 import centui.element;
 import centui.node;
 import centui.style;
@@ -23,12 +30,13 @@ template <typename... styles>
 class button : public element
 {
 public:
+    static constexpr element_kind widget_kind = element_kind::button;
     explicit button(std::string value, button_options options = {})
         : element(make_node(std::move(value), std::move(options)))
     {
     }
 
-    void set_enabled(bool enabled) noexcept
+    void set_enabled(bool enabled)
     {
         auto& state = interaction();
         state.enabled = enabled;
@@ -40,12 +48,16 @@ public:
         }
     }
 
-    [[nodiscard]] bool enabled() const noexcept
+    [[nodiscard]] bool enabled() const
     {
         return interaction().enabled;
     }
 
 private:
+    friend class element;
+    button(details::handle_tag tag, std::shared_ptr<details::element_binding> binding)
+        : element(tag, std::move(binding)) {}
+
     static node make_node(std::string value, button_options options)
     {
         auto interaction = std::shared_ptr<details::button_interaction_state>{std::make_unique<details::button_interaction_state>()};
@@ -61,13 +73,13 @@ private:
         };
     }
 
-    [[nodiscard]] details::button_interaction_state& interaction() noexcept
+    [[nodiscard]] details::button_interaction_state& interaction()
     {
         auto& tree = details::element_access::get(*this);
         return *std::get<details::button_data>(tree.data).interaction;
     }
 
-    [[nodiscard]] const details::button_interaction_state& interaction() const noexcept
+    [[nodiscard]] const details::button_interaction_state& interaction() const
     {
         const auto& tree = details::element_access::get(*this);
         return *std::get<details::button_data>(tree.data).interaction;

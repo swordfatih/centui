@@ -1,10 +1,23 @@
 module;
 
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <limits>
+#include <span>
+#include <stdexcept>
+#include <type_traits>
+#include <unordered_map>
+#include <utility>
+#include <variant>
+#include <vector>
+
 #include <SFML/Graphics.hpp>
 
 export module centui.sfml;
 
-import std;
 import centui.draw;
 import centui.glyph;
 import centui.color;

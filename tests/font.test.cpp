@@ -1,7 +1,11 @@
+#include <cstddef>
+#include <filesystem>
+#include <limits>
+#include <stdexcept>
+#include <utility>
 
 #include <catch2/catch_test_macros.hpp>
 
-import std;
 import centui.font;
 
 TEST_CASE("Measure system font", "[font]")

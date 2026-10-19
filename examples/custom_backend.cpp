@@ -1,4 +1,8 @@
-import std;
+#include <initializer_list>
+#include <iostream>
+#include <span>
+#include <type_traits>
+#include <variant>
 
 import centui.container;
 import centui.color;
@@ -6,6 +10,7 @@ import centui.draw;
 import centui.glyph;
 import centui.unit;
 import centui.ui;
+import centui.document;
 
 struct panel_style
 {
@@ -59,6 +64,7 @@ int main()
     logging_backend backend;
     centui::ui ui{backend};
     centui::container<panel_style> root{};
+    centui::document document{root};
 
-    ui.render(root);
+    ui.render(document);
 }

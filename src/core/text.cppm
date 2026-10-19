@@ -1,6 +1,13 @@
+module;
+
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <variant>
+
 export module centui.text;
 
-import std;
 import centui.node;
 import centui.style;
 export import centui.element;
@@ -12,6 +19,7 @@ template <typename... styles>
 class text : public element
 {
 public:
+    static constexpr element_kind widget_kind = element_kind::text;
     explicit text(std::string value)
         : element(node{
               .children = {},
@@ -30,6 +38,11 @@ public:
     {
         return std::get<text_data>(details::element_access::get(*this).data).value;
     }
+
+private:
+    friend class element;
+    text(details::handle_tag tag, std::shared_ptr<details::element_binding> binding)
+        : element(tag, std::move(binding)) {}
 };
 
 } // namespace centui

@@ -1,3 +1,5 @@
+#include <initializer_list>
+
 #include <SFML/Graphics.hpp>
 
 import centui.container;
@@ -6,6 +8,7 @@ import centui.text;
 import centui.color;
 import centui.unit;
 import centui.ui;
+import centui.document;
 
 struct panel_style
 {
@@ -42,6 +45,7 @@ int main()
             centui::text<title_style>{"This is a nested text..."},
         },
     };
+    centui::document document{root};
 
     while(window.isOpen())
     {
@@ -54,7 +58,7 @@ int main()
         }
 
         window.clear(::sf::Color{18, 24, 32});
-        ui.render(root);
+        ui.render(document);
         window.display();
     }
 }

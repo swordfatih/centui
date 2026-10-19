@@ -1,6 +1,20 @@
 
 module;
 
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <filesystem>
+#include <limits>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <type_traits>
+#include <vector>
+
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include <hb-ft.h>
@@ -8,7 +22,6 @@ module;
 
 export module centui.glyph;
 
-import std;
 import centui.unit;
 
 export namespace centui

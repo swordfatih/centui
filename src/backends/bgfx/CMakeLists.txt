@@ -1,5 +1,6 @@
 include(Dependencies.cmake)
-centui_module_library(centui_bgfx centui::bgfx "${PROJECT_SOURCE_DIR}/src/backends/bgfx/backend.cppm")
-target_link_libraries(centui_bgfx PUBLIC centui_core PRIVATE bgfx)
+centui_sources("${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(${PROJECT_NAME} PRIVATE bgfx)
+
 include(Shaders.cmake)
-centui_compile_shaders(centui_bgfx)
+centui_compile_shaders(${PROJECT_NAME})

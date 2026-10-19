@@ -1,7 +1,19 @@
+module;
+
+#include <algorithm>
+#include <cstddef>
+#include <functional>
+#include <memory>
+#include <ranges>
+#include <span>
+#include <utility>
+#include <variant>
+#include <vector>
+
 export module centui.ui;
 
-import std;
 export import centui.element;
+export import centui.document;
 export import centui.viewport;
 export import centui.input;
 import centui.node;
@@ -31,6 +43,25 @@ public:
         _backend.draw(list);
     }
 
+    void render(document& owner)
+    {
+        if(owner.empty()) return;
+        auto root = owner.root();
+        render(root);
+    }
+
+    void process_event(document& owner, const input_event& event)
+    {
+        process_events(owner, std::span{std::addressof(event), std::size_t{1}});
+    }
+
+    void process_events(document& owner, std::span<const input_event> events)
+    {
+        if(owner.empty()) { clear_interaction(); return; }
+        auto root = owner.root();
+        process_events(root, events);
+    }
+
     void process_event(element& root, const input_event& event)
     {
         process_events(root, std::span{std::addressof(event), std::size_t{1}});
@@ -44,7 +75,7 @@ public:
         }
 
         auto& tree = details::element_access::get(root);
-        validate_interaction(tree);
+        validate_interaction(root);
 
         const auto [width, height] = _backend.viewport();
         if(width <= 0 || height <= 0)
@@ -53,7 +84,7 @@ public:
             return;
         }
 
-        tree.attach(_backend.glyphs());
+        details::attach_elements(root, _backend.glyphs());
         tree.calculate(static_cast<float>(width), static_cast<float>(height));
         std::vector<std::pair<std::weak_ptr<details::button_interaction_state>, std::function<void()>>> callbacks;
 
@@ -65,7 +96,7 @@ public:
                 continue;
             }
 
-            auto target = hit_test(tree, 0.0f, 0.0f, event.x, event.y);
+            auto target = hit_test(root, 0.0f, 0.0f, event.x, event.y);
             set_hover(target);
 
             if(event.button != mouse_button::primary)
@@ -108,34 +139,36 @@ public:
 private:
     using interaction_ptr = std::shared_ptr<details::button_interaction_state>;
 
-    static bool contains(const node& current, const details::button_interaction_state* state)
+    static bool contains(const element& current, const details::button_interaction_state* state)
     {
-        if(const auto* button = std::get_if<details::button_data>(&current.data);
+        const auto& value = details::element_access::get(current);
+        if(const auto* button = std::get_if<details::button_data>(&value.data);
            button && button->interaction.get() == state)
         {
             return true;
         }
 
-        return std::ranges::any_of(current.children, [&](const node& child)
+        return std::ranges::any_of(details::element_access::children(current), [&](const element& child)
         {
             return contains(child, state);
         });
     }
 
-    static interaction_ptr hit_test(const node& current, float parent_x, float parent_y, float x, float y)
+    static interaction_ptr hit_test(const element& current, float parent_x, float parent_y, float x, float y)
     {
-        const auto local = current.layout.bounds();
+        const auto& value = details::element_access::get(current);
+        const auto local = value.layout.bounds();
         const auto bounds = rect{local.x + parent_x, local.y + parent_y, local.width, local.height};
         interaction_ptr target;
 
-        if(const auto* button = std::get_if<details::button_data>(&current.data);
+        if(const auto* button = std::get_if<details::button_data>(&value.data);
            button && button->interaction->enabled &&
            x >= bounds.x && y >= bounds.y && x < bounds.x + bounds.width && y < bounds.y + bounds.height)
         {
             target = button->interaction;
         }
 
-        for(const auto& child: current.children)
+        for(const auto& child: details::element_access::children(current))
         {
             if(const auto child_target = hit_test(child, bounds.x, bounds.y, x, y))
             {
@@ -185,7 +218,7 @@ private:
         }
     }
 
-    void validate_interaction(const node& root)
+    void validate_interaction(const element& root)
     {
         if(auto hovered = _hovered.lock(); hovered && (!hovered->enabled || !contains(root, hovered.get())))
         {

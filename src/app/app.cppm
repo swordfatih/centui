@@ -1,10 +1,14 @@
+module;
+
+#include <string>
+
 export module centui.app;
 
-import std;
 import centui.window;
 import centui.bgfx;
 import centui.ui;
 export import centui.element;
+export import centui.document;
 
 export namespace centui
 {
@@ -62,6 +66,28 @@ public:
         {
             render_frame(root);
         }
+    }
+
+    [[nodiscard]] bool poll_events(document& owner)
+    {
+        if(!_window.poll_events()) return false;
+        const auto events = _window.take_input_events();
+        _ui.process_events(owner, events);
+        return true;
+    }
+
+    void render_frame(document& owner)
+    {
+        if(_window.begin_frame())
+        {
+            _ui.render(owner);
+            _window.end_frame();
+        }
+    }
+
+    void run(document& owner)
+    {
+        while(poll_events(owner)) render_frame(owner);
     }
 
 private:

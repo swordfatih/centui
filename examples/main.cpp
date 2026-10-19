@@ -1,7 +1,12 @@
-
-import std;
+#include <functional>
+#include <initializer_list>
+#include <string>
+#include <typeinfo>
+#include <variant>
+#include <vector>
 
 import centui.app;
+import centui.document;
 import centui.container;
 import centui.text;
 import centui.button;
@@ -49,22 +54,26 @@ int main()
     centui::app app{{.title = "CentUI", .width = 800, .height = 600}};
 
     // clang-format off
-    auto root = centui::container<panel_style>{
-        centui::text<title_style>{"Hello, CentUI!"},
-        centui::container<child_style>{
-            centui::text<title_style>{"This is a nested text..."},
-        },
-        centui::button<action_button_style>{
-            "Click me",
+    auto title = centui::text<title_style>{"Hello, CentUI!"};
+    auto action = centui::button<action_button_style>{
+        "Click me",
+        {
+            .on_click = [title]() mutable
             {
-                .on_click = []
-                {
-                    std::cout << "Button clicked!\n";
-                },
+                title.value("Button clicked!");
             },
         },
     };
+
+    auto root = centui::container<panel_style>{
+        title,
+        centui::container<child_style>{
+            centui::text<title_style>{"This is a nested text..."},
+        },
+        action,
+    };
     // clang-format on
 
-    app.run(root);
+    centui::document document{root};
+    app.run(document);
 }

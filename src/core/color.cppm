@@ -1,6 +1,8 @@
-export module centui.color;
+module;
 
-import std;
+#include <cstdint>
+
+export module centui.color;
 
 export namespace centui
 {

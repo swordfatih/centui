@@ -1,3 +1,15 @@
+module;
+
+#include <functional>
+#include <memory>
+#include <optional>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <variant>
+#include <vector>
+
 export module centui.node;
 
 import centui.style;
@@ -5,7 +17,6 @@ import centui.unit;
 import centui.layout;
 import centui.glyph;
 import centui.color;
-import std;
 
 export namespace centui
 {
@@ -22,6 +33,8 @@ struct text_data
 
 namespace details
 {
+
+struct construction_identity {};
 
 struct button_interaction_state
 {
@@ -47,6 +60,8 @@ struct node
     std::variant<container_data, text_data, details::button_data> data = container_data{};
     centui::style                           style;
     centui::layout                          layout{};
+    // Construction identity only; mounted topology lives in document slots.
+    std::weak_ptr<details::construction_identity> identity{};
 
     void attach(std::optional<font&> face = std::nullopt)
     {

@@ -1,6 +1,19 @@
 
 module;
 
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstdint>
+#include <limits>
+#include <span>
+#include <stdexcept>
+#include <type_traits>
+#include <unordered_map>
+#include <utility>
+#include <variant>
+#include <vector>
+
 #include <bgfx/bgfx.h>
 #include <bgfx/embedded_shader.h>
 #include <bx/math.h>
@@ -26,7 +39,6 @@ module;
 
 export module centui.bgfx;
 
-import std;
 import centui.node;
 import centui.color;
 import centui.unit;

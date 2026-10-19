@@ -1,6 +1,16 @@
+#include <cmath>
+#include <initializer_list>
+#include <limits>
+#include <memory>
+#include <span>
+#include <stdexcept>
+#include <string>
+#include <type_traits>
+#include <utility>
+#include <variant>
+
 #include <catch2/catch_test_macros.hpp>
 
-import std;
 import centui.style;
 import centui.node;
 import centui.layout;
@@ -14,9 +24,6 @@ import centui.ui;
 import centui.input;
 import centui.button;
 import centui.glyph;
-
-// Keep module-based tests in one translation unit for GCC 16's C++26 modules implementation.
-#include "input.test.inc"
 
 struct my_style
 {
@@ -503,7 +510,7 @@ TEST_CASE("Layout enum translation preserves row alignment and absolute position
 
 static_assert(std::is_move_constructible_v<centui::text<>>);
 static_assert(std::is_move_constructible_v<centui::container<>>);
-static_assert(!std::is_copy_constructible_v<centui::container<>>);
+static_assert(std::is_copy_constructible_v<centui::container<>>);
 
 template <typename type>
 concept exposes_node = requires(type& value)

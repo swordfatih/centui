@@ -1,6 +1,8 @@
 module;
 
 #include <meta>
+#include <type_traits>
+#include <vector>
 
 export module centui.style;
 
