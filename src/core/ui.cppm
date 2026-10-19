@@ -16,7 +16,8 @@ export import centui.element;
 export import centui.document;
 export import centui.viewport;
 export import centui.input;
-import centui.node;
+import centui.model;
+import centui.runtime;
 import centui.unit;
 
 export namespace centui
@@ -39,7 +40,7 @@ public:
         {
             return;
         }
-        const auto list = prepare(root, _backend.glyphs(), width, height);
+        const auto list = details::prepared_commands(root, _backend.glyphs(), width, height);
         _backend.draw(list);
     }
 
@@ -49,7 +50,9 @@ public:
         {
             const auto [width, height] = _backend.viewport();
             if(width > 0 && height > 0)
+            {
                 details::document_access::complete_empty(owner, {.topology = true, .text = true, .layout = true, .paint = true});
+            }
             return;
         }
         auto root = owner.root();
@@ -85,7 +88,6 @@ public:
             return;
         }
 
-        auto& tree = details::element_access::get(root);
         validate_interaction(root);
         details::element_access::complete(root, {.interaction = true});
 
@@ -96,10 +98,11 @@ public:
             return;
         }
 
-        details::attach_elements(root, _backend.glyphs());
-        tree.calculate(static_cast<float>(width), static_cast<float>(height));
-        details::element_access::complete(root, {.topology = true, .text = true, .layout = true});
-        std::vector<std::pair<std::weak_ptr<details::button_interaction_state>, std::function<void()>>> callbacks;
+        (void)details::prepare_geometry(root, _backend.glyphs(), width, height);
+        const auto [parent_x, parent_y] = details::parent_offset(root);
+        // Retain the callable itself: copying it would discard mutable capture
+        // updates and invoking through the node could destroy it during removal.
+        std::vector<std::pair<std::weak_ptr<details::button_interaction_state>, std::shared_ptr<std::function<void()>>>> callbacks;
 
         for(const auto& event: events)
         {
@@ -109,7 +112,7 @@ public:
                 continue;
             }
 
-            auto target = hit_test(root, 0.0f, 0.0f, event.x, event.y);
+            auto target = hit_test(root, parent_x, parent_y, event.x, event.y);
             set_hover(target);
 
             if(event.button != mouse_button::primary)
@@ -128,7 +131,10 @@ public:
                 if(captured)
                 {
                     const bool was_pressed = captured->pressed;
-                    if(was_pressed) details::invalidate_interaction(captured);
+                    if(was_pressed)
+                    {
+                        details::invalidate_interaction(captured);
+                    }
                     captured->pressed = false;
                     if(was_pressed && captured->enabled && captured == target && captured->on_click)
                     {
@@ -145,7 +151,7 @@ public:
         {
             if(const auto state = target.lock(); state && state->enabled)
             {
-                callback();
+                (*callback)();
             }
         }
     }
@@ -156,7 +162,7 @@ private:
     static bool contains(const element& current, const details::button_interaction_state* state)
     {
         const auto& value = details::element_access::get(current);
-        if(const auto* button = std::get_if<details::button_data>(&value.data);
+        if(const auto* button = std::get_if<details::button_content>(&value.data);
            button && button->interaction.get() == state)
         {
             return true;
@@ -170,12 +176,12 @@ private:
 
     static interaction_ptr hit_test(const element& current, float parent_x, float parent_y, float x, float y)
     {
-        const auto& value = details::element_access::get(current);
-        const auto local = value.layout.bounds();
-        const auto bounds = rect{local.x + parent_x, local.y + parent_y, local.width, local.height};
+        const auto&     value = details::element_access::get(current);
+        const auto      local = details::element_access::bounds(current);
+        const auto      bounds = rect{local.x + parent_x, local.y + parent_y, local.width, local.height};
         interaction_ptr target;
 
-        if(const auto* button = std::get_if<details::button_data>(&value.data);
+        if(const auto* button = std::get_if<details::button_content>(&value.data);
            button && button->interaction->enabled &&
            x >= bounds.x && y >= bounds.y && x < bounds.x + bounds.width && y < bounds.y + bounds.height)
         {
@@ -197,13 +203,19 @@ private:
     {
         if(auto previous = _hovered.lock(); previous && previous != target)
         {
-            if(previous->hovered) details::invalidate_interaction(previous);
+            if(previous->hovered)
+            {
+                details::invalidate_interaction(previous);
+            }
             previous->hovered = false;
         }
         _hovered = target;
         if(target)
         {
-            if(!target->hovered) details::invalidate_interaction(target);
+            if(!target->hovered)
+            {
+                details::invalidate_interaction(target);
+            }
             target->hovered = true;
         }
     }
@@ -212,13 +224,19 @@ private:
     {
         if(auto previous = _focused.lock(); previous && previous != target)
         {
-            if(previous->focused) details::invalidate_interaction(previous);
+            if(previous->focused)
+            {
+                details::invalidate_interaction(previous);
+            }
             previous->focused = false;
         }
         _focused = target;
         if(target)
         {
-            if(!target->focused) details::invalidate_interaction(target);
+            if(!target->focused)
+            {
+                details::invalidate_interaction(target);
+            }
             target->focused = true;
         }
     }
@@ -227,13 +245,19 @@ private:
     {
         if(auto previous = _captured.lock())
         {
-            if(previous->pressed) details::invalidate_interaction(previous);
+            if(previous->pressed)
+            {
+                details::invalidate_interaction(previous);
+            }
             previous->pressed = false;
         }
         _captured = target;
         if(target)
         {
-            if(!target->pressed) details::invalidate_interaction(target);
+            if(!target->pressed)
+            {
+                details::invalidate_interaction(target);
+            }
             target->pressed = true;
         }
     }
@@ -242,19 +266,28 @@ private:
     {
         if(auto hovered = _hovered.lock(); hovered && (!hovered->enabled || !contains(root, hovered.get())))
         {
-            if(hovered->hovered) details::invalidate_interaction(hovered);
+            if(hovered->hovered)
+            {
+                details::invalidate_interaction(hovered);
+            }
             hovered->hovered = false;
             _hovered.reset();
         }
         if(auto captured = _captured.lock(); captured && (!captured->enabled || !contains(root, captured.get())))
         {
-            if(captured->pressed) details::invalidate_interaction(captured);
+            if(captured->pressed)
+            {
+                details::invalidate_interaction(captured);
+            }
             captured->pressed = false;
             _captured.reset();
         }
         if(auto focused = _focused.lock(); focused && (!focused->enabled || !contains(root, focused.get())))
         {
-            if(focused->focused) details::invalidate_interaction(focused);
+            if(focused->focused)
+            {
+                details::invalidate_interaction(focused);
+            }
             focused->focused = false;
             _focused.reset();
         }
@@ -264,17 +297,26 @@ private:
     {
         if(auto hovered = _hovered.lock())
         {
-            if(hovered->hovered) details::invalidate_interaction(hovered);
+            if(hovered->hovered)
+            {
+                details::invalidate_interaction(hovered);
+            }
             hovered->hovered = false;
         }
         if(auto captured = _captured.lock())
         {
-            if(captured->pressed) details::invalidate_interaction(captured);
+            if(captured->pressed)
+            {
+                details::invalidate_interaction(captured);
+            }
             captured->pressed = false;
         }
         if(auto focused = _focused.lock())
         {
-            if(focused->focused) details::invalidate_interaction(focused);
+            if(focused->focused)
+            {
+                details::invalidate_interaction(focused);
+            }
             focused->focused = false;
         }
         _hovered.reset();
@@ -282,7 +324,7 @@ private:
         _focused.reset();
     }
 
-    backend_type& _backend;
+    backend_type&                                    _backend;
     std::weak_ptr<details::button_interaction_state> _hovered;
     std::weak_ptr<details::button_interaction_state> _captured;
     std::weak_ptr<details::button_interaction_state> _focused;

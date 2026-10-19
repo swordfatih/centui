@@ -1,76 +1,123 @@
 module;
 
-#include <algorithm>
 #include <cstddef>
-#include <cstdint>
-#include <limits>
 #include <memory>
 #include <optional>
-#include <ranges>
 #include <span>
 #include <stdexcept>
 #include <utility>
-#include <variant>
 #include <vector>
 
 export module centui.document;
 
 export import centui.element;
-import centui.node;
+import centui.runtime;
 import centui.glyph;
 import centui.draw;
 
 export namespace centui
 {
 
-namespace details { struct document_access; }
+namespace details
+{
+struct document_access;
+}
 
-// Sole owner of mounted widgets. Handles and callbacks must not own this store.
+// Sole owner of a mounted runtime. Typed handles retain only widget identity.
 class document
 {
 public:
-    static constexpr std::size_t end = std::numeric_limits<std::size_t>::max();
+    static constexpr std::size_t end = details::document_state::end;
 
-    document() : _store(std::make_shared<details::document_store>()) {}
-    explicit document(const element& root) : document() { mount(root); }
+    document() : _state(std::make_shared<details::document_state>())
+    {
+        _state->mounted = true;
+    }
+
+    explicit document(const element& root) : document()
+    {
+        mount(root);
+    }
+
     document(const document&) = delete;
     document& operator=(const document&) = delete;
+
     document(document&& other)
     {
-        (void)other.store();
-        _store = std::move(other._store);
+        (void)other.state();
+        _state = std::move(other._state);
     }
+
     document& operator=(document&& other)
     {
         if(this != &other)
         {
-            if(_store) _store->check_thread();
-            (void)other.store();
-            _store = std::move(other._store);
+            if(_state)
+            {
+                _state->check_thread();
+            }
+            (void)other.state();
+            _state = std::move(other._state);
         }
         return *this;
     }
 
-    [[nodiscard]] bool empty() const { return !store().root; }
+    [[nodiscard]] bool empty() const
+    {
+        return !state().root();
+    }
 
     [[nodiscard]] invalidation pending_changes() const
     {
-        auto result = store().pending;
-        for(const auto& slot : store().slots)
-            if(slot.record) result.merge(slot.record->binding->pending);
-        return result;
+        return state().pending();
+    }
+
+    void enable_preparation_diagnostics(bool enabled = true)
+    {
+        state().diagnostics.enable(enabled);
+    }
+
+    [[nodiscard]] preparation_statistics preparation_stats() const
+    {
+        return state().diagnostics.snapshot();
     }
 
     [[nodiscard]] element root() const
     {
-        if(!store().root) throw std::logic_error("Document has no root");
-        return details::element_access::alias(store().get(*store().root).binding);
+        const auto id = state().root();
+        if(!id)
+        {
+            throw std::logic_error("Document has no root");
+        }
+        return details::element_access::alias(state().get(*id).binding);
     }
 
     void mount(const element& value)
     {
-        if(store().root) throw std::logic_error("Document already has a root");
-        store().root = adopt(value);
+        if(!empty())
+        {
+            throw std::logic_error("Document already has a root");
+        }
+
+        auto        source = details::element_access::state(value);
+        const auto& binding = details::element_access::binding(value);
+        if(source->mounted || source->root() != binding->id)
+        {
+            throw std::invalid_argument("Construction tree already has an owner");
+        }
+        auto construction = binding->construction.lock();
+        if(!construction || construction->state != source)
+        {
+            throw std::logic_error("Construction root has no owner");
+        }
+        if(state().diagnostics.enabled())
+        {
+            source->diagnostics.enable(true);
+        }
+
+        _state = std::move(source);
+        _state->mounted = true;
+        construction->state.reset();
     }
 
     [[nodiscard]] std::vector<element> children(const element& parent) const
@@ -81,258 +128,97 @@ public:
 
     [[nodiscard]] std::optional<element> parent(const element& child) const
     {
-        const auto& record = checked(child);
-        if(!record.parent) return std::nullopt;
-        return details::element_access::alias(store().get(*record.parent).binding);
+        const auto id = state().get(checked(child)).parent;
+        if(!id)
+        {
+            return std::nullopt;
+        }
+        return details::element_access::alias(state().get(*id).binding);
     }
 
-    // Insert only unmounted construction trees. Existing widgets use reparent.
     void insert(const element& parent, const element& child, std::size_t index = end)
     {
-        auto& target = checked_container(parent);
-        const auto position = insertion_index(index, target.children.size());
-        // Allocation may fail, but ownership and topology have not changed yet.
-        target.children.reserve(target.children.size() + 1);
-        const auto id = adopt(child);
-        detach_layouts();
-        target.children.insert(target.children.begin() + position, id);
-        store().get(id).parent = parent.id();
-        details::invalidate(details::element_access::binding(parent),
-                            {.topology = true, .layout = true, .paint = true, .interaction = true});
+        const auto  id = checked(parent);
+        const auto& binding = details::element_access::binding(child);
+        state().insert(id, std::span{std::addressof(binding), std::size_t{1}}, index);
     }
 
-    void append(const element& parent, const element& child) { insert(parent, child); }
+    void append(const element& parent, const element& child)
+    {
+        insert(parent, child);
+    }
 
-    // Index is the destination position after removing the child from its old parent.
+    // Index is the destination position after removing the existing child.
     void reparent(const element& child, const element& parent, std::size_t index = end)
     {
-        auto& source = checked(child);
-        auto& target = checked_container(parent);
-        if(!source.parent) throw std::invalid_argument("Cannot reparent the document root");
-        for(auto ancestor = std::optional{parent.id()}; ancestor; ancestor = store().get(*ancestor).parent)
-            if(*ancestor == child.id()) throw std::invalid_argument("Reparenting would create a cycle");
-
-        const bool same_parent = *source.parent == parent.id();
-        const auto position = insertion_index(index, target.children.size() - (same_parent ? 1 : 0));
-        const auto old_parent = *source.parent;
-        if(same_parent && target.children[position] == child.id()) return;
-        target.children.reserve(target.children.size() + (same_parent ? 0 : 1));
-        auto& old = store().get(*source.parent).children;
-        detach_layouts();
-        std::erase(old, child.id());
-        target.children.insert(target.children.begin() + position, child.id());
-        source.parent = parent.id();
-        const invalidation changes{.topology = true, .layout = true, .paint = true, .interaction = true};
-        details::invalidate(store().get(old_parent).binding, changes);
-        details::invalidate(details::element_access::binding(parent), changes);
+        const auto child_id = checked(child);
+        const auto parent_id = checked(parent);
+        state().reparent(child_id, parent_id, index);
     }
 
-    // Order must be an exact permutation of the existing children.
     void reorder(const element& parent, std::span<const element> order)
     {
-        auto& target = checked_container(parent);
-        if(order.size() != target.children.size()) throw std::invalid_argument("Incomplete child order");
+        const auto           parent_id = checked(parent);
         std::vector<node_id> ids;
         ids.reserve(order.size());
-        for(const auto& child : order)
+        for(const auto& child: order)
         {
-            const auto& record = checked(child);
-            if(record.parent != parent.id() || std::ranges::find(ids, child.id()) != ids.end())
-                throw std::invalid_argument("Order contains a foreign or duplicate child");
-            ids.push_back(child.id());
+            ids.push_back(checked(child));
         }
-        if(ids == target.children) return;
-        detach_layouts();
-        target.children.swap(ids);
-        details::invalidate(details::element_access::binding(parent),
-                            {.topology = true, .layout = true, .paint = true, .interaction = true});
+        state().reorder(parent_id, ids);
     }
 
-    // Removal destroys a subtree immediately. It does not return an owning handle.
     void remove(const element& child)
     {
-        const auto id = child.id();
-        auto& record = checked(child);
-        std::vector<node_id> removed;
-        auto collect = [&](this auto&& self, node_id current) -> void
-        {
-            removed.push_back(current);
-            for(auto next : store().get(current).children) self(next);
-        };
-        collect(id);
-        store().free_slots.reserve(store().free_slots.size() + removed.size());
-        detach_layouts();
-        const invalidation changes{.topology = true, .layout = true, .paint = true, .interaction = true};
-        if(record.parent)
-        {
-            auto& parent = store().get(*record.parent);
-            std::erase(parent.children, id);
-            details::invalidate(parent.binding, changes);
-        }
-        else
-        {
-            store().root.reset();
-            store().pending.merge(changes);
-        }
-        for(auto current : removed)
-        {
-            auto& slot = store().slots[current.index];
-            if(auto* button = std::get_if<details::button_data>(&slot.record->value->data))
-            {
-                button->interaction->enabled = false;
-                button->interaction->hovered = false;
-                button->interaction->focused = false;
-                button->interaction->pressed = false;
-            }
-            slot.record.reset();
-            // Retire exhausted generations rather than wrapping and reviving an ID.
-            if(slot.generation != std::numeric_limits<std::uint64_t>::max())
-            {
-                ++slot.generation;
-                store().free_slots.push_back(current.index);
-            }
-        }
+        state().remove(checked(child));
     }
 
 private:
     friend struct details::document_access;
-    std::shared_ptr<details::document_store> _store;
+    std::shared_ptr<details::document_state> _state;
 
-    details::document_store& store() const
+    details::document_state& state() const
     {
-        if(!_store) throw std::logic_error("Document is moved from");
-        _store->check_thread();
-        return *_store;
+        if(!_state)
+        {
+            throw std::logic_error("Document is moved from");
+        }
+        _state->check_thread();
+        return *_state;
     }
 
-    details::document_record& checked(const element& value) const
+    node_id checked(const element& value) const
     {
-        (void)store();
-        const auto& binding = details::element_access::binding(value);
-        (void)details::resolve(binding);
-        if(binding->owner.lock() != _store)
+        (void)state();
+        if(details::element_access::state(value) != _state)
+        {
             throw std::invalid_argument("Element does not belong to this document");
-        return store().get(binding->id);
-    }
-
-    details::document_record& checked_container(const element& value) const
-    {
-        auto& record = checked(value);
-        if(value.kind() != element_kind::container) throw std::invalid_argument("Parent must be a container");
-        return record;
-    }
-
-    static std::size_t insertion_index(std::size_t index, std::size_t size)
-    {
-        if(index == end) return size;
-        if(index > size) throw std::out_of_range("Child insertion index");
-        return index;
-    }
-
-    void detach_layouts()
-    {
-        for(auto& slot : store().slots)
-            if(slot.record) slot.record->value->layout.clear_children();
-    }
-
-    node_id adopt(const element& root)
-    {
-        const auto& root_binding = details::element_access::binding(root);
-        (void)details::resolve(root_binding);
-        if(!root_binding->draft || !root_binding->draft_parent.expired() || root.mounted())
-            throw std::invalid_argument("Construction tree already has an owner");
-
-        struct pending
-        {
-            node* source;
-            std::shared_ptr<details::element_binding> binding;
-            std::optional<std::size_t> parent;
-            node_id id;
-            std::unique_ptr<details::document_record> record;
-        };
-        std::vector<pending> plan;
-        auto collect = [&](this auto&& self, node& value, std::optional<std::size_t> parent) -> void
-        {
-            auto binding = std::static_pointer_cast<details::element_binding>(value.identity.lock());
-            if(!binding || !binding->owner.expired()) throw std::invalid_argument("Invalid construction identity");
-            if(std::ranges::any_of(plan, [&](const pending& item) { return item.binding == binding; }))
-                throw std::invalid_argument("Duplicate construction identity");
-            if(!std::holds_alternative<container_data>(value.data) && !value.children.empty())
-                throw std::invalid_argument("Only containers may have children");
-            binding->check_thread();
-            value.style.validate();
-            const auto index = plan.size();
-            auto record = std::make_unique<details::document_record>();
-            record->value = std::make_unique<node>();
-            record->binding = binding;
-            record->children.reserve(value.children.size());
-            plan.push_back({&value, std::move(binding), parent, {}, std::move(record)});
-            for(auto& child : value.children) self(child, index);
-        };
-        collect(*root_binding->draft, std::nullopt);
-
-        auto& runtime = store();
-        const auto reused = std::min(plan.size(), runtime.free_slots.size());
-        const auto old_size = runtime.slots.size();
-        runtime.slots.reserve(old_size + plan.size() - reused);
-        for(std::size_t i = 0; i < plan.size(); ++i)
-        {
-            const auto index = i < reused ? runtime.free_slots[runtime.free_slots.size() - 1 - i] : old_size + i - reused;
-            plan[i].id = {index, i < reused ? runtime.slots[index].generation : 1};
         }
-        for(auto& item : plan)
-            if(item.parent)
-            {
-                item.record->parent = plan[*item.parent].id;
-                plan[*item.parent].record->children.push_back(item.id);
-            }
-
-        // Commit: all allocations/validation are complete. No raw child vectors
-        // are moved into the registry; only payload, style, and layout survive.
-        for(auto& item : plan) item.source->layout.clear_children();
-        for(auto& item : plan)
-        {
-            item.record->value->data = std::move(item.source->data);
-            item.record->value->style = item.source->style;
-            item.record->value->layout = std::move(item.source->layout);
-            item.record->value->identity = item.binding;
-        }
-        runtime.slots.resize(old_size + plan.size() - reused);
-        runtime.free_slots.resize(runtime.free_slots.size() - reused);
-        for(auto& item : plan)
-        {
-            runtime.slots[item.id.index].record = std::move(item.record);
-            item.binding->owner = _store;
-            item.binding->id = item.id;
-            item.binding->pending.merge({.topology = true,
-                                         .text = !std::holds_alternative<container_data>(runtime.get(item.id).value->data),
-                                         .layout = true, .paint = true, .interaction = true});
-            item.binding->draft_parent.reset();
-            item.binding->draft_children.clear();
-        }
-        root_binding->draft.reset();
-        return plan.front().id;
+        return details::element_access::binding(value)->id;
     }
 };
 
 namespace details
 {
+
 struct document_access
 {
     static void complete_empty(document& owner, invalidation completed)
     {
-        auto& store = owner.store();
-        if(!store.root) store.pending.clear(completed);
+        owner.state().complete_empty(completed);
     }
 };
-}
+
+} // namespace details
 
 std::vector<draw_command> prepare(document& owner, font& face, int width, int height)
 {
     if(owner.empty())
     {
         if(width > 0 && height > 0)
+        {
             details::document_access::complete_empty(owner, {.topology = true, .text = true, .layout = true, .paint = true});
+        }
         return {};
     }
     auto root = owner.root();

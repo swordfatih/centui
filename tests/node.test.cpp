@@ -1,16 +1,21 @@
 #include <cmath>
+#include <functional>
 #include <initializer_list>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
+#include <typeinfo>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include <catch2/catch_test_macros.hpp>
 
+import centui.document;
 import centui.style;
 import centui.node;
 import centui.layout;
@@ -53,21 +58,21 @@ TEST_CASE("Create a container node", "[node]")
         centui::text<my_second_style>{"how are you"},
     };
 
-    REQUIRE(centui::details::element_access::get(container).style.gap == centui::length{20, centui::unit::px});
-    REQUIRE(centui::details::element_access::get(container).style.padding == centui::edges::all(centui::px(12)));
+    centui::document document{container};
+    REQUIRE(container.style().gap == centui::length{20, centui::unit::px});
+    REQUIRE(container.style().padding == centui::edges::all(centui::px(12)));
 
-    REQUIRE(centui::details::element_access::get(container).children.size() == 2);
+    const auto children = document.children(container);
+    REQUIRE(children.size() == 2);
+    REQUIRE(children[0].kind() == centui::element_kind::text);
+    REQUIRE(children[0].as<centui::text<>>().value() == "hello");
+    REQUIRE(children[0].style().gap == centui::length{30, centui::unit::px});
+    REQUIRE(children[0].style().padding == centui::edges::all(centui::px(12)));
 
-    REQUIRE(std::holds_alternative<centui::text_data>(centui::details::element_access::get(container).children[0].data));
-    REQUIRE(std::get<centui::text_data>(centui::details::element_access::get(container).children[0].data).value == "hello");
-    REQUIRE(centui::details::element_access::get(container).children[0].style.gap == centui::length{30, centui::unit::px});
-    REQUIRE(centui::details::element_access::get(container).children[0].style.padding == centui::edges::all(centui::px(12)));
-
-    REQUIRE(std::holds_alternative<centui::text_data>(centui::details::element_access::get(container).children[1].data));
-    REQUIRE(std::get<centui::text_data>(centui::details::element_access::get(container).children[1].data).value == "how are you");
-    REQUIRE(centui::details::element_access::get(container).children[1].style.gap == centui::length{30, centui::unit::px});
+    REQUIRE(children[1].kind() == centui::element_kind::text);
+    REQUIRE(children[1].as<centui::text<>>().value() == "how are you");
+    REQUIRE(children[1].style().gap == centui::length{30, centui::unit::px});
 }
-
 
 TEST_CASE("Create nested container nodes", "[node]")
 {
@@ -82,27 +87,27 @@ TEST_CASE("Create nested container nodes", "[node]")
         centui::text{"Last"},
     };
 
-    REQUIRE(std::holds_alternative<centui::container_data>(centui::details::element_access::get(root).data));
-    REQUIRE(centui::details::element_access::get(root).style.gap == centui::length{20, centui::unit::px});
-    REQUIRE(centui::details::element_access::get(root).children.size() == 3);
+    centui::document document{root};
+    REQUIRE(root.kind() == centui::element_kind::container);
+    REQUIRE(root.style().gap == centui::length{20, centui::unit::px});
+    const auto children = document.children(root);
+    REQUIRE(children.size() == 3);
 
-    const auto& nested = centui::details::element_access::get(root).children[1];
+    const auto nested = children[1];
+    REQUIRE(nested.kind() == centui::element_kind::container);
+    REQUIRE(nested.style().gap == centui::length{30, centui::unit::px});
+    const auto nested_children = document.children(nested);
+    REQUIRE(nested_children.size() == 2);
 
-    REQUIRE(std::holds_alternative<centui::container_data>(nested.data));
-    REQUIRE(nested.style.gap == centui::length{30, centui::unit::px});
-    REQUIRE(nested.children.size() == 2);
-
-    const auto& deep = nested.children[1];
-
-    REQUIRE(std::holds_alternative<centui::container_data>(deep.data));
-    REQUIRE(deep.style.gap == centui::length{20, centui::unit::px});
-    REQUIRE(deep.style.padding == centui::edges::all(centui::px(12)));
-    REQUIRE(deep.children.size() == 1);
-
-    REQUIRE(std::holds_alternative<centui::text_data>(deep.children[0].data));
-    REQUIRE(std::get<centui::text_data>(deep.children[0].data).value == "Deeply nested");
+    const auto deep = nested_children[1];
+    REQUIRE(deep.kind() == centui::element_kind::container);
+    REQUIRE(deep.style().gap == centui::length{20, centui::unit::px});
+    REQUIRE(deep.style().padding == centui::edges::all(centui::px(12)));
+    const auto leaves = document.children(deep);
+    REQUIRE(leaves.size() == 1);
+    REQUIRE(leaves[0].kind() == centui::element_kind::text);
+    REQUIRE(leaves[0].as<centui::text<>>().value() == "Deeply nested");
 }
-
 
 TEST_CASE("Calculate container layout", "[node][layout]")
 {
@@ -113,12 +118,13 @@ TEST_CASE("Calculate container layout", "[node][layout]")
         centui::edges  padding = centui::edges::all(centui::px(20));
     };
 
-    centui::container<fixed_style> root;
+    centui::node root;
+    root.style = centui::style::resolve<fixed_style>();
 
-    centui::details::element_access::get(root).attach();
-    centui::details::element_access::get(root).layout.calculate(800, 600);
+    root.attach();
+    root.layout.calculate(800, 600);
 
-    const auto bounds = centui::details::element_access::get(root).layout.bounds();
+    const auto bounds = root.layout.bounds();
 
     REQUIRE(bounds.width == 300);
     REQUIRE(bounds.height == 200);
@@ -140,16 +146,19 @@ TEST_CASE("Calculate child positions with gap and padding", "[node][layout]")
         centui::length height = centui::px(30);
     };
 
-    centui::container<parent_style> root{
-        centui::container<child_style>{},
-        centui::container<child_style>{},
-    };
+    centui::node root;
+    root.style = centui::style::resolve<parent_style>();
+    root.children.resize(2);
+    for(auto& child: root.children)
+    {
+        child.style = centui::style::resolve<child_style>();
+    }
 
-    centui::details::element_access::get(root).attach();
-    centui::details::element_access::get(root).layout.calculate(800, 600);
+    root.attach();
+    root.layout.calculate(800, 600);
 
-    const auto first = centui::details::element_access::get(root).children[0].layout.bounds();
-    const auto second = centui::details::element_access::get(root).children[1].layout.bounds();
+    const auto first = root.children[0].layout.bounds();
+    const auto second = root.children[1].layout.bounds();
 
     REQUIRE(first.x == 20);
     REQUIRE(first.y == 20);
@@ -184,17 +193,19 @@ TEST_CASE("Calculate nested container layout", "[node][layout]")
         centui::length height = centui::px(20);
     };
 
-    centui::container<parent_style> root{
-        centui::container<child_style>{
-            centui::container<grandchild_style>{},
-        },
-    };
+    centui::node root;
+    root.style = centui::style::resolve<parent_style>();
+    root.children.emplace_back();
+    auto& child_node = root.children.front();
+    child_node.style = centui::style::resolve<child_style>();
+    child_node.children.emplace_back();
+    child_node.children.front().style = centui::style::resolve<grandchild_style>();
 
-    centui::details::element_access::get(root).attach();
-    centui::details::element_access::get(root).layout.calculate(800, 600);
+    root.attach();
+    root.layout.calculate(800, 600);
 
-    const auto child = centui::details::element_access::get(root).children[0].layout.bounds();
-    const auto grandchild = centui::details::element_access::get(root).children[0].children[0].layout.bounds();
+    const auto child = root.children[0].layout.bounds();
+    const auto grandchild = root.children[0].children[0].layout.bounds();
 
     REQUIRE(child.x == 20);
     REQUIRE(child.y == 20);
@@ -215,32 +226,34 @@ TEST_CASE("Update node layout", "[node][layout]")
         centui::length height = centui::px(50);
     };
 
-    centui::container<fixed_style> root;
+    centui::node root;
+    root.style = centui::style::resolve<fixed_style>();
 
-    centui::details::element_access::get(root).attach();
-    centui::details::element_access::get(root).layout.calculate(800, 600);
+    root.attach();
+    root.layout.calculate(800, 600);
 
-    REQUIRE(centui::details::element_access::get(root).layout.bounds().width == 100);
+    REQUIRE(root.layout.bounds().width == 100);
 
-    centui::details::element_access::get(root).style.width = centui::px(200);
-    centui::details::element_access::get(root).update();
-    centui::details::element_access::get(root).layout.calculate(800, 600);
+    root.style.width = centui::px(200);
+    root.update();
+    root.layout.calculate(800, 600);
 
-    REQUIRE(centui::details::element_access::get(root).layout.bounds().width == 200);
-    REQUIRE(centui::details::element_access::get(root).layout.bounds().height == 50);
+    REQUIRE(root.layout.bounds().width == 200);
+    REQUIRE(root.layout.bounds().height == 50);
 }
 
 TEST_CASE("Calculate text layout", "[node][layout]")
 {
     centui::font face;
 
-    centui::container<> root{
-        centui::text<>{"Hello CentUI"}};
+    centui::node root;
+    root.children.resize(1);
+    root.children[0].data = centui::text_data{"Hello CentUI"};
 
-    centui::details::element_access::get(root).attach(face);
-    centui::details::element_access::get(root).calculate(800, 600);
+    root.attach(face);
+    root.calculate(800, 600);
 
-    const auto bounds = centui::details::element_access::get(root).children[0].layout.bounds();
+    const auto bounds = root.children[0].layout.bounds();
 
     REQUIRE(bounds.width > 0);
     REQUIRE(bounds.height > 0);
@@ -258,12 +271,13 @@ struct test_panel_style
 
 TEST_CASE("Generate rectangle draw commands", "[draw]")
 {
-    centui::container<test_panel_style> root;
+    centui::node root;
+    root.style = centui::style::resolve<test_panel_style>();
 
-    centui::details::element_access::get(root).attach();
-    centui::details::element_access::get(root).calculate(800, 600);
+    root.attach();
+    root.calculate(800, 600);
 
-    const auto result = centui::commands(centui::details::element_access::get(root));
+    const auto result = centui::commands(root);
 
     REQUIRE(result.size() == 1);
     REQUIRE(std::holds_alternative<centui::rectangle_command>(result[0]));
@@ -290,13 +304,15 @@ TEST_CASE("Generate nested rectangle draw commands", "[draw]")
         } background_color;
     };
 
-    centui::container<parent_style> root{
-        centui::container<test_panel_style>{}};
+    centui::node root;
+    root.style = centui::style::resolve<parent_style>();
+    root.children.resize(1);
+    root.children.front().style = centui::style::resolve<test_panel_style>();
 
-    centui::details::element_access::get(root).attach();
-    centui::details::element_access::get(root).calculate(800, 600);
+    root.attach();
+    root.calculate(800, 600);
 
-    const auto result = centui::commands(centui::details::element_access::get(root));
+    const auto result = centui::commands(root);
 
     REQUIRE(result.size() == 2);
     REQUIRE(std::holds_alternative<centui::rectangle_command>(result[0]));
@@ -320,13 +336,14 @@ TEST_CASE("Generate nested rectangle draw commands", "[draw]")
 
 TEST_CASE("Generate text draw commands", "[draw]")
 {
-    centui::font   face;
-    centui::text<> label{"Hello"};
+    centui::font face;
+    centui::node label;
+    label.data = centui::text_data{"Hello"};
 
-    centui::details::element_access::get(label).attach(face);
-    centui::details::element_access::get(label).calculate(800, 600);
+    label.attach(face);
+    label.calculate(800, 600);
 
-    const auto result = centui::commands(centui::details::element_access::get(label));
+    const auto result = centui::commands(label);
 
     REQUIRE(result.size() == 1);
     REQUIRE(std::holds_alternative<centui::text_command>(result[0]));
@@ -342,17 +359,18 @@ TEST_CASE("Generate text draw commands", "[draw]")
 TEST_CASE("Text updates refresh measurement and borrow the node layout", "[node][layout][draw]")
 {
     centui::font face;
-    centui::text label{"Hi"};
-    centui::details::element_access::get(label).attach(face);
-    const auto old_width = std::get<centui::text_data>(centui::details::element_access::get(label).data).shaped->bounds.width;
+    centui::node label;
+    label.data = centui::text_data{"Hi"};
+    label.attach(face);
+    const auto old_width = std::get<centui::text_data>(label.data).shaped->bounds.width;
 
-    std::get<centui::text_data>(centui::details::element_access::get(label).data).value = "Hello updated text";
-    centui::details::element_access::get(label).style.font_size = 32;
-    centui::details::element_access::get(label).update(face);
-    centui::details::element_access::get(label).calculate(std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::quiet_NaN());
+    std::get<centui::text_data>(label.data).value = "Hello updated text";
+    label.style.font_size = 32;
+    label.update(face);
+    label.calculate(std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::quiet_NaN());
 
-    const auto& data = std::get<centui::text_data>(centui::details::element_access::get(label).data);
-    const auto result = centui::commands(centui::details::element_access::get(label));
+    const auto& data = std::get<centui::text_data>(label.data);
+    const auto  result = centui::commands(label);
     const auto& command = std::get<centui::text_command>(result[0]);
     REQUIRE(command.shaped.has_value());
     REQUIRE(std::addressof(*command.shaped) == std::addressof(*data.shaped));
@@ -366,40 +384,43 @@ TEST_CASE("Text updates refresh measurement and borrow the node layout", "[node]
 
 TEST_CASE("Explicit synchronization updates child membership and order", "[node][layout]")
 {
-    centui::container root{centui::container{}, centui::container{}};
-    centui::details::element_access::get(root).children[0].style.height = centui::px(10);
-    centui::details::element_access::get(root).children[1].style.height = centui::px(20);
-    centui::details::element_access::get(root).attach();
-    centui::details::element_access::get(root).attach();
-    centui::details::element_access::get(root).calculate(100, 100);
-    REQUIRE(centui::details::element_access::get(root).children[1].layout.bounds().y == 10);
+    centui::node root;
+    root.children.resize(2);
+    root.children[0].style.height = centui::px(10);
+    root.children[1].style.height = centui::px(20);
+    root.attach();
+    root.attach();
+    root.calculate(100, 100);
+    REQUIRE(root.children[1].layout.bounds().y == 10);
 
-    std::swap(centui::details::element_access::get(root).children[0], centui::details::element_access::get(root).children[1]);
-    centui::details::element_access::get(root).children.emplace_back();
-    centui::details::element_access::get(root).children.back().style.height = centui::px(30);
-    centui::details::element_access::get(root).sync_children();
-    centui::details::element_access::get(root).calculate(100, 100);
-    REQUIRE(centui::details::element_access::get(root).children[1].layout.bounds().y == 20);
-    REQUIRE(centui::details::element_access::get(root).children[2].layout.bounds().y == 30);
+    std::swap(root.children[0], root.children[1]);
+    root.children.emplace_back();
+    root.children.back().style.height = centui::px(30);
+    root.sync_children();
+    root.calculate(100, 100);
+    REQUIRE(root.children[1].layout.bounds().y == 20);
+    REQUIRE(root.children[2].layout.bounds().y == 30);
 
-    centui::details::element_access::get(root).children.erase(centui::details::element_access::get(root).children.begin());
-    centui::details::element_access::get(root).sync_children();
-    centui::details::element_access::get(root).calculate(100, 100);
-    REQUIRE(centui::details::element_access::get(root).children[0].layout.bounds().y == 0);
-    REQUIRE(centui::details::element_access::get(root).children[1].layout.bounds().y == 10);
+    root.children.erase(root.children.begin());
+    root.sync_children();
+    root.calculate(100, 100);
+    REQUIRE(root.children[0].layout.bounds().y == 0);
+    REQUIRE(root.children[1].layout.bounds().y == 10);
 }
 
 TEST_CASE("Measured nodes survive moves and font destruction during calculation", "[node][layout]")
 {
-    centui::container root{centui::text{"Hello"}};
+    centui::node root;
+    root.children.resize(1);
+    root.children[0].data = centui::text_data{"Hello"};
     float expected_height = 0;
     {
         centui::font face;
         expected_height = face.measure("Hello", 16).height;
-        centui::details::element_access::get(root).attach(face);
+        root.attach(face);
     }
 
-    auto moved = std::move(centui::details::element_access::get(root));
+    auto moved = std::move(root);
     moved.calculate(800, 600);
     REQUIRE(moved.children[0].layout.bounds().height == std::round(expected_height));
 
@@ -412,27 +433,32 @@ TEST_CASE("Measured nodes survive moves and font destruction during calculation"
 TEST_CASE("Changing text to container clears its measurement", "[node][layout]")
 {
     centui::font face;
-    centui::text label{"Hello"};
-    centui::details::element_access::get(label).attach(face);
-    centui::details::element_access::get(label).data = centui::container_data{};
-    centui::details::element_access::get(label).children.emplace_back();
-    centui::details::element_access::get(label).children[0].style.height = centui::px(45);
-    centui::details::element_access::get(label).sync_children(face);
-    centui::details::element_access::get(label).calculate(100, 100);
-    REQUIRE(centui::details::element_access::get(label).children[0].layout.bounds().height == 45);
+    centui::node label;
+    label.data = centui::text_data{"Hello"};
+    label.attach(face);
+    label.data = centui::container_data{};
+    label.children.emplace_back();
+    label.children[0].style.height = centui::px(45);
+    label.sync_children(face);
+    label.calculate(100, 100);
+    REQUIRE(label.children[0].layout.bounds().height == 45);
 
-    centui::details::element_access::get(label).data = centui::text_data{"Invalid"};
-    REQUIRE_THROWS_AS(centui::details::element_access::get(label).update(), std::invalid_argument);
+    label.data = centui::text_data{"Invalid"};
+    REQUIRE_THROWS_AS(label.update(), std::invalid_argument);
 }
 
 TEST_CASE("Borrowed draw commands preserve background and sibling order", "[draw]")
 {
     centui::font face;
-    centui::container<test_panel_style> root{centui::text{"First"}, centui::text{"Last"}};
-    centui::details::element_access::get(root).children[0].style.background_color.normal = centui::color::from_hex(0xFF0000);
-    centui::details::element_access::get(root).attach(face);
-    centui::details::element_access::get(root).calculate(800, 600);
-    const auto result = centui::commands(centui::details::element_access::get(root));
+    centui::node root;
+    root.style = centui::style::resolve<test_panel_style>();
+    root.children.resize(2);
+    root.children[0].data = centui::text_data{"First"};
+    root.children[1].data = centui::text_data{"Last"};
+    root.children[0].style.background_color.normal = centui::color::from_hex(0xFF0000);
+    root.attach(face);
+    root.calculate(800, 600);
+    const auto result = centui::commands(root);
 
     REQUIRE(result.size() == 4);
     REQUIRE(std::holds_alternative<centui::rectangle_command>(result[0]));
@@ -445,67 +471,71 @@ TEST_CASE("Borrowed draw commands preserve background and sibling order", "[draw
 TEST_CASE("Style updates preserve child links and existing shaping", "[node][layout]")
 {
     centui::font face;
-    centui::container root{centui::text{"First"}, centui::text{"Last"}};
-    centui::details::element_access::get(root).attach(face);
-    centui::details::element_access::get(root).calculate(800, 600);
-    const auto old_y = centui::details::element_access::get(root).children[1].layout.bounds().y;
-    const auto* glyphs = std::get<centui::text_data>(centui::details::element_access::get(root).children[0].data).shaped->glyphs.data();
+    centui::node root;
+    root.children.resize(2);
+    root.children[0].data = centui::text_data{"First"};
+    root.children[1].data = centui::text_data{"Last"};
+    root.attach(face);
+    root.calculate(800, 600);
+    const auto  old_y = root.children[1].layout.bounds().y;
+    const auto* glyphs = std::get<centui::text_data>(root.children[0].data).shaped->glyphs.data();
 
-    centui::details::element_access::get(root).style.background_color.normal = centui::color::from_hex(0x123456);
-    centui::details::element_access::get(root).update();
+    root.style.background_color.normal = centui::color::from_hex(0x123456);
+    root.update();
     // Removing and reinserting children would reset these calculated bounds.
-    REQUIRE(centui::details::element_access::get(root).children[1].layout.bounds().y == old_y);
-    REQUIRE(std::get<centui::text_data>(centui::details::element_access::get(root).children[0].data).shaped->glyphs.data() == glyphs);
-    centui::details::element_access::get(root).calculate(800, 600);
-    REQUIRE(centui::details::element_access::get(root).children[1].layout.bounds().y == old_y);
+    REQUIRE(root.children[1].layout.bounds().y == old_y);
+    REQUIRE(std::get<centui::text_data>(root.children[0].data).shaped->glyphs.data() == glyphs);
+    root.calculate(800, 600);
+    REQUIRE(root.children[1].layout.bounds().y == old_y);
 
-    centui::details::element_access::get(root).style.gap = centui::px(10);
-    centui::details::element_access::get(root).update();
-    centui::details::element_access::get(root).calculate(800, 600);
-    REQUIRE(centui::details::element_access::get(root).children[1].layout.bounds().y == old_y + 10);
+    root.style.gap = centui::px(10);
+    root.update();
+    root.calculate(800, 600);
+    REQUIRE(root.children[1].layout.bounds().y == old_y + 10);
 }
 
 TEST_CASE("Explicit font updates work after the original font is destroyed", "[node][layout]")
 {
-    centui::text label{"First"};
+    centui::node label;
+    label.data = centui::text_data{"First"};
     {
         centui::font original;
-        centui::details::element_access::get(label).attach(original);
+        label.attach(original);
     }
     centui::font replacement;
-    std::get<centui::text_data>(centui::details::element_access::get(label).data).value = "Replacement";
-    centui::details::element_access::get(label).update(replacement);
-    centui::details::element_access::get(label).calculate(std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::quiet_NaN());
-    REQUIRE(centui::details::element_access::get(label).layout.bounds().width == std::ceil(replacement.measure("Replacement", 16).width));
+    std::get<centui::text_data>(label.data).value = "Replacement";
+    label.update(replacement);
+    label.calculate(std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::quiet_NaN());
+    REQUIRE(label.layout.bounds().width == std::ceil(replacement.measure("Replacement", 16).width));
 }
 
 TEST_CASE("Layout enum translation preserves row alignment and absolute position", "[layout]")
 {
-    centui::container root;
-    centui::details::element_access::get(root).children.emplace_back();
-    centui::details::element_access::get(root).style.width = centui::px(200);
-    centui::details::element_access::get(root).style.height = centui::px(100);
-    centui::details::element_access::get(root).style.flex_direction = centui::direction::row;
-    centui::details::element_access::get(root).style.align_items = centui::alignment::end;
-    centui::details::element_access::get(root).style.justify_content = centui::justification::center;
-    auto& child = centui::details::element_access::get(root).children[0];
+    centui::node root;
+    root.children.emplace_back();
+    root.style.width = centui::px(200);
+    root.style.height = centui::px(100);
+    root.style.flex_direction = centui::direction::row;
+    root.style.align_items = centui::alignment::end;
+    root.style.justify_content = centui::justification::center;
+    auto& child = root.children[0];
     child.style.width = centui::px(40);
     child.style.height = centui::px(20);
-    centui::details::element_access::get(root).attach();
-    centui::details::element_access::get(root).calculate(200, 100);
+    root.attach();
+    root.calculate(200, 100);
     REQUIRE(child.layout.bounds().x == 80);
     REQUIRE(child.layout.bounds().y == 80);
 
     child.style.position = centui::position::absolute;
     child.style.inset.left = centui::px(7);
     child.style.inset.top = centui::px(9);
-    centui::details::element_access::get(root).update();
-    centui::details::element_access::get(root).calculate(200, 100);
+    root.update();
+    root.calculate(200, 100);
     REQUIRE(child.layout.bounds().x == 7);
     REQUIRE(child.layout.bounds().y == 9);
 
     child.style.position = static_cast<centui::position>(100);
-    REQUIRE_THROWS_AS(centui::details::element_access::get(root).update(), std::invalid_argument);
+    REQUIRE_THROWS_AS(root.update(), std::invalid_argument);
 }
 
 static_assert(std::is_move_constructible_v<centui::text<>>);
@@ -513,8 +543,7 @@ static_assert(std::is_move_constructible_v<centui::container<>>);
 static_assert(std::is_copy_constructible_v<centui::container<>>);
 
 template <typename type>
-concept exposes_node = requires(type& value)
-{
+concept exposes_node = requires(type& value) {
     value.node;
 };
 
@@ -523,7 +552,7 @@ static_assert(!exposes_node<centui::text<>>);
 
 TEST_CASE("Public elements prepare without windows or graphics initialization", "[ui][headless]")
 {
-    centui::font face;
+    centui::font      face;
     centui::container root{centui::text{"First"}, centui::text{"Last"}};
     root.patch_style({.background_color = centui::states_color::all(centui::color::from_hex(0x123456))});
     root.patch_style({.padding = centui::edges::all(centui::px(12))});
@@ -538,8 +567,8 @@ TEST_CASE("Public elements prepare without windows or graphics initialization", 
 
 TEST_CASE("Public preparation reflects viewport resizing", "[ui][headless]")
 {
-    centui::font face;
-    centui::viewport viewport{400, 200};
+    centui::font      face;
+    centui::viewport  viewport{400, 200};
     centui::container root;
     root.patch_style({.width = centui::percent(50)});
     root.patch_style({.height = centui::percent(50)});
@@ -571,7 +600,7 @@ TEST_CASE("Moved public elements prepare safely after font destruction", "[ui][h
     moved.patch_style({.font_size = 24});
     centui::font face;
     {
-        const auto result = centui::prepare(moved, face, 400, 200);
+        const auto  result = centui::prepare(moved, face, 400, 200);
         const auto& command = std::get<centui::text_command>(result[0]);
         REQUIRE(command.value == "After moving");
         REQUIRE(command.font_size == 24);
@@ -595,7 +624,7 @@ TEST_CASE("Public preparation refreshes repeated text and style edits", "[ui][he
     {
         label.value(std::string(i + 1, 'W'));
         label.patch_style({.font_size = 16.0f + i});
-        const auto result = centui::prepare(label, face, 400, 200);
+        const auto  result = centui::prepare(label, face, 400, 200);
         const auto& command = std::get<centui::text_command>(result[0]);
         REQUIRE(command.value == label.value());
         REQUIRE(command.shaped->bounds.width == face.measure(label.value(), label.style().font_size).width);
@@ -604,11 +633,11 @@ TEST_CASE("Public preparation refreshes repeated text and style edits", "[ui][he
 
 struct recording_backend
 {
-    centui::font face;
+    centui::font     face;
     centui::viewport size{400, 200};
-    int submissions = 0;
-    float drawn_width = 0;
-    std::string drawn_text;
+    int              submissions = 0;
+    float            drawn_width = 0;
+    std::string      drawn_text;
 
     const centui::viewport& viewport() const
     {
@@ -640,7 +669,7 @@ struct recording_backend
 TEST_CASE("UI borrows a concrete backend without any window or graphics API", "[ui][headless]")
 {
     recording_backend backend;
-    centui::ui ui{backend};
+    centui::ui        ui{backend};
     centui::container root{centui::text{"HUD"}};
     root.patch_style({.background_color = centui::states_color::all(centui::color::from_hex(0x123456))});
     ui.render(root);
@@ -659,8 +688,8 @@ TEST_CASE("UI borrows a concrete backend without any window or graphics API", "[
 
 TEST_CASE("Optional draw layout borrows the prepared value or stays empty", "[draw]")
 {
-    centui::text label{"Hello"};
-    auto& tree = centui::details::element_access::get(label);
+    centui::node tree;
+    tree.data = centui::text_data{"Hello"};
     tree.attach();
     tree.calculate(400, 200);
     {
@@ -669,7 +698,9 @@ TEST_CASE("Optional draw layout borrows the prepared value or stays empty", "[dr
     }
     centui::font face;
     {
-        const auto result = centui::prepare(label, face, 400, 200);
+        tree.attach(face);
+        tree.calculate(400, 200);
+        const auto  result = centui::commands(tree);
         const auto& command = std::get<centui::text_command>(result[0]);
         REQUIRE(command.shaped.has_value());
         REQUIRE(std::addressof(command.shaped.value()) == std::addressof(std::get<centui::text_data>(tree.data).shaped.value()));
@@ -695,17 +726,17 @@ TEST_CASE("Measurement callbacks can own move-only state and survive layout move
 
 TEST_CASE("Fit padding and gap reset previous explicit values", "[layout]")
 {
-    centui::container root{centui::container{}, centui::container{}};
-    auto& tree = centui::details::element_access::get(root);
+    centui::node tree;
+    tree.children.resize(2);
     tree.children[0].style.height = centui::px(10);
     tree.children[1].style.height = centui::px(20);
-    root.patch_style({.padding = centui::edges::all(centui::px(5))});
-    root.patch_style({.gap = centui::px(7)});
+    tree.style.padding = centui::edges::all(centui::px(5));
+    tree.style.gap = centui::px(7);
     tree.attach();
     tree.calculate(100, 100);
     REQUIRE(tree.children[1].layout.bounds().y == 22);
-    root.patch_style({.padding = centui::edges::all(centui::fit())});
-    root.patch_style({.gap = centui::fit()});
+    tree.style.padding = centui::edges::all(centui::fit());
+    tree.style.gap = centui::fit();
     tree.update();
     tree.calculate(100, 100);
     REQUIRE(tree.children[1].layout.bounds().y == 10);

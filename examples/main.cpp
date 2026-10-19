@@ -1,10 +1,12 @@
 #include <functional>
 #include <initializer_list>
+#include <memory>
 #include <optional>
 #include <string>
 #include <typeinfo>
 #include <variant>
 #include <vector>
+#include <format>
 
 import centui.app;
 import centui.document;
@@ -54,14 +56,17 @@ int main()
 {
     centui::app app{{.title = "CentUI", .width = 800, .height = 600}};
 
+    int counter = 0;
+
     // clang-format off
-    auto title = centui::text<title_style>{"Hello, CentUI!"};
+    auto title = centui::text<title_style>{std::format("Hello, CentUI {}!", counter)};
     auto action = centui::button<action_button_style>{
         "Click me",
         {
-            .on_click = [title]() mutable
+            .on_click = [title, counter]() mutable
             {
-                title.set_text("Button clicked!");
+                counter++;
+                title.set_text(std::format("Button clicked {}!", counter));
                 title.patch_style({.text_color = centui::states_color::all(centui::color::from_hex(0x38BDF8))});
             },
         },

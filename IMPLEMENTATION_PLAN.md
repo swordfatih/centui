@@ -6,13 +6,14 @@ This is an ordered implementation brief for Codex. Implement stages sequentially
 
 - Inspect the current source and applicable repository instructions before editing. This plan describes the intended architecture; adapt names and implementation details to the actual code.
 - Preserve user changes. `ARCHITECTURE.md` was already deleted in the working tree when this plan was written; do not restore it automatically.
-- Start with the verification baseline below. Existing build artifacts are not evidence that current sources compile.
+- Review the recorded baseline below. Existing build artifacts are not evidence that current sources compile; builds/tests remain deferred under the user's instruction.
 - Keep each stage buildable. Update tests and examples with the implementation, and record completed tasks and any justified deviations in this file.
 - Prefer narrow interfaces and explicit ownership. Do not introduce a general entity-component system, large virtual widget hierarchy, reactive framework, or asynchronous renderer to accomplish these tasks.
 - Preserve declarative construction and compile-time style composition. Use temporary adapters where needed, then remove obsolete code once callers migrate.
 - Current user instruction: do not build anything; implement code only. Record verification commands and defer builds/tests until the user authorizes them. Do not claim unexecuted checks passed.
 - Never use `import std` or `import std.compat`. Include the required standard headers explicitly, in the global module fragment for module units and before imports for ordinary source files. Do not enable CMake standard-library module support.
 - Keep CMake organized around one `centui` library with `CONFIGURE_DEPENDS` source globs. Backend/app options select source directories and dependencies; do not introduce separate values/input/glyph/core libraries or enumerate source files individually.
+- Always use braces for control flow, including single-statement branches and loops. Keep code concrete and readable, with blank lines separating logical operations. Prefer simple data structures and explicit ownership over generic frameworks.
 
 ## Target architecture
 
@@ -57,11 +58,11 @@ Acceptance when verification is authorized: a clean source build and its discove
 - [x] Reject cycles, duplicate child ownership, and cross-document parenting before changing topology.
 - [x] Associate Yoga state and interaction identity with stable node IDs. Add adapters so current preparation can operate during migration.
 
-Implementation: `centui.document` owns slot records, each containing a node payload, layout, binding, parent ID, and ordered child IDs. `text`, `button`, and `container` are copyable typed handles. Copies alias identity; explicit moves transfer the handle and invalidate the source. Before mounting, the top-level construction handle owns the value tree; composing named children transfers construction ownership without moving their handles. Child handles expire if that construction owner dies. Mounting transfers ownership to the document; handles then retain only a binding with a weak document reference. IDs are local to a document. Removal invalidates generations; exhausted slots are retired.
+Implementation after the stage 3 refactor: `centui.runtime` owns slot records containing authoritative widget content, a binding, parent ID, ordered child IDs, and pending mutation categories. Layout and prepared text are owned separately by runtime services. `text`, `button`, and `container` are copyable typed handles. Copies alias identity; explicit moves transfer the handle and invalidate the source. Construction and mounting use the same registry and traversal. Before mounting, root handle copies share an explicit construction owner; composing named children transfers their records/services and relinquishes their former owner without moving their handles. Child handles expire if the enclosing construction owner dies. Mounting transfers the complete runtime to the document and relinquishes construction ownership. Mounted handles keep only weak access to runtime lifetime. IDs are runtime-local and may be remapped during construction composition; publicly exposed mounted IDs remain stable. Removal invalidates generations; exhausted slots are retired.
 
 Public operations: `document{root}`, `mount`, `root`, `children`, `parent`, `append`, `insert`, `reparent`, `reorder`, and `remove`. `insert` accepts unmounted trees; `reparent` moves existing nodes. Reparent indices refer to the destination list after removing the child. Removing the root empties the document and permits mounting a new tree. `element::valid()` is safe for expired/moved handles; other access throws `invalid_element`. `element::as<text<>>()` and corresponding widget types check the runtime kind. Containers use an initializer-list child constructor: braces compose children, including a single same-type container, while ordinary copying (`auto alias = child`) aliases the handle. The `from_children` workaround is removed.
 
-Preparation and input have document overloads and traverse mounted IDs. The raw value-node API remains a construction/test adapter; it is not mounted topology. Full preparation remains until stage 3; mutable style access was replaced in stage 2. Pointer interaction state stays attached to its slot payload through reparenting; the document dispatch redesign remains stage 4. Existing examples mount documents; the app example updates a nested title through a captured typed handle.
+Preparation and input have document overloads and always traverse runtime IDs, including before mounting. The raw value-node API remains a separate low-level compatibility API for existing callers/tests; public widget construction no longer creates raw value trees. Preparation became incremental in stage 3; mutable style access was replaced in stage 2. Pointer interaction state stays attached to widget content through reparenting; the document dispatch redesign remains stage 4. Existing examples mount documents; the app example updates a nested title through a captured typed handle.
 
 Added `tests/document.test.cpp` for ownership, handle expiry, generation reuse, move semantics, topology validation, preparation, reparented input, and callback removal. Container regressions cover same-type single children, several identical styled nesting levels, named and temporary children, class template argument deduction, empty/mixed trees, ordinary handle copying, and duplicate rejection. No builds or tests were run for these changes, per user instruction; acceptance behavior is specified in source tests but remains unverified at runtime.
 
@@ -81,7 +82,7 @@ Implementation: `style()` returns a const reference. `patch_style({.width = px(1
 
 Text and button labels expose `set_text` (the existing `value(string)` delegates to it). Buttons retain `set_enabled` and add `set_on_click`. Equal property writes do not invalidate; disabling clears interaction state. `style::changes_from()` centralizes style-to-stage mapping. `invalidation` tracks topology, text, layout, paint, and interaction eligibility. Text changes mark text/layout/paint; geometry marks layout/paint; colors and alignment mark paint; enabled state marks eligibility/paint; callbacks mark eligibility. Topology operations mark their parent and invalidate ancestor layout/paint, including both paths on reparenting. Reordering an unchanged sequence is a no-op.
 
-Widgets and documents expose read-only `pending_changes()` snapshots. Layout/paint changes propagate to ancestors; per-widget text invalidation stays local. Successful preparation acknowledges topology/text/layout/paint; input preparation acknowledges geometry and eligibility, with visual interaction transitions marking paint. Exceptions leave unfinished stages pending. These flags are the foundation for stage 3: the existing preparation path still performs full preparation and does not yet skip clean stages.
+Widgets and documents expose read-only `pending_changes()` snapshots. Layout/paint changes propagate to ancestors; per-widget text invalidation stays local. Successful preparation acknowledges topology/text/layout/paint; input preparation acknowledges geometry and eligibility, with visual interaction transitions marking paint. Exceptions leave unfinished stages pending. Stage 3 consumes these flags to skip clean preparation stages.
 
 Thread contract: documents, draft trees, and their widgets must be accessed and destroyed on their creating thread. Public document/handle access and mutations reject a different thread with `std::logic_error`; document moves are checked before transferring ownership. Identity comparison and plain handle copying/moving do not access widget state. Destruction is a caller obligation because destructors cannot report a recoverable thread-access error. No locking or background mutation queue is introduced.
 
@@ -91,18 +92,33 @@ Acceptance tests: text changes invalidate measurement/layout/paint; width change
 
 ## 3. Implement an incremental preparation pipeline
 
-- [ ] Make the document coordinate topology synchronization, text preparation, layout, and paint generation explicitly.
-- [ ] Keep Yoga nodes and child links attached between frames. Synchronize only changed topology.
-- [ ] Calculate layout only when document inputs or viewport dimensions require it, relying on Yoga's incremental behavior where appropriate.
-- [ ] Cache text preparation by its actual inputs. Introduce an internal text-service boundary now; migrate resource ownership in stage 5.
-- [ ] Reuse unchanged paint output or rebuild it only when needed. Avoid prematurely implementing complex subtree paint caching.
-- [ ] Remove recursive full-tree `attach()` from the normal render/event path once all required synchronization is covered.
-- [ ] Add lightweight test instrumentation for topology synchronization, shaping, and layout so incremental behavior is observable.
+- [x] Make the document coordinate topology synchronization, text preparation, layout, and paint generation explicitly.
+- [x] Keep Yoga nodes and child links attached between frames. Synchronize only changed topology.
+- [x] Calculate layout only when document inputs or viewport dimensions require it, relying on Yoga's incremental behavior where appropriate.
+- [x] Cache text preparation by its actual inputs. Introduce an internal text-service boundary now; migrate resource ownership in stage 5.
+- [x] Reuse unchanged paint output or rebuild it only when needed. Avoid prematurely implementing complex subtree paint caching.
+- [x] Remove recursive full-tree `attach()` from the normal render/event path once all required synchronization is covered.
+- [x] Add lightweight test instrumentation for topology synchronization, shaping, and layout so incremental behavior is observable.
+
+Implementation after refactoring: `centui.preparation` coordinates concrete services owned by `document_state`. Elements contain identity and construction ownership only. Geometry preparation checks viewport/font inputs and pending mutation categories, asks the layout engine to apply changed styles/measurements and synchronize changed parent lists, and calculates Yoga layout only when necessary. Idle frames skip geometry traversal. Changed geometry currently walks the tree to inspect service caches; Yoga owns its native layout dirtiness and incremental calculation. Subtree preparation uses the owning runtime's geometry and returns the subtree's range from the same command array in document coordinates.
+
+`centui.text_service` owns each node's current shaping key and immutable prepared text. Keys contain text, exact font size, and font identity. `centui.layout_engine` owns Yoga nodes, applied layout styles, native links, and measurement installations. It weakly identifies the prepared text consumed by each measurement, allowing a failed installation to retry without reshaping. Font identity uses an opaque lifetime token independent of native resources; moving a font preserves it, and replacement/address reuse cannot reuse an old key. No font object/reference is retained between calls. Wrapping and other new shaping options must extend the key in stage 5. Each slot retains only its current key/output.
+
+Topology operations no longer detach the entire document. Reparenting releases the previous parent's native child list; removal detaches the affected parent and destroyed subtree before freeing nodes. Preparation releases all dirty parent lists before linking new owners. Construction composition transfers heap-owned records and service entries without relocating content, prepared text, or native nodes. Mounting transfers the entire runtime without rebuilding geometry or paint. Both construction composition and document insertion share one validated transfer operation; allocations and validation precede ownership changes.
+
+`centui.painter` owns the cached command array and subtree ranges. It consumes a preorder list of content, absolute geometry, and prepared text; it has no Yoga or document-storage dependency. Geometry extraction and range construction are linear in tree/slot storage. Paint emission shares a helper with the legacy raw-node painter. Synchronous UI rendering borrows the cached array; public `prepare()` retains its vector return type and copies command records, not text or glyph vectors. Commands still borrow runtime data until mutation/preparation/destruction; owned frames remain stage 6.
+
+`centui.diagnostics` provides optional counters outside nodes. Call `enable_preparation_diagnostics()` on a document or element to observe subsequent work through `preparation_stats()`. Diagnostics are disabled by default; disabling releases counters, and enabling again starts from zero without invalidating caches. Mounting preserves the runtime's existing diagnostics; enabling on an empty document carries the setting into the mounted runtime. Inserting a subtree preserves its prepared resources but does not merge diagnostic histories. Counters survive removal within their runtime; mounting a replacement runtime uses that runtime's counters.
+
+`tests/preparation.test.cpp` covers idle reuse, stage-specific edits, resize, shared input geometry, topology changes, actual input keys, font lifetime/address reuse, failure recovery, mounting/composition, subtree ranges, optional diagnostics, rejected transfers, and slot cache cleanup. Tests remain source specifications: no builds or tests were run.
+
+Source-only verification: `git diff --check` passed; `clang-format --dry-run --Werror --style=file` passed for the refactored modules and preparation tests. A source scan found 27 unique module declarations, resolved every local `centui.*` import, and found no dependency cycles. The formatter now inserts control-flow braces and expands short functions/blocks; its invalid `SpacesInAnglesStyle` key was corrected to `SpacesInAngles`. These checks do not establish compilation or runtime correctness.
 
 Acceptance tests: repeated idle preparation does not rebuild links or reshape text; a color edit does not perform layout; editing one label does not reshape unrelated labels; resize refreshes geometry; repeated mutation and preparation do not retain stale measurements.
 
 ## 4. Unify input dispatch with document geometry
 
+- Extend the existing runtime with document-owned interaction tracking. Input consumes the preparation coordinator's current geometry; do not reintroduce layout ownership or a mounted/unmounted traversal inside the dispatcher.
 - [ ] Move interaction tracking to document-owned stable IDs for hover, focus, and pointer capture.
 - [ ] Ensure geometry is current before hit testing, using the preparation pipeline rather than a separate layout path.
 - [ ] Process events in order. Invoke an activation callback at its defined event boundary; apply resulting mutations and refresh affected geometry before the next event needs it.
@@ -116,6 +132,7 @@ Acceptance tests: the second event in a batch sees geometry changed by the first
 
 ## 5. Extract a shared CPU text and font service
 
+- Extend `centui.text_service` with font/resource ownership and constrained shaping. Preserve the existing layout engine and painter boundaries; widget content remains authoritative inputs, not a container for prepared resources.
 - [ ] Move font ownership, shaping, measurement, and CPU glyph rasterization out of graphics backends into a text service.
 - [ ] Introduce explicit font handles and immutable resource identities or revisions. Define replacement and destruction semantics.
 - [ ] Make styles reference a font handle, with a configurable default supplied by the host/application. Avoid requiring Windows font discovery for headless or non-Windows use.
@@ -130,6 +147,7 @@ Acceptance tests: fonts sharing glyph IDs never share incorrect images; replacin
 
 ## 6. Establish an owned paint-frame contract
 
+- Evolve `centui.painter` output into the owned frame contract. Keep frame construction outside element handles and keep graphics backend state outside the runtime's layout/text services.
 - [ ] Add an immutable or read-only frame type owning its command data and retaining referenced resources.
 - [ ] Emit positioned glyph-image primitives from prepared text. Renderers must not shape text or choose fonts.
 - [ ] Store stable glyph-image identity and immutable image data/resources in a form each renderer can upload.

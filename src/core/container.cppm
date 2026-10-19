@@ -1,13 +1,11 @@
 module;
 
 #include <initializer_list>
-#include <memory>
 #include <span>
-#include <utility>
 
 export module centui.container;
 
-import centui.node;
+import centui.model;
 import centui.style;
 export import centui.element;
 
@@ -24,12 +22,13 @@ public:
     container(container&&) noexcept = default;
     container& operator=(container&&) noexcept = default;
 
-    container() : container(std::initializer_list<element>{}) {}
+    container() : container(std::initializer_list<element>{})
+    {
+    }
 
     // Braces compose children, even for one child of the same container type.
     explicit container(std::initializer_list<element> items)
-        : element(node{
-              .children = {},
+        : element(details::element_content{
               .data = container_data{},
               .style = style::resolve<styles...>(),
           })
@@ -39,8 +38,10 @@ public:
 
 private:
     friend class element;
-    container(details::handle_tag tag, std::shared_ptr<details::element_binding> binding)
-        : element(tag, std::move(binding)) {}
+    container(details::handle_tag, const element& handle)
+        : element(handle)
+    {
+    }
 };
 
 } // namespace centui

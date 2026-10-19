@@ -9,8 +9,10 @@ module;
 export module centui.draw;
 
 import centui.node;
+import centui.model;
 import centui.color;
 import centui.unit;
+import centui.style;
 import centui.glyph;
 
 export namespace centui
@@ -33,78 +35,110 @@ struct text_command
 
 using draw_command = std::variant<rectangle_command, text_command>;
 
-// Commands borrow text and layout until the tree is mutated, moved, or destroyed.
+namespace details
+{
+
+inline void append_paint(const centui::style& style, rect bounds, std::string_view value,
+                         const text_layout* shaped, const button_interaction_state* interaction,
+                         std::vector<draw_command>& output)
+{
+    const auto state_color = [interaction](const states_color& colors)
+    {
+        if(!interaction)
+        {
+            return colors.normal;
+        }
+        if(!interaction->enabled)
+        {
+            return colors.disabled;
+        }
+        if(interaction->pressed)
+        {
+            return colors.pressed;
+        }
+        if(interaction->hovered)
+        {
+            return colors.hover;
+        }
+        if(interaction->focused)
+        {
+            return colors.focused;
+        }
+        return colors.normal;
+    };
+
+    const auto background = state_color(style.background_color);
+    if(background.a != 0 && bounds.width > 0 && bounds.height > 0)
+    {
+        output.emplace_back(rectangle_command{bounds, background});
+    }
+
+    const auto foreground = state_color(style.text_color);
+    if(foreground.a != 0 && !value.empty())
+    {
+        std::optional<const text_layout&> prepared;
+        if(shaped)
+        {
+            prepared = *shaped;
+        }
+        output.emplace_back(text_command{bounds, value, foreground, style.font_size, prepared});
+    }
+}
+
+inline void append_element_commands(const element_content& content, rect bounds,
+                                    const text_layout* shaped, std::vector<draw_command>& output)
+{
+    std::string_view                value;
+    const button_interaction_state* interaction = nullptr;
+    if(const auto* text = std::get_if<text_content>(&content.data))
+    {
+        value = text->value;
+    }
+    else if(const auto* button = std::get_if<button_content>(&content.data))
+    {
+        value = button->value;
+        interaction = button->interaction.get();
+    }
+    append_paint(content.style, bounds, value, shaped, interaction, output);
+}
+
+inline void append_node_commands(const node& current, rect bounds, std::vector<draw_command>& output)
+{
+    std::string_view                value;
+    const text_layout*              shaped = nullptr;
+    const button_interaction_state* interaction = nullptr;
+    if(const auto* text = std::get_if<text_data>(&current.data))
+    {
+        value = text->value;
+        shaped = text->shaped ? &*text->shaped : nullptr;
+    }
+    else if(const auto* button = std::get_if<button_data>(&current.data))
+    {
+        value = button->value;
+        shaped = button->shaped ? &*button->shaped : nullptr;
+        interaction = button->interaction.get();
+    }
+    append_paint(current.style, bounds, value, shaped, interaction, output);
+}
+
+} // namespace details
+
+// Compatibility painter for explicitly constructed raw node trees.
 std::vector<draw_command> commands(const node& root)
 {
     std::vector<draw_command> result;
-
-    auto visit = [&](this auto&& self, const node& current, float x, float y) -> void
+    auto                      visit = [&](this auto&& self, const node& current, float x, float y) -> void
     {
         auto bounds = current.layout.bounds();
         bounds.x += x;
         bounds.y += y;
-
-        auto background_color = current.style.background_color.normal;
-        auto text_color = current.style.text_color.normal;
-        const std::string* value = nullptr;
-        const std::optional<text_layout>* shaped_layout = nullptr;
-
-        if(const auto* text = std::get_if<text_data>(&current.data))
-        {
-            value = &text->value;
-            shaped_layout = &text->shaped;
-        }
-        else if(const auto* button = std::get_if<details::button_data>(&current.data))
-        {
-            value = &button->value;
-            shaped_layout = &button->shaped;
-
-            const auto& interaction = *button->interaction;
-            const auto state_color = [&](const auto& colors)
-            {
-                if(!interaction.enabled)
-                {
-                    return colors.disabled;
-                }
-                if(interaction.pressed)
-                {
-                    return colors.pressed;
-                }
-                if(interaction.hovered)
-                {
-                    return colors.hover;
-                }
-                if(interaction.focused)
-                {
-                    return colors.focused;
-                }
-                return colors.normal;
-            };
-            background_color = state_color(current.style.background_color);
-            text_color = state_color(current.style.text_color);
-        }
-
-        if(background_color.a != 0 && bounds.width > 0 && bounds.height > 0)
-        {
-            result.emplace_back(rectangle_command{bounds, background_color});
-        }
-
-        if(value && shaped_layout && text_color.a != 0 && !value->empty())
-        {
-            const auto shaped = shaped_layout->transform([](const text_layout& value) -> const text_layout&
-            {
-                return value;
-            });
-            result.emplace_back(text_command{bounds, *value, text_color, current.style.font_size, shaped});
-        }
-
+        details::append_node_commands(current, bounds, result);
         for(const auto& child: current.children)
         {
             self(child, bounds.x, bounds.y);
         }
     };
-
-    visit(root, 0.0f, 0.0f);
+    visit(root, 0, 0);
     return result;
 }
 

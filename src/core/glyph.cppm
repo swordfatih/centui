@@ -71,6 +71,9 @@ public:
     [[nodiscard]] glyph_bitmap              rasterize(std::uint32_t id, float size);
     [[nodiscard]] float                     ascender(float size);
 
+    // Identifies the font data across moves without retaining native resources.
+    [[nodiscard]] std::shared_ptr<const void> identity() const;
+
 private:
     struct data;
     std::unique_ptr<data> _data;
@@ -83,6 +86,7 @@ namespace centui
 
 struct font::data
 {
+    std::shared_ptr<const void> identity = std::make_shared<const int>(0);
     struct library_deleter
     {
         void operator()(FT_Library library) const noexcept
@@ -176,6 +180,15 @@ font::~font() = default;
 
 font::font(font&&) noexcept = default;
 font& font::operator=(font&&) noexcept = default;
+
+std::shared_ptr<const void> font::identity() const
+{
+    if(!_data)
+    {
+        throw std::logic_error("Font is moved from");
+    }
+    return _data->identity;
+}
 
 rect font::measure(std::string_view text, float size)
 {

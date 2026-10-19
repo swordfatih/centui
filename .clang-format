@@ -14,14 +14,17 @@ LambdaBodyIndentation: OuterScope
 
 # Braces
 BreakBeforeBraces: Allman
+InsertBraces: true
 
 # Spacing Rules
 SpaceBeforeParens: Never
 SpaceBeforeRangeBasedForLoopColon: false
-SpacesInAnglesStyle: Never
+SpacesInAngles: Never
 
 # Short Statements
 AllowShortIfStatementsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: None
+AllowShortBlocksOnASingleLine: Never
 AllowShortLambdasOnASingleLine: Empty
 
 # Includes
