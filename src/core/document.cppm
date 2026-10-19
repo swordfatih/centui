@@ -23,6 +23,8 @@ import centui.draw;
 export namespace centui
 {
 
+namespace details { struct document_access; }
+
 // Sole owner of mounted widgets. Handles and callbacks must not own this store.
 class document
 {
@@ -33,10 +35,31 @@ public:
     explicit document(const element& root) : document() { mount(root); }
     document(const document&) = delete;
     document& operator=(const document&) = delete;
-    document(document&&) noexcept = default;
-    document& operator=(document&&) noexcept = default;
+    document(document&& other)
+    {
+        (void)other.store();
+        _store = std::move(other._store);
+    }
+    document& operator=(document&& other)
+    {
+        if(this != &other)
+        {
+            if(_store) _store->check_thread();
+            (void)other.store();
+            _store = std::move(other._store);
+        }
+        return *this;
+    }
 
     [[nodiscard]] bool empty() const { return !store().root; }
+
+    [[nodiscard]] invalidation pending_changes() const
+    {
+        auto result = store().pending;
+        for(const auto& slot : store().slots)
+            if(slot.record) result.merge(slot.record->binding->pending);
+        return result;
+    }
 
     [[nodiscard]] element root() const
     {
@@ -74,6 +97,8 @@ public:
         detach_layouts();
         target.children.insert(target.children.begin() + position, id);
         store().get(id).parent = parent.id();
+        details::invalidate(details::element_access::binding(parent),
+                            {.topology = true, .layout = true, .paint = true, .interaction = true});
     }
 
     void append(const element& parent, const element& child) { insert(parent, child); }
@@ -89,12 +114,17 @@ public:
 
         const bool same_parent = *source.parent == parent.id();
         const auto position = insertion_index(index, target.children.size() - (same_parent ? 1 : 0));
+        const auto old_parent = *source.parent;
+        if(same_parent && target.children[position] == child.id()) return;
         target.children.reserve(target.children.size() + (same_parent ? 0 : 1));
         auto& old = store().get(*source.parent).children;
         detach_layouts();
         std::erase(old, child.id());
         target.children.insert(target.children.begin() + position, child.id());
         source.parent = parent.id();
+        const invalidation changes{.topology = true, .layout = true, .paint = true, .interaction = true};
+        details::invalidate(store().get(old_parent).binding, changes);
+        details::invalidate(details::element_access::binding(parent), changes);
     }
 
     // Order must be an exact permutation of the existing children.
@@ -111,8 +141,11 @@ public:
                 throw std::invalid_argument("Order contains a foreign or duplicate child");
             ids.push_back(child.id());
         }
+        if(ids == target.children) return;
         detach_layouts();
         target.children.swap(ids);
+        details::invalidate(details::element_access::binding(parent),
+                            {.topology = true, .layout = true, .paint = true, .interaction = true});
     }
 
     // Removal destroys a subtree immediately. It does not return an owning handle.
@@ -129,8 +162,18 @@ public:
         collect(id);
         store().free_slots.reserve(store().free_slots.size() + removed.size());
         detach_layouts();
-        if(record.parent) std::erase(store().get(*record.parent).children, id);
-        else store().root.reset();
+        const invalidation changes{.topology = true, .layout = true, .paint = true, .interaction = true};
+        if(record.parent)
+        {
+            auto& parent = store().get(*record.parent);
+            std::erase(parent.children, id);
+            details::invalidate(parent.binding, changes);
+        }
+        else
+        {
+            store().root.reset();
+            store().pending.merge(changes);
+        }
         for(auto current : removed)
         {
             auto& slot = store().slots[current.index];
@@ -152,16 +195,19 @@ public:
     }
 
 private:
+    friend struct details::document_access;
     std::shared_ptr<details::document_store> _store;
 
     details::document_store& store() const
     {
         if(!_store) throw std::logic_error("Document is moved from");
+        _store->check_thread();
         return *_store;
     }
 
     details::document_record& checked(const element& value) const
     {
+        (void)store();
         const auto& binding = details::element_access::binding(value);
         (void)details::resolve(binding);
         if(binding->owner.lock() != _store)
@@ -213,6 +259,8 @@ private:
                 throw std::invalid_argument("Duplicate construction identity");
             if(!std::holds_alternative<container_data>(value.data) && !value.children.empty())
                 throw std::invalid_argument("Only containers may have children");
+            binding->check_thread();
+            value.style.validate();
             const auto index = plan.size();
             auto record = std::make_unique<details::document_record>();
             record->value = std::make_unique<node>();
@@ -256,6 +304,9 @@ private:
             runtime.slots[item.id.index].record = std::move(item.record);
             item.binding->owner = _store;
             item.binding->id = item.id;
+            item.binding->pending.merge({.topology = true,
+                                         .text = !std::holds_alternative<container_data>(runtime.get(item.id).value->data),
+                                         .layout = true, .paint = true, .interaction = true});
             item.binding->draft_parent.reset();
             item.binding->draft_children.clear();
         }
@@ -264,9 +315,26 @@ private:
     }
 };
 
+namespace details
+{
+struct document_access
+{
+    static void complete_empty(document& owner, invalidation completed)
+    {
+        auto& store = owner.store();
+        if(!store.root) store.pending.clear(completed);
+    }
+};
+}
+
 std::vector<draw_command> prepare(document& owner, font& face, int width, int height)
 {
-    if(owner.empty()) return {};
+    if(owner.empty())
+    {
+        if(width > 0 && height > 0)
+            details::document_access::complete_empty(owner, {.topology = true, .text = true, .layout = true, .paint = true});
+        return {};
+    }
     auto root = owner.root();
     return prepare(root, face, width, height);
 }

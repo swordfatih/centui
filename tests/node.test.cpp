@@ -525,8 +525,8 @@ TEST_CASE("Public elements prepare without windows or graphics initialization", 
 {
     centui::font face;
     centui::container root{centui::text{"First"}, centui::text{"Last"}};
-    root.style().background_color.normal = centui::color::from_hex(0x123456);
-    root.style().padding = centui::edges::all(centui::px(12));
+    root.patch_style({.background_color = centui::states_color::all(centui::color::from_hex(0x123456))});
+    root.patch_style({.padding = centui::edges::all(centui::px(12))});
 
     const auto result = centui::prepare(root, face, 400, 200);
     REQUIRE(result.size() == 3);
@@ -541,9 +541,9 @@ TEST_CASE("Public preparation reflects viewport resizing", "[ui][headless]")
     centui::font face;
     centui::viewport viewport{400, 200};
     centui::container root;
-    root.style().width = centui::percent(50);
-    root.style().height = centui::percent(50);
-    root.style().background_color.normal = centui::color::from_hex(0x123456);
+    root.patch_style({.width = centui::percent(50)});
+    root.patch_style({.height = centui::percent(50)});
+    root.patch_style({.background_color = centui::states_color::all(centui::color::from_hex(0x123456))});
     {
         const auto result = centui::prepare(root, face, viewport.width, viewport.height);
         REQUIRE(std::get<centui::rectangle_command>(result[0]).bounds.width == 200);
@@ -568,7 +568,7 @@ TEST_CASE("Moved public elements prepare safely after font destruction", "[ui][h
     }
     auto moved = std::move(label);
     moved.value("After moving");
-    moved.style().font_size = 24;
+    moved.patch_style({.font_size = 24});
     centui::font face;
     {
         const auto result = centui::prepare(moved, face, 400, 200);
@@ -594,7 +594,7 @@ TEST_CASE("Public preparation refreshes repeated text and style edits", "[ui][he
     for(int i = 0; i < 4; ++i)
     {
         label.value(std::string(i + 1, 'W'));
-        label.style().font_size = 16.0f + i;
+        label.patch_style({.font_size = 16.0f + i});
         const auto result = centui::prepare(label, face, 400, 200);
         const auto& command = std::get<centui::text_command>(result[0]);
         REQUIRE(command.value == label.value());
@@ -642,7 +642,7 @@ TEST_CASE("UI borrows a concrete backend without any window or graphics API", "[
     recording_backend backend;
     centui::ui ui{backend};
     centui::container root{centui::text{"HUD"}};
-    root.style().background_color.normal = centui::color::from_hex(0x123456);
+    root.patch_style({.background_color = centui::states_color::all(centui::color::from_hex(0x123456))});
     ui.render(root);
     REQUIRE(backend.submissions == 1);
     REQUIRE(backend.drawn_text == "HUD");
@@ -699,13 +699,13 @@ TEST_CASE("Fit padding and gap reset previous explicit values", "[layout]")
     auto& tree = centui::details::element_access::get(root);
     tree.children[0].style.height = centui::px(10);
     tree.children[1].style.height = centui::px(20);
-    root.style().padding = centui::edges::all(centui::px(5));
-    root.style().gap = centui::px(7);
+    root.patch_style({.padding = centui::edges::all(centui::px(5))});
+    root.patch_style({.gap = centui::px(7)});
     tree.attach();
     tree.calculate(100, 100);
     REQUIRE(tree.children[1].layout.bounds().y == 22);
-    root.style().padding = centui::edges::all(centui::fit());
-    root.style().gap = centui::fit();
+    root.patch_style({.padding = centui::edges::all(centui::fit())});
+    root.patch_style({.gap = centui::fit()});
     tree.update();
     tree.calculate(100, 100);
     REQUIRE(tree.children[1].layout.bounds().y == 10);

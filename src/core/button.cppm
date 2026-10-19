@@ -3,6 +3,7 @@ module;
 #include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 
@@ -21,11 +22,6 @@ struct button_options
     std::function<void()> on_click;
 };
 
-namespace details
-{
-
-} // namespace details
-
 template <typename... styles>
 class button : public element
 {
@@ -39,6 +35,7 @@ public:
     void set_enabled(bool enabled)
     {
         auto& state = interaction();
+        if(state.enabled == enabled) return;
         state.enabled = enabled;
         if(!enabled)
         {
@@ -46,11 +43,27 @@ public:
             state.pressed = false;
             state.focused = false;
         }
+        changed({.paint = true, .interaction = true});
     }
 
     [[nodiscard]] bool enabled() const
     {
         return interaction().enabled;
+    }
+
+    void set_text(std::string value) { set_text_value(std::move(value)); }
+    void value(std::string value) { set_text(std::move(value)); }
+    [[nodiscard]] std::string_view value() const
+    {
+        return std::get<details::button_data>(details::element_access::get(*this).data).value;
+    }
+
+    void set_on_click(std::function<void()> callback)
+    {
+        auto& state = interaction();
+        if(!state.on_click && !callback) return;
+        state.on_click.swap(callback);
+        changed({.interaction = true});
     }
 
 private:

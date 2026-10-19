@@ -31,8 +31,10 @@ public:
 
     void value(std::string value)
     {
-        std::get<text_data>(details::element_access::get(*this).data).value = std::move(value);
+        set_text(std::move(value));
     }
+
+    void set_text(std::string value) { set_text_value(std::move(value)); }
 
     [[nodiscard]] std::string_view value() const
     {

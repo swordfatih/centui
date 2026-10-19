@@ -45,7 +45,13 @@ public:
 
     void render(document& owner)
     {
-        if(owner.empty()) return;
+        if(owner.empty())
+        {
+            const auto [width, height] = _backend.viewport();
+            if(width > 0 && height > 0)
+                details::document_access::complete_empty(owner, {.topology = true, .text = true, .layout = true, .paint = true});
+            return;
+        }
         auto root = owner.root();
         render(root);
     }
@@ -57,7 +63,12 @@ public:
 
     void process_events(document& owner, std::span<const input_event> events)
     {
-        if(owner.empty()) { clear_interaction(); return; }
+        if(owner.empty())
+        {
+            clear_interaction();
+            details::document_access::complete_empty(owner, {.interaction = true});
+            return;
+        }
         auto root = owner.root();
         process_events(root, events);
     }
@@ -76,6 +87,7 @@ public:
 
         auto& tree = details::element_access::get(root);
         validate_interaction(root);
+        details::element_access::complete(root, {.interaction = true});
 
         const auto [width, height] = _backend.viewport();
         if(width <= 0 || height <= 0)
@@ -86,6 +98,7 @@ public:
 
         details::attach_elements(root, _backend.glyphs());
         tree.calculate(static_cast<float>(width), static_cast<float>(height));
+        details::element_access::complete(root, {.topology = true, .text = true, .layout = true});
         std::vector<std::pair<std::weak_ptr<details::button_interaction_state>, std::function<void()>>> callbacks;
 
         for(const auto& event: events)
@@ -115,6 +128,7 @@ public:
                 if(captured)
                 {
                     const bool was_pressed = captured->pressed;
+                    if(was_pressed) details::invalidate_interaction(captured);
                     captured->pressed = false;
                     if(was_pressed && captured->enabled && captured == target && captured->on_click)
                     {
@@ -183,11 +197,13 @@ private:
     {
         if(auto previous = _hovered.lock(); previous && previous != target)
         {
+            if(previous->hovered) details::invalidate_interaction(previous);
             previous->hovered = false;
         }
         _hovered = target;
         if(target)
         {
+            if(!target->hovered) details::invalidate_interaction(target);
             target->hovered = true;
         }
     }
@@ -196,11 +212,13 @@ private:
     {
         if(auto previous = _focused.lock(); previous && previous != target)
         {
+            if(previous->focused) details::invalidate_interaction(previous);
             previous->focused = false;
         }
         _focused = target;
         if(target)
         {
+            if(!target->focused) details::invalidate_interaction(target);
             target->focused = true;
         }
     }
@@ -209,11 +227,13 @@ private:
     {
         if(auto previous = _captured.lock())
         {
+            if(previous->pressed) details::invalidate_interaction(previous);
             previous->pressed = false;
         }
         _captured = target;
         if(target)
         {
+            if(!target->pressed) details::invalidate_interaction(target);
             target->pressed = true;
         }
     }
@@ -222,16 +242,19 @@ private:
     {
         if(auto hovered = _hovered.lock(); hovered && (!hovered->enabled || !contains(root, hovered.get())))
         {
+            if(hovered->hovered) details::invalidate_interaction(hovered);
             hovered->hovered = false;
             _hovered.reset();
         }
         if(auto captured = _captured.lock(); captured && (!captured->enabled || !contains(root, captured.get())))
         {
+            if(captured->pressed) details::invalidate_interaction(captured);
             captured->pressed = false;
             _captured.reset();
         }
         if(auto focused = _focused.lock(); focused && (!focused->enabled || !contains(root, focused.get())))
         {
+            if(focused->focused) details::invalidate_interaction(focused);
             focused->focused = false;
             _focused.reset();
         }
@@ -241,14 +264,17 @@ private:
     {
         if(auto hovered = _hovered.lock())
         {
+            if(hovered->hovered) details::invalidate_interaction(hovered);
             hovered->hovered = false;
         }
         if(auto captured = _captured.lock())
         {
+            if(captured->pressed) details::invalidate_interaction(captured);
             captured->pressed = false;
         }
         if(auto focused = _focused.lock())
         {
+            if(focused->focused) details::invalidate_interaction(focused);
             focused->focused = false;
         }
         _hovered.reset();

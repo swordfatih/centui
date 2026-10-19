@@ -1,5 +1,6 @@
 #include <functional>
 #include <initializer_list>
+#include <optional>
 #include <string>
 #include <typeinfo>
 #include <variant>
@@ -60,7 +61,8 @@ int main()
         {
             .on_click = [title]() mutable
             {
-                title.value("Button clicked!");
+                title.set_text("Button clicked!");
+                title.patch_style({.text_color = centui::states_color::all(centui::color::from_hex(0x38BDF8))});
             },
         },
     };

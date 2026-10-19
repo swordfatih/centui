@@ -38,6 +38,7 @@ struct construction_identity {};
 
 struct button_interaction_state
 {
+    std::weak_ptr<construction_identity> identity;
     bool hovered = false;
     bool pressed = false;
     bool focused = false;
@@ -111,6 +112,7 @@ struct node
 private:
     void validate() const
     {
+        style.validate();
         if(!std::holds_alternative<container_data>(data) && !children.empty())
         {
             throw std::invalid_argument("Text and button nodes cannot have children");

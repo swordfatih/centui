@@ -61,7 +61,7 @@ Implementation: `centui.document` owns slot records, each containing a node payl
 
 Public operations: `document{root}`, `mount`, `root`, `children`, `parent`, `append`, `insert`, `reparent`, `reorder`, and `remove`. `insert` accepts unmounted trees; `reparent` moves existing nodes. Reparent indices refer to the destination list after removing the child. Removing the root empties the document and permits mounting a new tree. `element::valid()` is safe for expired/moved handles; other access throws `invalid_element`. `element::as<text<>>()` and corresponding widget types check the runtime kind. Containers use an initializer-list child constructor: braces compose children, including a single same-type container, while ordinary copying (`auto alias = child`) aliases the handle. The `from_children` workaround is removed.
 
-Preparation and input have document overloads and traverse mounted IDs. The raw value-node API remains a construction/test adapter; it is not mounted topology. Full preparation and mutable style access remain until stages 2–3. Pointer interaction state stays attached to its slot payload through reparenting; the document dispatch redesign remains stage 4. Existing examples mount documents; the app example updates a nested title through a captured typed handle.
+Preparation and input have document overloads and traverse mounted IDs. The raw value-node API remains a construction/test adapter; it is not mounted topology. Full preparation remains until stage 3; mutable style access was replaced in stage 2. Pointer interaction state stays attached to its slot payload through reparenting; the document dispatch redesign remains stage 4. Existing examples mount documents; the app example updates a nested title through a captured typed handle.
 
 Added `tests/document.test.cpp` for ownership, handle expiry, generation reuse, move semantics, topology validation, preparation, reparented input, and callback removal. Container regressions cover same-type single children, several identical styled nesting levels, named and temporary children, class template argument deduction, empty/mixed trees, ordinary handle copying, and duplicate rejection. No builds or tests were run for these changes, per user instruction; acceptance behavior is specified in source tests but remains unverified at runtime.
 
@@ -69,13 +69,23 @@ Acceptance tests: nested text can be edited through its original handle; a compo
 
 ## 2. Centralize mutation and validation
 
-- [ ] Route public changes through typed setters and document operations, including text, enabled state, style, and topology.
-- [ ] Replace unrestricted mutable `style&` exposure with validated style patches or another explicit edit operation.
-- [ ] Keep compile-time style resolution as an initial-value facility. Runtime changes must use the same validation and invalidation rules regardless of how initial styles were supplied.
-- [ ] Validate a mutation before publishing it. Rejected changes must leave document state and dirty tracking consistent.
-- [ ] Define and track separate invalidation for topology, text shaping/measurement, layout, paint, and interaction eligibility.
-- [ ] Centralize mappings from changed properties to affected stages. Color-only edits must not reshape text or rebuild topology.
-- [ ] Define the document's thread ownership contract. Keep the implementation single-threaded unless an existing requirement demands more.
+- [x] Route public changes through typed setters and document operations, including text, enabled state, style, and topology.
+- [x] Replace unrestricted mutable `style&` exposure with validated style patches or another explicit edit operation.
+- [x] Keep compile-time style resolution as an initial-value facility. Runtime changes must use the same validation and invalidation rules regardless of how initial styles were supplied.
+- [x] Validate a mutation before publishing it. Rejected changes must leave document state and dirty tracking consistent.
+- [x] Define and track separate invalidation for topology, text shaping/measurement, layout, paint, and interaction eligibility.
+- [x] Centralize mappings from changed properties to affected stages. Color-only edits must not reshape text or rebuild topology.
+- [x] Define the document's thread ownership contract. Keep the implementation single-threaded unless an existing requirement demands more.
+
+Implementation: `style()` returns a const reference. `patch_style({.width = px(100)})` applies supplied properties to a detached candidate; `set_style(style)` replaces the full value. A patch replaces an entire supplied edges/state-colors property. Unspecified properties are preserved. Both paths validate before publication, using the same `style::validate()` invoked after compile-time style composition and during node construction/adoption. Lengths must be finite with valid units, dimensions/padding/gap nonnegative, fit values zero, font sizes positive/finite/representable, and enum values in their declared domains. Margins and insets may be negative. Invalid patches preserve values, prepared data, and pending changes.
+
+Text and button labels expose `set_text` (the existing `value(string)` delegates to it). Buttons retain `set_enabled` and add `set_on_click`. Equal property writes do not invalidate; disabling clears interaction state. `style::changes_from()` centralizes style-to-stage mapping. `invalidation` tracks topology, text, layout, paint, and interaction eligibility. Text changes mark text/layout/paint; geometry marks layout/paint; colors and alignment mark paint; enabled state marks eligibility/paint; callbacks mark eligibility. Topology operations mark their parent and invalidate ancestor layout/paint, including both paths on reparenting. Reordering an unchanged sequence is a no-op.
+
+Widgets and documents expose read-only `pending_changes()` snapshots. Layout/paint changes propagate to ancestors; per-widget text invalidation stays local. Successful preparation acknowledges topology/text/layout/paint; input preparation acknowledges geometry and eligibility, with visual interaction transitions marking paint. Exceptions leave unfinished stages pending. These flags are the foundation for stage 3: the existing preparation path still performs full preparation and does not yet skip clean stages.
+
+Thread contract: documents, draft trees, and their widgets must be accessed and destroyed on their creating thread. Public document/handle access and mutations reject a different thread with `std::logic_error`; document moves are checked before transferring ownership. Identity comparison and plain handle copying/moving do not access widget state. Destruction is a caller obligation because destructors cannot report a recoverable thread-access error. No locking or background mutation queue is introduced.
+
+Updated the public mutation callers and added `tests/mutation.test.cpp` covering invalidation, validation, atomic failure, no-op edits, capture cancellation, topology, and thread rejection. The app example uses typed text/style setters. No builds or tests were run, per user instruction.
 
 Acceptance tests: text changes invalidate measurement/layout/paint; width changes invalidate layout/paint; colors invalidate paint only; enabled changes update interaction eligibility; invalid style edits leave prior values usable.
 

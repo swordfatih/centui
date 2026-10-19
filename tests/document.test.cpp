@@ -16,6 +16,7 @@ import centui.button;
 import centui.glyph;
 import centui.draw;
 import centui.unit;
+import centui.color;
 import centui.ui;
 import centui.input;
 
@@ -320,8 +321,8 @@ TEST_CASE("Mounted preparation follows IDs after topology changes", "[document][
     centui::text first{"First"};
     centui::text second{"Second"};
     centui::container root{first, second};
-    root.style().padding = centui::edges::all(centui::px(12));
-    root.style().gap = centui::px(5);
+    root.patch_style({.padding = centui::edges::all(centui::px(12))});
+    root.patch_style({.gap = centui::px(5)});
     centui::document document{root};
     {
         const auto commands = centui::prepare(document, face, 400, 200);
@@ -375,8 +376,8 @@ TEST_CASE("Document input survives reparenting and permits callback removal", "[
     centui::ui ui{backend};
     int clicks = 0;
     centui::button action{"Action", {.on_click = [&] { ++clicks; }}};
-    action.style().width = centui::px(100);
-    action.style().height = centui::px(40);
+    action.patch_style({.width = centui::px(100)});
+    action.patch_style({.height = centui::px(40)});
     centui::container<> left{action};
     centui::container right;
     centui::container root{left, right};
@@ -391,8 +392,8 @@ TEST_CASE("Document input survives reparenting and permits callback removal", "[
     REQUIRE(clicks == 1);
 
     centui::button remove{"Remove", {.on_click = [&] { document.remove(root); }}};
-    remove.style().width = centui::px(100);
-    remove.style().height = centui::px(40);
+    remove.patch_style({.width = centui::px(100)});
+    remove.patch_style({.height = centui::px(40)});
     document.insert(root, remove, 0);
     ui.process_event(document, {.type = centui::input_event_type::pointer_pressed, .x = 10, .y = 10});
     ui.process_event(document, {.type = centui::input_event_type::pointer_released, .x = 10, .y = 10});

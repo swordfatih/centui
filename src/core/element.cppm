@@ -10,6 +10,8 @@ module;
 #include <ranges>
 #include <span>
 #include <stdexcept>
+#include <string>
+#include <thread>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -17,7 +19,7 @@ module;
 export module centui.element;
 
 import centui.node;
-import centui.style;
+export import centui.style;
 import centui.glyph;
 import centui.draw;
 
@@ -49,11 +51,18 @@ struct handle_tag {};
 
 struct element_binding : construction_identity
 {
+    const std::thread::id thread = std::this_thread::get_id();
+    invalidation pending;
     std::unique_ptr<node> draft;
     std::weak_ptr<element_binding> draft_parent;
     std::vector<std::shared_ptr<element_binding>> draft_children;
     std::weak_ptr<document_store> owner;
     node_id id;
+
+    void check_thread() const
+    {
+        if(thread != std::this_thread::get_id()) throw std::logic_error("Element access requires its creating thread");
+    }
 };
 
 struct document_record
@@ -72,12 +81,20 @@ struct document_slot
 
 struct document_store
 {
+    const std::thread::id thread = std::this_thread::get_id();
+    invalidation pending;
     std::vector<document_slot> slots;
     std::vector<std::size_t> free_slots;
     std::optional<node_id> root;
 
+    void check_thread() const
+    {
+        if(thread != std::this_thread::get_id()) throw std::logic_error("Document access requires its creating thread");
+    }
+
     document_record& get(node_id id) const
     {
+        check_thread();
         if(id.index >= slots.size() || slots[id.index].generation != id.generation || !slots[id.index].record)
             throw invalid_element{};
         return *slots[id.index].record;
@@ -104,6 +121,7 @@ struct document_store
 inline node& resolve(const std::shared_ptr<element_binding>& binding)
 {
     if(!binding) throw invalid_element{};
+    binding->check_thread();
     if(binding->draft) return *binding->draft;
     if(auto parent = binding->draft_parent.lock())
     {
@@ -114,6 +132,41 @@ inline node& resolve(const std::shared_ptr<element_binding>& binding)
     }
     if(auto owner = binding->owner.lock()) return *owner->get(binding->id).value;
     throw invalid_element{};
+}
+
+// Mutations mark their own stages and invalidate dependent ancestor geometry.
+inline void invalidate(const std::shared_ptr<element_binding>& binding, invalidation changes)
+{
+    (void)resolve(binding);
+    binding->pending.merge(changes);
+    const invalidation ancestors{.layout = changes.layout, .paint = changes.paint};
+    if(!ancestors.any()) return;
+    auto current = binding;
+    while(true)
+    {
+        std::shared_ptr<element_binding> parent;
+        if(auto owner = current->owner.lock())
+        {
+            const auto id = owner->get(current->id).parent;
+            if(id) parent = owner->get(*id).binding;
+        }
+        else parent = current->draft_parent.lock();
+        if(!parent) break;
+        parent->pending.merge(ancestors);
+        current = std::move(parent);
+    }
+}
+
+inline void invalidate_interaction(const std::shared_ptr<button_interaction_state>& state)
+{
+    if(auto identity = state->identity.lock())
+    {
+        auto binding = std::static_pointer_cast<element_binding>(identity);
+        // A queued callback can keep removed interaction state alive.
+        try { (void)resolve(binding); }
+        catch(const invalid_element&) { return; }
+        invalidate(binding, {.paint = true});
+    }
 }
 }
 
@@ -126,7 +179,7 @@ public:
     element(element&&) noexcept = default;
     element& operator=(element&&) noexcept = default;
 
-    [[nodiscard]] bool valid() const noexcept
+    [[nodiscard]] bool valid() const
     {
         try { (void)details::resolve(_binding); return true; }
         catch(const invalid_element&) { return false; }
@@ -158,17 +211,57 @@ public:
         return widget(details::handle_tag{}, _binding);
     }
 
-    [[nodiscard]] centui::style& style() { return details::resolve(_binding).style; }
     [[nodiscard]] const centui::style& style() const { return details::resolve(_binding).style; }
+    [[nodiscard]] invalidation pending_changes() const
+    {
+        (void)details::resolve(_binding);
+        return _binding->pending;
+    }
+
+    void set_style(centui::style replacement)
+    {
+        auto& current = details::resolve(_binding).style;
+        replacement.validate();
+        const auto changes = replacement.changes_from(current);
+        if(!changes.any()) return;
+        current = replacement;
+        details::invalidate(_binding, changes);
+    }
+
+    void patch_style(const style_patch& patch)
+    {
+        // Work on a detached value so invalid patches never publish any field.
+        set_style(patch.apply(style()));
+    }
     [[nodiscard]] bool operator==(const element& other) const noexcept { return _binding == other._binding; }
 
 protected:
     explicit element(node value) : _binding(std::make_shared<details::element_binding>())
     {
+        value.style.validate();
         _binding->draft = std::make_unique<node>(std::move(value));
         _binding->draft->identity = _binding;
+        _binding->pending = {.topology = true,
+                             .text = !std::holds_alternative<container_data>(_binding->draft->data),
+                             .layout = true, .paint = true, .interaction = true};
+        if(auto* button = std::get_if<details::button_data>(&_binding->draft->data))
+            button->interaction->identity = _binding;
     }
     element(details::handle_tag, std::shared_ptr<details::element_binding> binding) : _binding(std::move(binding)) {}
+
+    void changed(invalidation changes) { details::invalidate(_binding, changes); }
+
+    void set_text_value(std::string value)
+    {
+        auto& payload = details::resolve(_binding).data;
+        auto* label = std::get_if<text_data>(&payload);
+        auto* button = std::get_if<details::button_data>(&payload);
+        if(!label && !button) throw std::invalid_argument("Element has no text value");
+        auto& current = label ? label->value : button->value;
+        if(current == value) return;
+        current.swap(value);
+        changed({.text = true, .layout = true, .paint = true});
+    }
 
     // Value-tree children are a construction adapter; mounted edges use IDs.
     void compose(std::span<const element> children)
@@ -197,6 +290,7 @@ protected:
             binding->draft_parent = _binding;
             _binding->draft_children.push_back(binding);
         }
+        changed({.topology = true, .layout = true, .paint = true, .interaction = true});
     }
 
 private:
@@ -212,6 +306,21 @@ struct element_access
     static const std::shared_ptr<element_binding>& binding(const element& value) { return value._binding; }
     static node& get(const element& value) { return resolve(value._binding); }
     static element alias(std::shared_ptr<element_binding> binding) { return {handle_tag{}, std::move(binding)}; }
+    static void complete(const element& value, invalidation completed)
+    {
+        (void)resolve(value._binding);
+        auto visit = [&](this auto&& self, const std::shared_ptr<element_binding>& binding) -> void
+        {
+            binding->pending.clear(completed);
+            if(auto owner = binding->owner.lock())
+                for(auto id : owner->get(binding->id).children) self(owner->get(id).binding);
+            else
+                for(const auto& child : binding->draft_children) self(child);
+        };
+        visit(value._binding);
+        if(auto owner = value._binding->owner.lock(); owner && owner->root == value._binding->id)
+            owner->pending.clear(completed);
+    }
     static std::vector<element> children(const element& value)
     {
         auto& current = resolve(value._binding);
@@ -274,6 +383,7 @@ std::vector<draw_command> prepare(element& root, font& face, int width, int heig
     details::element_access::get(root).calculate(static_cast<float>(width), static_cast<float>(height));
     std::vector<draw_command> result;
     details::append_commands(root, 0, 0, result);
+    details::element_access::complete(root, {.topology = true, .text = true, .layout = true, .paint = true});
     return result;
 }
 
