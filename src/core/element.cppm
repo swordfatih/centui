@@ -2,13 +2,12 @@ module;
 
 #include <concepts>
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <span>
 #include <stdexcept>
-#include <string>
 #include <utility>
-#include <variant>
 #include <vector>
 
 export module centui.element;
@@ -17,6 +16,7 @@ export import centui.model;
 export import centui.style;
 export import centui.diagnostics;
 import centui.runtime;
+import centui.primitives;
 import centui.preparation;
 import centui.glyph;
 import centui.draw;
@@ -72,7 +72,7 @@ public:
 
     [[nodiscard]] element_kind kind() const
     {
-        return static_cast<element_kind>(details::resolve(_binding).content.data.index());
+        return details::resolve(_binding).content.kind;
     }
 
     template <typename widget>
@@ -148,30 +148,12 @@ protected:
         details::invalidate(_binding, changes);
     }
 
-    void set_text_value(std::string value)
-    {
-        auto& payload = details::resolve(_binding).content.data;
-        auto* label = std::get_if<details::text_content>(&payload);
-        auto* button = std::get_if<details::button_content>(&payload);
-        if(!label && !button)
-        {
-            throw std::invalid_argument("Element has no text value");
-        }
-        auto& current = label ? label->value : button->value;
-        if(current == value)
-        {
-            return;
-        }
-        current.swap(value);
-        changed({.text = true, .layout = true, .paint = true});
-    }
-
     void compose(std::span<const element> children)
     {
         auto        owner = details::document_state::owner_of(_binding);
         const auto& record = owner->get(_binding->id);
         if(owner->mounted || owner->root() != _binding->id || !record.children.empty() ||
-           kind() != element_kind::container)
+           !details::primitive_has_children(record.content))
         {
             throw std::logic_error("Composition requires an empty construction root container");
         }
@@ -183,6 +165,47 @@ protected:
             bindings.push_back(child._binding);
         }
         owner->insert(_binding->id, bindings);
+    }
+
+    void compose_part(const element& part)
+    {
+        compose(std::span{std::addressof(part), std::size_t{1}});
+        details::resolve(part._binding).content.private_part = true;
+        details::resolve(_binding).content.accepts_children = false;
+    }
+
+    [[nodiscard]] element content_part() const
+    {
+        auto owner = details::document_state::owner_of(_binding);
+        for(const auto id: owner->get(_binding->id).children)
+        {
+            const auto& record = owner->get(id);
+            if(record.content.private_part)
+            {
+                return element(details::handle_tag{}, record.binding);
+            }
+        }
+        throw std::logic_error("Component has no content part");
+    }
+
+    void set_enabled_state(bool enabled)
+    {
+        details::document_state::owner_of(_binding)->set_enabled(_binding->id, enabled);
+    }
+
+    [[nodiscard]] bool enabled_state() const
+    {
+        const auto& interaction = details::resolve(_binding).content.interaction;
+        if(!interaction)
+        {
+            throw std::logic_error("Element has no interaction capability");
+        }
+        return interaction->enabled;
+    }
+
+    void set_activation_handler(std::function<void()> callback)
+    {
+        details::document_state::owner_of(_binding)->set_activation(_binding->id, std::move(callback));
     }
 
 private:

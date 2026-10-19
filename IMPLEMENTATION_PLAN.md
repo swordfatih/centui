@@ -62,7 +62,7 @@ Implementation after the stage 3 refactor: `centui.runtime` owns slot records co
 
 Public operations: `document{root}`, `mount`, `root`, `children`, `parent`, `append`, `insert`, `reparent`, `reorder`, and `remove`. `insert` accepts unmounted trees; `reparent` moves existing nodes. Reparent indices refer to the destination list after removing the child. Removing the root empties the document and permits mounting a new tree. `element::valid()` is safe for expired/moved handles; other access throws `invalid_element`. `element::as<text<>>()` and corresponding widget types check the runtime kind. Containers use an initializer-list child constructor: braces compose children, including a single same-type container, while ordinary copying (`auto alias = child`) aliases the handle. The `from_children` workaround is removed.
 
-Preparation and input have document overloads and always traverse runtime IDs, including before mounting. The raw value-node API remains a separate low-level compatibility API for existing callers/tests; public widget construction no longer creates raw value trees. Preparation became incremental in stage 3; mutable style access was replaced in stage 2. Pointer interaction state stays attached to widget content through reparenting; the document dispatch redesign remains stage 4. Existing examples mount documents; the app example updates a nested title through a captured typed handle.
+Preparation and input have document overloads and always traverse runtime IDs, including before mounting. The raw value-node API remains a separate low-level compatibility API for existing callers/tests; public widget construction no longer creates raw value trees. Preparation became incremental in stage 3; mutable style access was replaced in stage 2. Interaction capabilities stay attached to widget content through reparenting; stage 4 moves hover/focus/capture targets into runtime-owned IDs. Existing examples mount documents; the app example updates a nested title through a captured typed handle.
 
 Added `tests/document.test.cpp` for ownership, handle expiry, generation reuse, move semantics, topology validation, preparation, reparented input, and callback removal. Container regressions cover same-type single children, several identical styled nesting levels, named and temporary children, class template argument deduction, empty/mixed trees, ordinary handle copying, and duplicate rejection. No builds or tests were run for these changes, per user instruction; acceptance behavior is specified in source tests but remains unverified at runtime.
 
@@ -102,7 +102,7 @@ Acceptance tests: text changes invalidate measurement/layout/paint; width change
 
 Implementation after refactoring: `centui.preparation` coordinates concrete services owned by `document_state`. Elements contain identity and construction ownership only. Geometry preparation checks viewport/font inputs and pending mutation categories, asks the layout engine to apply changed styles/measurements and synchronize changed parent lists, and calculates Yoga layout only when necessary. Idle frames skip geometry traversal. Changed geometry currently walks the tree to inspect service caches; Yoga owns its native layout dirtiness and incremental calculation. Subtree preparation uses the owning runtime's geometry and returns the subtree's range from the same command array in document coordinates.
 
-`centui.text_service` owns each node's current shaping key and immutable prepared text. Keys contain text, exact font size, and font identity. `centui.layout_engine` owns Yoga nodes, applied layout styles, native links, and measurement installations. It weakly identifies the prepared text consumed by each measurement, allowing a failed installation to retry without reshaping. Font identity uses an opaque lifetime token independent of native resources; moving a font preserves it, and replacement/address reuse cannot reuse an old key. No font object/reference is retained between calls. Wrapping and other new shaping options must extend the key in stage 5. Each slot retains only its current key/output.
+`centui.text_service` owns each node's current shaping key and immutable prepared text. Keys contain text, exact font size, and font identity. `centui.layout_engine` owns Yoga nodes, applied layout styles, native links, and measurement installations. After stage 4, its measurement interface consumes only intrinsic dimensions, with no text-layout dependency. Identical dimensions reuse the installed callback even if shaping/resource identity changed; failed installation remains retryable. Font identity uses an opaque lifetime token independent of native resources; moving a font preserves it, and replacement/address reuse cannot reuse an old key. No font object/reference is retained between calls. Wrapping and other new shaping options must extend the key in stage 5. Each slot retains only its current key/output.
 
 Topology operations no longer detach the entire document. Reparenting releases the previous parent's native child list; removal detaches the affected parent and destroyed subtree before freeing nodes. Preparation releases all dirty parent lists before linking new owners. Construction composition transfers heap-owned records and service entries without relocating content, prepared text, or native nodes. Mounting transfers the entire runtime without rebuilding geometry or paint. Both construction composition and document insertion share one validated transfer operation; allocations and validation precede ownership changes.
 
@@ -118,17 +118,40 @@ Acceptance tests: repeated idle preparation does not rebuild links or reshape te
 
 ## 4. Unify input dispatch with document geometry
 
-- Extend the existing runtime with document-owned interaction tracking. Input consumes the preparation coordinator's current geometry; do not reintroduce layout ownership or a mounted/unmounted traversal inside the dispatcher.
-- [ ] Move interaction tracking to document-owned stable IDs for hover, focus, and pointer capture.
-- [ ] Ensure geometry is current before hit testing, using the preparation pipeline rather than a separate layout path.
-- [ ] Process events in order. Invoke an activation callback at its defined event boundary; apply resulting mutations and refresh affected geometry before the next event needs it.
-- [ ] Make callbacks safe when they remove their own node, another target, or an entire subtree. Do not retain node references across callbacks.
-- [ ] Define callback exception behavior and ensure dispatch guards and document state recover consistently.
-- [ ] Clear invalid focus/capture/hover on removal, disabling, host focus loss, and cancellation. Add normalized cancellation/focus events where required.
-- [ ] Refresh host viewport dimensions before event dispatch, including resize and zero-sized/minimized windows.
-- [ ] Specify hit-test order and overlap behavior consistently with paint order.
+### 4A. Establish the primitive/component boundary first
 
-Acceptance tests: the second event in a batch sees geometry changed by the first callback; self-removal is safe; removed nodes receive no later activation; release outside cancels activation; focus loss clears capture; resize uses current dimensions.
+- [x] Represent runtime content using box and text primitives plus an optional generic interaction capability.
+- [x] Compose buttons from an interactive box and a private caption while preserving public construction, setters, styles, and typed conversions.
+- [x] Keep widget-kind metadata for public handle conversion; preparation, hit testing, and runtime paint do not dispatch on widget kind.
+- [x] Put primitive-specific intrinsic preparation, style resolution, and paint emission in `centui.primitives`.
+- [x] Remove text-layout resource types from the layout engine's measurement interface.
+
+Runtime box content retains the existing `container_data` name. A button owns a box with an interaction capability and one text child. Caption parts are hidden from public `document.children()` and cannot be modified through public document topology operations; private children still participate in normal runtime traversal, preparation, and destruction. The button's surface is sealed to public child insertion/reordering. `set_text` forwards to its caption, and the primitive adapter resolves inherited font size, text colors, and text alignment. Surface interaction appearance propagates to passive descendants. Padding now positions the caption through ordinary child layout. Existing text alignment/wrapping limitations remain stage 5.
+
+`centui.layout_engine` receives intrinsic dimensions rather than text resources. Shaping remains keyed by text/font inputs; changing a font can reshape without reinstalling a measurement or calculating layout when the resulting dimensions are identical. The source regression for font replacement reflects this distinction. The legacy raw-node API retains its own button representation and painter adapter for compatibility; it does not participate in runtime input.
+
+### 4B. Document-owned sequential input
+
+- [x] Move interaction tracking to runtime-owned stable IDs for hover, focus, and pointer capture.
+- [x] Ensure geometry is current before hit testing through the existing preparation coordinator.
+- [x] Invoke activation at the release-event boundary and refresh geometry before a subsequent event requires it.
+- [x] Permit callbacks to remove themselves, siblings, subtrees, or replace the root/document without retaining node references across application code.
+- [x] Define exception behavior and reject recursive dispatch into the same runtime.
+- [x] Cancel invalid targets immediately on removal, disabling, and reparenting beneath disabled ancestors; normalize host focus loss and cancellation.
+- [x] Refresh viewport dimensions before input, including zero-sized/minimized hosts, and separate viewport refresh from backbuffer reset.
+- [x] Define hit-test order consistently with paint order.
+
+`centui.dispatcher` owns one synchronous dispatch session; `document_state::interaction` owns the persistent target IDs and host-focus state. `ui` is a backend adapter forwarding events and rendering. A batch re-resolves the current document/runtime and viewport before each event. Primary press focuses/captures an eligible surface; release activates only when it hits the captured surface. Capture is released before the callback, whose shared callable is retained without copying mutable captures. Later events see callback changes, including root replacement and new viewport dimensions. Pointer exit clears hover but preserves capture; release outside cancels activation. Focus loss or pointer cancellation clears hover, focus, and capture. Focus gain does not restore previous targets. Secondary buttons do not activate surfaces. Focus is currently a pointer-driven visual state; keyboard traversal/activation and accessibility are not implemented.
+
+Hit testing walks children in reverse paint order before their parent. Noninteractive content is transparent to input; disabled interaction capabilities disable their subtrees. Overflow remains visible/hittable consistently with current painting until clipping is implemented. Subtree input scopes clear targets outside that scope.
+
+Callback exceptions propagate, keep completed mutations, stop the remaining batch, and release the dispatch guard. Retained callables allow self-replacement/removal to finish safely. Runtime retirement invalidates handles immediately when a document or construction owner is destroyed/replaced, even while dispatch temporarily retains that runtime. New input into the same runtime during dispatch throws `std::logic_error`; a later independent dispatch remains usable.
+
+SDL translates focus gain/loss and minimizes into normalized events, releases physical capture on focus loss/minimize/release, and refreshes the backend's borrowed viewport before dispatch. Minimized or unavailable dimensions become zero. Backbuffer dimensions are tracked separately so earlier viewport refresh cannot suppress the required graphics resize in `begin_frame()`.
+
+Added `tests/dispatch.test.cpp` covering generic non-button surfaces, document-owned targets across UI adapters, button composition/privacy/typography/colors, sequential geometry and viewport changes, target removal and replacement, root/document replacement, immediate cancellation, pointer exit/release outside, focus loss, zero viewports, overlap order, callback exceptions, recursive dispatch recovery, and reparenting under disabled ancestors. Existing mutable-capture/self-replacement tests remain applicable. These are source specifications; no build or tests were run under the user's instruction.
+
+Acceptance when execution is authorized: run the new dispatch tests and existing document/mutation/preparation tests, then verify real SDL resize/focus/capture behavior. No graphics or runtime success is claimed from source checks.
 
 ## 5. Extract a shared CPU text and font service
 
@@ -173,13 +196,15 @@ Acceptance: both backends render equivalent layout and text placement; custom ba
 
 ## 8. Separate components from runtime primitives
 
-- [ ] Define a small runtime capability boundary for layout participation, intrinsic measurement, paint generation, and input/focus behavior.
-- [ ] Replace button-specific branching in generic input and painting with generic interactive-surface behavior.
-- [ ] Implement a button as a component combining label content, an interactive surface, state-dependent styling, and activation behavior.
+The initial box/text/interaction boundary and button composition were pulled forward into stage 4. Application component APIs and new primitive extension remain outstanding.
+
+- [x] Define a small runtime capability boundary for layout participation, intrinsic measurement, paint generation, and input/focus behavior.
+- [x] Replace button-specific branching in generic input and painting with generic interactive-surface behavior.
+- [x] Implement a button as a component combining label content, an interactive surface, state-dependent styling, and activation behavior.
 - [ ] Let application components compose existing elements while exposing typed handles and setters without editing the core node variant.
 - [ ] Provide a narrow extension interface for genuinely new measurement/paint primitives, using the document's mutation and lifetime rules.
-- [ ] Avoid rebuilding a large virtual widget inheritance hierarchy. Choose capability representation based on actual primitive requirements.
-- [ ] Explicitly document currently supported interaction capabilities; do not imply keyboard accessibility from pointer-only focus state.
+- [x] Avoid rebuilding a large virtual widget inheritance hierarchy. Choose capability representation based on actual primitive requirements.
+- [x] Explicitly document currently supported interaction capabilities; do not imply keyboard accessibility from pointer-only focus state.
 
 Acceptance tests/examples: an application-defined composite widget uses ordinary public APIs; a custom primitive participates in measurement/paint without core switch edits; button activation and visual states use the generic runtime.
 

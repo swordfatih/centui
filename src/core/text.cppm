@@ -23,6 +23,7 @@ public:
         : element(details::element_content{
               .data = details::text_content{std::move(value)},
               .style = style::resolve<styles...>(),
+              .kind = element_kind::text,
           })
     {
     }
@@ -34,7 +35,13 @@ public:
 
     void set_text(std::string value)
     {
-        set_text_value(std::move(value));
+        auto& current = std::get<details::text_content>(details::element_access::get(*this).data).value;
+        if(current == value)
+        {
+            return;
+        }
+        current.swap(value);
+        changed({.text = true, .layout = true, .paint = true});
     }
 
     [[nodiscard]] std::string_view value() const

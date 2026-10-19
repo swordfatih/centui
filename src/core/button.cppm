@@ -2,16 +2,17 @@ module;
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
-#include <variant>
 
 export module centui.button;
 
 import centui.element;
 import centui.model;
 import centui.style;
+import centui.text;
 
 export namespace centui
 {
@@ -27,92 +28,75 @@ class button : public element
 {
 public:
     static constexpr element_kind widget_kind = element_kind::button;
+
     explicit button(std::string value, button_options options = {})
-        : element(make_content(std::move(value), std::move(options)))
+        : element(make_surface(std::move(options)))
     {
+        centui::text<> label{std::move(value)};
+        details::element_access::get(label).inherit_text_style = true;
+        compose_part(label);
     }
 
     void set_enabled(bool enabled)
     {
-        auto& state = interaction();
-        if(state.enabled == enabled)
-        {
-            return;
-        }
-        state.enabled = enabled;
-        if(!enabled)
-        {
-            state.hovered = false;
-            state.pressed = false;
-            state.focused = false;
-        }
-        changed({.paint = true, .interaction = true});
+        set_enabled_state(enabled);
     }
 
     [[nodiscard]] bool enabled() const
     {
-        return interaction().enabled;
+        return enabled_state();
     }
 
     void set_text(std::string value)
     {
-        set_text_value(std::move(value));
+        auto label = caption();
+        if(label.value() == value)
+        {
+            return;
+        }
+        label.set_text(std::move(value));
+        changed({.text = true, .layout = true, .paint = true});
     }
 
     void value(std::string value)
     {
         set_text(std::move(value));
     }
+
     [[nodiscard]] std::string_view value() const
     {
-        return std::get<details::button_content>(details::element_access::get(*this).data).value;
+        return caption().value();
     }
 
     void set_on_click(std::function<void()> callback)
     {
-        auto& state = interaction();
-        if(!state.on_click && !callback)
-        {
-            return;
-        }
-        auto replacement = callback ? std::make_shared<std::function<void()>>(std::move(callback)) : nullptr;
-        state.on_click.swap(replacement);
-        changed({.interaction = true});
+        set_activation_handler(std::move(callback));
     }
 
 private:
     friend class element;
-    button(details::handle_tag, const element& handle)
-        : element(handle)
+    button(details::handle_tag, const element& handle) : element(handle)
     {
     }
 
-    static details::element_content make_content(std::string value, button_options options)
+    [[nodiscard]] centui::text<> caption() const
     {
-        auto interaction = std::make_shared<details::button_interaction_state>();
-        interaction->enabled = options.enabled;
+        return content_part().template as<centui::text<>>();
+    }
+
+    static details::element_content make_surface(button_options options)
+    {
+        details::interaction_capability interaction{.enabled = options.enabled};
         if(options.on_click)
         {
-            interaction->on_click = std::make_shared<std::function<void()>>(std::move(options.on_click));
+            interaction.activate = std::make_shared<std::function<void()>>(std::move(options.on_click));
         }
         return details::element_content{
-            .data = details::button_content{
-                .value = std::move(value),
-                .interaction = std::move(interaction)},
-            .style = style::resolve<styles...>(),
+            .data = container_data{},
+            .style = centui::style::resolve<styles...>(),
+            .kind = element_kind::button,
+            .interaction = std::move(interaction),
         };
-    }
-
-    [[nodiscard]] details::button_interaction_state& interaction()
-    {
-        auto& tree = details::element_access::get(*this);
-        return *std::get<details::button_content>(tree.data).interaction;
-    }
-
-    [[nodiscard]] const details::button_interaction_state& interaction() const
-    {
-        const auto& tree = details::element_access::get(*this);
-        return *std::get<details::button_content>(tree.data).interaction;
     }
 };
 

@@ -13,6 +13,8 @@ import centui.unit;
 import centui.glyph;
 import centui.draw;
 import centui.diagnostics;
+import centui.primitives;
+import centui.style;
 
 export namespace centui::details
 {
@@ -24,6 +26,8 @@ struct paint_item
     rect                       bounds;
     const element_content*     content;
     const text_layout*         text;
+    centui::style              style;
+    visual_state               visual;
 };
 
 class painter
@@ -56,7 +60,7 @@ public:
         {
             auto& range = ranges[item.index];
             range.begin = commands.size();
-            append_element_commands(*item.content, item.bounds, item.text, commands);
+            paint_primitive(*item.content, item.style, item.bounds, item.text, item.visual, commands);
             range.end = commands.size();
         }
         for(auto current = items.rbegin(); current != items.rend(); ++current)

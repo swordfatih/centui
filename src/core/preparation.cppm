@@ -18,22 +18,10 @@ import centui.glyph;
 import centui.draw;
 import centui.painter;
 import centui.diagnostics;
+import centui.primitives;
 
 export namespace centui::details
 {
-
-inline std::optional<std::string_view> text_value(const element_content& content)
-{
-    if(const auto* text = std::get_if<text_content>(&content.data))
-    {
-        return text->value;
-    }
-    if(const auto* button = std::get_if<button_content>(&content.data))
-    {
-        return button->value;
-    }
-    return std::nullopt;
-}
 
 // Coordinates stage dependencies. Services own their caches and native state.
 inline void prepare_geometry(document_state& state, font& face, int width, int height)
@@ -57,8 +45,9 @@ inline void prepare_geometry(document_state& state, font& face, int width, int h
     // Failed preparation cannot publish geometry or paint as current.
     previous.valid = false;
     state.paint.invalidate();
-    const auto order = state.preorder(*root);
-    bool       calculate = viewport_changed;
+    const auto                 order = state.preorder(*root);
+    bool                       calculate = viewport_changed;
+    std::vector<centui::style> styles(state.slot_count());
 
     // Release every changed owner before attaching any new children.
     for(const auto id: order)
@@ -71,20 +60,20 @@ inline void prepare_geometry(document_state& state, font& face, int width, int h
 
     for(const auto id: order)
     {
-        const auto& content = state.get(id).content;
-        calculate |= state.layout.apply_style(id.index, content.style, state.diagnostics);
-        if(const auto value = text_value(content))
-        {
-            const auto& prepared = state.text.prepare(id.index, face, identity, *value,
-                                                      content.style.font_size, state.diagnostics);
-            calculate |= state.layout.measure(id.index, prepared, state.diagnostics);
-        }
+        const auto& record = state.get(id);
+        const auto& content = record.content;
+        const auto* parent = record.parent ? &styles[record.parent->index] : nullptr;
+        auto&       style = styles[id.index];
+        style = resolve_primitive_style(content, parent);
+        calculate |= state.layout.apply_style(id.index, style, state.diagnostics);
+        calculate |= prepare_primitive(id.index, content, style, state.text, state.layout,
+                                       face, identity, state.diagnostics);
     }
 
     for(const auto id: order)
     {
         const auto& record = state.get(id);
-        if(std::holds_alternative<container_data>(record.content.data))
+        if(primitive_has_children(record.content))
         {
             calculate |= state.layout.synchronize_children(id.index, record.children, state.diagnostics);
         }
@@ -112,10 +101,12 @@ inline std::span<const draw_command> prepared_commands(document_state& state, no
     prepare_geometry(state, face, width, height);
     if(!state.paint.valid())
     {
-        const auto              root = *state.root();
-        const auto              order = state.preorder(root);
-        std::vector<rect>       bounds(state.slot_count());
-        std::vector<paint_item> items;
+        const auto                 root = *state.root();
+        const auto                 order = state.preorder(root);
+        std::vector<rect>          bounds(state.slot_count());
+        std::vector<paint_item>    items;
+        std::vector<centui::style> styles(state.slot_count());
+        std::vector<visual_state>  visuals(state.slot_count(), visual_state::normal);
         items.reserve(order.size());
         for(const auto id: order)
         {
@@ -129,7 +120,10 @@ inline std::span<const draw_command> prepared_commands(document_state& state, no
                 absolute.y += bounds[*parent].y;
             }
             bounds[id.index] = absolute;
-            items.push_back({id.index, parent, absolute, &record.content, state.text.get(id.index)});
+            styles[id.index] = resolve_primitive_style(record.content, parent ? &styles[*parent] : nullptr);
+            visuals[id.index] = state.appearance(id, parent ? visuals[*parent] : visual_state::normal);
+            items.push_back({id.index, parent, absolute, &record.content, state.text.get(id.index),
+                             styles[id.index], visuals[id.index]});
         }
 
         state.paint.rebuild(items, state.slot_count(), state.diagnostics);

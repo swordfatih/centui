@@ -39,32 +39,24 @@ namespace details
 {
 
 inline void append_paint(const centui::style& style, rect bounds, std::string_view value,
-                         const text_layout* shaped, const button_interaction_state* interaction,
+                         const text_layout* shaped, visual_state visual,
                          std::vector<draw_command>& output)
 {
-    const auto state_color = [interaction](const states_color& colors)
+    const auto state_color = [visual](const states_color& colors)
     {
-        if(!interaction)
+        switch(visual)
         {
+        case visual_state::disabled:
+            return colors.disabled;
+        case visual_state::pressed:
+            return colors.pressed;
+        case visual_state::hovered:
+            return colors.hover;
+        case visual_state::focused:
+            return colors.focused;
+        default:
             return colors.normal;
         }
-        if(!interaction->enabled)
-        {
-            return colors.disabled;
-        }
-        if(interaction->pressed)
-        {
-            return colors.pressed;
-        }
-        if(interaction->hovered)
-        {
-            return colors.hover;
-        }
-        if(interaction->focused)
-        {
-            return colors.focused;
-        }
-        return colors.normal;
     };
 
     const auto background = state_color(style.background_color);
@@ -85,23 +77,6 @@ inline void append_paint(const centui::style& style, rect bounds, std::string_vi
     }
 }
 
-inline void append_element_commands(const element_content& content, rect bounds,
-                                    const text_layout* shaped, std::vector<draw_command>& output)
-{
-    std::string_view                value;
-    const button_interaction_state* interaction = nullptr;
-    if(const auto* text = std::get_if<text_content>(&content.data))
-    {
-        value = text->value;
-    }
-    else if(const auto* button = std::get_if<button_content>(&content.data))
-    {
-        value = button->value;
-        interaction = button->interaction.get();
-    }
-    append_paint(content.style, bounds, value, shaped, interaction, output);
-}
-
 inline void append_node_commands(const node& current, rect bounds, std::vector<draw_command>& output)
 {
     std::string_view                value;
@@ -118,7 +93,27 @@ inline void append_node_commands(const node& current, rect bounds, std::vector<d
         shaped = button->shaped ? &*button->shaped : nullptr;
         interaction = button->interaction.get();
     }
-    append_paint(current.style, bounds, value, shaped, interaction, output);
+    auto visual = visual_state::normal;
+    if(interaction)
+    {
+        if(!interaction->enabled)
+        {
+            visual = visual_state::disabled;
+        }
+        else if(interaction->pressed)
+        {
+            visual = visual_state::pressed;
+        }
+        else if(interaction->hovered)
+        {
+            visual = visual_state::hovered;
+        }
+        else if(interaction->focused)
+        {
+            visual = visual_state::focused;
+        }
+    }
+    append_paint(current.style, bounds, value, shaped, visual, output);
 }
 
 } // namespace details

@@ -273,8 +273,10 @@ TEST_CASE("Font moves preserve cache identity and reused font storage invalidate
     REQUIRE(std::addressof(*face) == address);
     (void)centui::prepare(document, *face, 400, 200);
     REQUIRE(document.preparation_stats().shapings == before.shapings + 1);
-    REQUIRE(document.preparation_stats().measurements == before.measurements + 1);
-    REQUIRE(document.preparation_stats().layout_passes == before.layout_passes + 1);
+    // Replacing the same default face changes resource identity, but its
+    // identical intrinsic dimensions do not require another Yoga measurement.
+    REQUIRE(document.preparation_stats().measurements == before.measurements);
+    REQUIRE(document.preparation_stats().layout_passes == before.layout_passes);
 }
 
 TEST_CASE("Preparation failure leaves pending work recoverable", "[preparation]")

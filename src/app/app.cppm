@@ -70,7 +70,10 @@ public:
 
     [[nodiscard]] bool poll_events(document& owner)
     {
-        if(!_window.poll_events()) return false;
+        if(!_window.poll_events())
+        {
+            return false;
+        }
         const auto events = _window.take_input_events();
         _ui.process_events(owner, events);
         return true;
@@ -87,13 +90,16 @@ public:
 
     void run(document& owner)
     {
-        while(poll_events(owner)) render_frame(owner);
+        while(poll_events(owner))
+        {
+            render_frame(owner);
+        }
     }
 
 private:
     // Reverse destruction: UI, GPU resources/font, then bgfx and SDL window.
-    window _window;
-    bgfx::backend _backend;
+    window            _window;
+    bgfx::backend     _backend;
     ui<bgfx::backend> _ui;
 };
 

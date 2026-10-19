@@ -13,7 +13,6 @@ import centui.model;
 import centui.layout;
 import centui.style;
 import centui.unit;
-import centui.glyph;
 import centui.diagnostics;
 
 export namespace centui::details
@@ -25,7 +24,7 @@ class layout_engine
     {
         centui::layout                   native;
         std::optional<centui::style>     applied_style;
-        std::weak_ptr<const text_layout> measured_text;
+        std::optional<rect> measured_bounds;
         bool                             links_valid = false;
     };
 
@@ -66,20 +65,21 @@ public:
         return true;
     }
 
-    bool measure(std::size_t index, const std::shared_ptr<const text_layout>& text,
+    bool measure(std::size_t index, rect bounds,
                  preparation_diagnostics& diagnostics)
     {
         auto& current = get(index);
-        if(current.measured_text.lock() == text)
+        if(current.measured_bounds && current.measured_bounds->width == bounds.width &&
+           current.measured_bounds->height == bounds.height)
         {
             return false;
         }
 
-        current.native.set_measure([bounds = text->bounds](float, float)
+        current.native.set_measure([bounds](float, float)
         {
             return bounds;
         });
-        current.measured_text = text;
+        current.measured_bounds = bounds;
         diagnostics.record(&preparation_statistics::measurements);
         return true;
     }

@@ -1,14 +1,8 @@
 module;
 
-#include <algorithm>
 #include <cstddef>
-#include <functional>
 #include <memory>
-#include <ranges>
 #include <span>
-#include <utility>
-#include <variant>
-#include <vector>
 
 export module centui.ui;
 
@@ -16,15 +10,14 @@ export import centui.element;
 export import centui.document;
 export import centui.viewport;
 export import centui.input;
-import centui.model;
 import centui.runtime;
-import centui.unit;
+import centui.dispatcher;
 
 export namespace centui
 {
 
-// Borrows a concrete backend; no graphics or window dependency.
 // Backend supplies viewport(), glyphs(), and synchronous draw(commands).
+// Persistent interaction state belongs to the document, not this adapter.
 template <typename backend_type>
 class ui
 {
@@ -36,12 +29,10 @@ public:
     void render(element& root)
     {
         const auto [width, height] = _backend.viewport();
-        if(width <= 0 || height <= 0)
+        if(width > 0 && height > 0)
         {
-            return;
+            _backend.draw(details::prepared_commands(root, _backend.glyphs(), width, height));
         }
-        const auto list = details::prepared_commands(root, _backend.glyphs(), width, height);
-        _backend.draw(list);
     }
 
     void render(document& owner)
@@ -66,14 +57,19 @@ public:
 
     void process_events(document& owner, std::span<const input_event> events)
     {
-        if(owner.empty())
+        details::input_dispatcher dispatcher;
+        auto                      initial = details::document_access::state(owner);
+        dispatcher.synchronize(initial, initial->root(), _backend.viewport());
+        for(const auto& event: events)
         {
-            clear_interaction();
-            details::document_access::complete_empty(owner, {.interaction = true});
-            return;
+            // A callback may mount a new root or replace/move the document.
+            auto state = details::document_access::current(owner);
+            if(!state)
+            {
+                break;
+            }
+            dispatcher.process(state, state->root(), _backend.glyphs(), _backend.viewport(), event);
         }
-        auto root = owner.root();
-        process_events(root, events);
     }
 
     void process_event(element& root, const input_event& event)
@@ -83,251 +79,24 @@ public:
 
     void process_events(element& root, std::span<const input_event> events)
     {
-        if(events.empty())
-        {
-            return;
-        }
-
-        validate_interaction(root);
-        details::element_access::complete(root, {.interaction = true});
-
-        const auto [width, height] = _backend.viewport();
-        if(width <= 0 || height <= 0)
-        {
-            clear_interaction();
-            return;
-        }
-
-        (void)details::prepare_geometry(root, _backend.glyphs(), width, height);
-        const auto [parent_x, parent_y] = details::parent_offset(root);
-        // Retain the callable itself: copying it would discard mutable capture
-        // updates and invoking through the node could destroy it during removal.
-        std::vector<std::pair<std::weak_ptr<details::button_interaction_state>, std::shared_ptr<std::function<void()>>>> callbacks;
-
+        details::input_dispatcher dispatcher;
+        auto                      initial = details::element_access::state(root);
+        const auto                binding = details::element_access::binding(root);
+        dispatcher.synchronize(initial, binding->id, _backend.viewport());
         for(const auto& event: events)
         {
-            if(event.type == input_event_type::pointer_left)
+            auto state = binding->owner.lock();
+            if(!state || !state->contains(binding->id))
             {
-                set_hover({});
-                continue;
+                break;
             }
-
-            auto target = hit_test(root, parent_x, parent_y, event.x, event.y);
-            set_hover(target);
-
-            if(event.button != mouse_button::primary)
-            {
-                continue;
-            }
-
-            if(event.type == input_event_type::pointer_pressed)
-            {
-                set_focus(target);
-                set_capture(target);
-            }
-            else if(event.type == input_event_type::pointer_released)
-            {
-                auto captured = _captured.lock();
-                if(captured)
-                {
-                    const bool was_pressed = captured->pressed;
-                    if(was_pressed)
-                    {
-                        details::invalidate_interaction(captured);
-                    }
-                    captured->pressed = false;
-                    if(was_pressed && captured->enabled && captured == target && captured->on_click)
-                    {
-                        callbacks.emplace_back(captured, captured->on_click);
-                        _captured.reset();
-                        continue;
-                    }
-                }
-                _captured.reset();
-            }
-        }
-
-        for(auto& [target, callback]: callbacks)
-        {
-            if(const auto state = target.lock(); state && state->enabled)
-            {
-                (*callback)();
-            }
+            dispatcher.process(state, binding->id,
+                               _backend.glyphs(), _backend.viewport(), event);
         }
     }
 
 private:
-    using interaction_ptr = std::shared_ptr<details::button_interaction_state>;
-
-    static bool contains(const element& current, const details::button_interaction_state* state)
-    {
-        const auto& value = details::element_access::get(current);
-        if(const auto* button = std::get_if<details::button_content>(&value.data);
-           button && button->interaction.get() == state)
-        {
-            return true;
-        }
-
-        return std::ranges::any_of(details::element_access::children(current), [&](const element& child)
-        {
-            return contains(child, state);
-        });
-    }
-
-    static interaction_ptr hit_test(const element& current, float parent_x, float parent_y, float x, float y)
-    {
-        const auto&     value = details::element_access::get(current);
-        const auto      local = details::element_access::bounds(current);
-        const auto      bounds = rect{local.x + parent_x, local.y + parent_y, local.width, local.height};
-        interaction_ptr target;
-
-        if(const auto* button = std::get_if<details::button_content>(&value.data);
-           button && button->interaction->enabled &&
-           x >= bounds.x && y >= bounds.y && x < bounds.x + bounds.width && y < bounds.y + bounds.height)
-        {
-            target = button->interaction;
-        }
-
-        for(const auto& child: details::element_access::children(current))
-        {
-            if(const auto child_target = hit_test(child, bounds.x, bounds.y, x, y))
-            {
-                target = child_target;
-            }
-        }
-
-        return target;
-    }
-
-    void set_hover(const interaction_ptr& target)
-    {
-        if(auto previous = _hovered.lock(); previous && previous != target)
-        {
-            if(previous->hovered)
-            {
-                details::invalidate_interaction(previous);
-            }
-            previous->hovered = false;
-        }
-        _hovered = target;
-        if(target)
-        {
-            if(!target->hovered)
-            {
-                details::invalidate_interaction(target);
-            }
-            target->hovered = true;
-        }
-    }
-
-    void set_focus(const interaction_ptr& target)
-    {
-        if(auto previous = _focused.lock(); previous && previous != target)
-        {
-            if(previous->focused)
-            {
-                details::invalidate_interaction(previous);
-            }
-            previous->focused = false;
-        }
-        _focused = target;
-        if(target)
-        {
-            if(!target->focused)
-            {
-                details::invalidate_interaction(target);
-            }
-            target->focused = true;
-        }
-    }
-
-    void set_capture(const interaction_ptr& target)
-    {
-        if(auto previous = _captured.lock())
-        {
-            if(previous->pressed)
-            {
-                details::invalidate_interaction(previous);
-            }
-            previous->pressed = false;
-        }
-        _captured = target;
-        if(target)
-        {
-            if(!target->pressed)
-            {
-                details::invalidate_interaction(target);
-            }
-            target->pressed = true;
-        }
-    }
-
-    void validate_interaction(const element& root)
-    {
-        if(auto hovered = _hovered.lock(); hovered && (!hovered->enabled || !contains(root, hovered.get())))
-        {
-            if(hovered->hovered)
-            {
-                details::invalidate_interaction(hovered);
-            }
-            hovered->hovered = false;
-            _hovered.reset();
-        }
-        if(auto captured = _captured.lock(); captured && (!captured->enabled || !contains(root, captured.get())))
-        {
-            if(captured->pressed)
-            {
-                details::invalidate_interaction(captured);
-            }
-            captured->pressed = false;
-            _captured.reset();
-        }
-        if(auto focused = _focused.lock(); focused && (!focused->enabled || !contains(root, focused.get())))
-        {
-            if(focused->focused)
-            {
-                details::invalidate_interaction(focused);
-            }
-            focused->focused = false;
-            _focused.reset();
-        }
-    }
-
-    void clear_interaction()
-    {
-        if(auto hovered = _hovered.lock())
-        {
-            if(hovered->hovered)
-            {
-                details::invalidate_interaction(hovered);
-            }
-            hovered->hovered = false;
-        }
-        if(auto captured = _captured.lock())
-        {
-            if(captured->pressed)
-            {
-                details::invalidate_interaction(captured);
-            }
-            captured->pressed = false;
-        }
-        if(auto focused = _focused.lock())
-        {
-            if(focused->focused)
-            {
-                details::invalidate_interaction(focused);
-            }
-            focused->focused = false;
-        }
-        _hovered.reset();
-        _captured.reset();
-        _focused.reset();
-    }
-
-    backend_type&                                    _backend;
-    std::weak_ptr<details::button_interaction_state> _hovered;
-    std::weak_ptr<details::button_interaction_state> _captured;
-    std::weak_ptr<details::button_interaction_state> _focused;
+    backend_type& _backend;
 };
 
 } // namespace centui

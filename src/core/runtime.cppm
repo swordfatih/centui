@@ -3,6 +3,7 @@ module;
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -23,6 +24,7 @@ import centui.unit;
 import centui.text_service;
 import centui.layout_engine;
 import centui.painter;
+import centui.primitives;
 
 export namespace centui::details
 {
@@ -34,9 +36,10 @@ class document_state;
 struct construction_owner
 {
     std::shared_ptr<document_state> state;
+    ~construction_owner();
 };
 
-struct element_binding : element_identity
+struct element_binding
 {
     std::weak_ptr<document_state>     owner;
     std::weak_ptr<construction_owner> construction;
@@ -66,6 +69,15 @@ struct geometry_inputs
     bool                        valid = false;
 };
 
+struct input_state
+{
+    std::optional<node_id> hovered;
+    std::optional<node_id> focused;
+    std::optional<node_id> captured;
+    bool                   host_focused = true;
+    bool                   dispatching = false;
+};
+
 class document_state : public std::enable_shared_from_this<document_state>
 {
 public:
@@ -74,17 +86,6 @@ public:
     document_state() = default;
     document_state(const document_state&) = delete;
     document_state& operator=(const document_state&) = delete;
-
-    ~document_state()
-    {
-        for(const auto& slot: _slots)
-        {
-            if(slot.record)
-            {
-                deactivate(*slot.record);
-            }
-        }
-    }
 
     void check_thread() const
     {
@@ -97,7 +98,7 @@ public:
     [[nodiscard]] document_record& get(node_id id) const
     {
         check_thread();
-        if(id.index >= _slots.size() || _slots[id.index].generation != id.generation || !_slots[id.index].record)
+        if(_retired || id.index >= _slots.size() || _slots[id.index].generation != id.generation || !_slots[id.index].record)
         {
             throw invalid_element{};
         }
@@ -136,17 +137,12 @@ public:
         binding->id = {0, 1};
         record->content = std::move(content);
         record->binding = binding;
-        if(auto* button = std::get_if<button_content>(&record->content.data))
-        {
-            button->interaction->identity = binding;
-        }
-
         text.resize(1);
         layout.resize(1);
         _slots.push_back({1, std::move(record)});
         _root = binding->id;
         invalidate(binding->id, {.topology = true,
-                                 .text = !std::holds_alternative<container_data>(get(binding->id).content.data),
+                                 .text = !primitive_has_children(get(binding->id).content),
                                  .layout = true,
                                  .paint = true,
                                  .interaction = true});
@@ -182,6 +178,10 @@ public:
         for(auto parent = record.parent; parent && ancestors.any(); parent = get(*parent).parent)
         {
             get(*parent).pending.merge(ancestors);
+        }
+        if(changes.interaction)
+        {
+            prune_interaction();
         }
     }
 
@@ -382,6 +382,7 @@ public:
         auto&      record = get(child);
         const auto removed = preorder(child);
         _free_slots.reserve(_free_slots.size() + removed.size());
+        cancel_interaction(child);
         const invalidation changes{.topology = true, .layout = true, .paint = true, .interaction = true};
         if(record.parent)
         {
@@ -405,7 +406,6 @@ public:
         for(const auto id: removed)
         {
             auto& slot = _slots[id.index];
-            deactivate(*slot.record);
             layout.erase(id.index);
             text.erase(id.index);
             slot.record.reset();
@@ -429,6 +429,163 @@ public:
         return bounds;
     }
 
+    [[nodiscard]] bool contains(node_id id) const
+    {
+        check_thread();
+        return !_retired && id.index < _slots.size() &&
+               _slots[id.index].generation == id.generation && static_cast<bool>(_slots[id.index].record);
+    }
+
+    [[nodiscard]] bool is_within(node_id id, node_id ancestor) const
+    {
+        if(!contains(id) || !contains(ancestor))
+        {
+            return false;
+        }
+        for(auto current = std::optional{id}; current; current = get(*current).parent)
+        {
+            if(*current == ancestor)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    [[nodiscard]] bool eligible(node_id id) const
+    {
+        if(!contains(id) || !get(id).content.interaction)
+        {
+            return false;
+        }
+        for(auto current = std::optional{id}; current; current = get(*current).parent)
+        {
+            const auto& capability = get(*current).content.interaction;
+            if(capability && !capability->enabled)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    void set_hover(std::optional<node_id> target)
+    {
+        set_target(interaction.hovered, target);
+    }
+
+    void set_focus(std::optional<node_id> target)
+    {
+        set_target(interaction.focused, target);
+    }
+
+    void set_capture(std::optional<node_id> target)
+    {
+        set_target(interaction.captured, target);
+    }
+
+    void cancel_interaction(std::optional<node_id> subtree = std::nullopt)
+    {
+        const auto affected = [&](std::optional<node_id> target)
+        {
+            return target && (!subtree || is_within(*target, *subtree));
+        };
+        if(affected(interaction.hovered))
+        {
+            set_hover(std::nullopt);
+        }
+        if(affected(interaction.focused))
+        {
+            set_focus(std::nullopt);
+        }
+        if(affected(interaction.captured))
+        {
+            set_capture(std::nullopt);
+        }
+    }
+
+    void prune_interaction()
+    {
+        if(interaction.hovered && !eligible(*interaction.hovered))
+        {
+            set_hover(std::nullopt);
+        }
+        if(interaction.focused && !eligible(*interaction.focused))
+        {
+            set_focus(std::nullopt);
+        }
+        if(interaction.captured && !eligible(*interaction.captured))
+        {
+            set_capture(std::nullopt);
+        }
+    }
+
+    void set_enabled(node_id id, bool enabled)
+    {
+        auto& value = capability(id);
+        if(value.enabled == enabled)
+        {
+            return;
+        }
+        value.enabled = enabled;
+        if(!enabled)
+        {
+            cancel_interaction(id);
+        }
+        invalidate(id, {.paint = true, .interaction = true});
+    }
+
+    void set_activation(node_id id, std::function<void()> callback)
+    {
+        auto& value = capability(id);
+        if(!value.activate && !callback)
+        {
+            return;
+        }
+        auto replacement = callback ? std::make_shared<std::function<void()>>(std::move(callback)) : nullptr;
+        value.activate.swap(replacement);
+        invalidate(id, {.interaction = true});
+    }
+
+    [[nodiscard]] visual_state appearance(node_id id, visual_state inherited) const
+    {
+        const auto& capability = get(id).content.interaction;
+        if(inherited == visual_state::disabled || (capability && !capability->enabled))
+        {
+            return visual_state::disabled;
+        }
+        if(!capability)
+        {
+            return inherited;
+        }
+        if(interaction.captured == id && interaction.hovered == id)
+        {
+            return visual_state::pressed;
+        }
+        if(interaction.hovered == id)
+        {
+            return visual_state::hovered;
+        }
+        if(interaction.focused == id)
+        {
+            return visual_state::focused;
+        }
+        return visual_state::normal;
+    }
+
+    // Dispatch may retain a runtime while its public owner is replaced.
+    // Retirement makes all handles invalid immediately without destroying an
+    // executing callback's separately retained callable.
+    void retire() noexcept
+    {
+        _retired = true;
+        _root.reset();
+        interaction.hovered.reset();
+        interaction.focused.reset();
+        interaction.captured.reset();
+        paint.invalidate();
+    }
+
     static std::shared_ptr<document_state> owner_of(const std::shared_ptr<element_binding>& binding)
     {
         if(!binding)
@@ -444,6 +601,7 @@ public:
         return owner;
     }
 
+    input_state             interaction;
     bool                    mounted = false;
     text_service            text;
     layout_engine           layout;
@@ -455,7 +613,7 @@ private:
     document_record& container(node_id id) const
     {
         auto& record = get(id);
-        if(!std::holds_alternative<container_data>(record.content.data))
+        if(!primitive_has_children(record.content) || !record.content.accepts_children)
         {
             throw std::invalid_argument("Parent must be a container");
         }
@@ -475,15 +633,32 @@ private:
         return index;
     }
 
-    static void deactivate(document_record& record) noexcept
+    void set_target(std::optional<node_id>& current, std::optional<node_id> next)
     {
-        if(auto* button = std::get_if<button_content>(&record.content.data))
+        if(current == next)
         {
-            button->interaction->enabled = false;
-            button->interaction->hovered = false;
-            button->interaction->focused = false;
-            button->interaction->pressed = false;
+            return;
         }
+        const auto previous = current;
+        current = next;
+        if(previous && contains(*previous))
+        {
+            invalidate(*previous, {.paint = true});
+        }
+        if(next && contains(*next))
+        {
+            invalidate(*next, {.paint = true});
+        }
+    }
+
+    interaction_capability& capability(node_id id)
+    {
+        auto& value = get(id).content.interaction;
+        if(!value)
+        {
+            throw std::logic_error("Element has no interaction capability");
+        }
+        return *value;
     }
 
     const std::thread::id      _thread = std::this_thread::get_id();
@@ -491,6 +666,7 @@ private:
     std::vector<std::size_t>   _free_slots;
     std::optional<node_id>     _root;
     invalidation               _pending;
+    bool                       _retired = false;
 };
 
 inline document_record& resolve(const std::shared_ptr<element_binding>& binding)
@@ -503,22 +679,11 @@ inline void invalidate(const std::shared_ptr<element_binding>& binding, invalida
     document_state::owner_of(binding)->invalidate(binding->id, changes);
 }
 
-inline void invalidate_interaction(const std::shared_ptr<button_interaction_state>& interaction)
+inline construction_owner::~construction_owner()
 {
-    if(auto identity = interaction->identity.lock())
+    if(state)
     {
-        auto binding = std::static_pointer_cast<element_binding>(identity);
-        if(auto owner = binding->owner.lock())
-        {
-            try
-            {
-                owner->invalidate(binding->id, {.paint = true});
-            }
-            catch(const invalid_element&)
-            {
-                // Input may still hold interaction state for a removed node.
-            }
-        }
+        state->retire();
     }
 }
 

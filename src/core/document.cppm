@@ -39,6 +39,14 @@ public:
         mount(root);
     }
 
+    ~document()
+    {
+        if(_state)
+        {
+            _state->retire();
+        }
+    }
+
     document(const document&) = delete;
     document& operator=(const document&) = delete;
 
@@ -57,6 +65,10 @@ public:
                 _state->check_thread();
             }
             (void)other.state();
+            if(_state)
+            {
+                _state->retire();
+            }
             _state = std::move(other._state);
         }
         return *this;
@@ -115,6 +127,7 @@ public:
             source->diagnostics.enable(true);
         }
 
+        _state->retire();
         _state = std::move(source);
         _state->mounted = true;
         construction->state.reset();
@@ -122,8 +135,17 @@ public:
 
     [[nodiscard]] std::vector<element> children(const element& parent) const
     {
-        (void)checked(parent);
-        return details::element_access::children(parent);
+        const auto           id = checked(parent);
+        std::vector<element> result;
+        for(const auto child: state().get(id).children)
+        {
+            const auto& record = state().get(child);
+            if(!record.content.private_part)
+            {
+                result.push_back(details::element_access::alias(record.binding));
+            }
+        }
+        return result;
     }
 
     [[nodiscard]] std::optional<element> parent(const element& child) const
@@ -194,7 +216,12 @@ private:
         {
             throw std::invalid_argument("Element does not belong to this document");
         }
-        return details::element_access::binding(value)->id;
+        const auto id = details::element_access::binding(value)->id;
+        if(state().get(id).content.private_part)
+        {
+            throw std::invalid_argument("Component parts are not public document children");
+        }
+        return id;
     }
 };
 
@@ -203,6 +230,21 @@ namespace details
 
 struct document_access
 {
+    static std::shared_ptr<document_state> current(document& owner)
+    {
+        if(owner._state)
+        {
+            owner._state->check_thread();
+        }
+        return owner._state;
+    }
+
+    static std::shared_ptr<document_state> state(document& owner)
+    {
+        (void)owner.state();
+        return owner._state;
+    }
+
     static void complete_empty(document& owner, invalidation completed)
     {
         owner.state().complete_empty(completed);

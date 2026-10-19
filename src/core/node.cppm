@@ -31,10 +31,20 @@ struct text_data
 namespace details
 {
 
+// State for the legacy raw-node API. Runtime input uses document-owned IDs.
+struct button_interaction_state
+{
+    bool                  hovered = false;
+    bool                  pressed = false;
+    bool                  focused = false;
+    bool                  enabled = true;
+    std::function<void()> on_click;
+};
+
 struct button_data
 {
-    std::string value;
-    std::optional<text_layout> shaped{};
+    std::string                               value;
+    std::optional<text_layout>                shaped{};
     std::shared_ptr<button_interaction_state> interaction;
 };
 
@@ -42,10 +52,10 @@ struct button_data
 
 struct node
 {
-    std::vector<node>                       children{};
+    std::vector<node>                                             children{};
     std::variant<container_data, text_data, details::button_data> data = container_data{};
-    centui::style                           style;
-    centui::layout                          layout{};
+    centui::style                                                 style;
+    centui::layout                                                layout{};
 
     void attach(std::optional<font&> face = std::nullopt)
     {

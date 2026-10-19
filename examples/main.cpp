@@ -1,3 +1,4 @@
+#include <format>
 #include <functional>
 #include <initializer_list>
 #include <memory>
@@ -6,7 +7,6 @@
 #include <typeinfo>
 #include <variant>
 #include <vector>
-#include <format>
 
 import centui.app;
 import centui.document;
@@ -22,6 +22,7 @@ struct panel_style
     centui::length       height = centui::px(300);
     centui::edges        padding = centui::edges::all(centui::px(20));
     centui::states_color background_color = centui::states_color::all(centui::color::from_hex(0x334155));
+    centui::direction    flex_direction = centui::direction::column_reverse;
 };
 
 struct child_style

@@ -135,6 +135,7 @@ public:
         init.reset = BGFX_RESET_VSYNC;
 
         _bgfx = std::make_unique<detail::bgfx_context>(init);
+        _backbuffer = _viewport;
 
         bgfx::setViewClear(
             0,
@@ -144,10 +145,7 @@ public:
 
     ~window()
     {
-        if(_mouse_captured)
-        {
-            SDL_CaptureMouse(false);
-        }
+        release_mouse_capture();
     }
 
     window(const window&) = delete;
@@ -160,7 +158,7 @@ public:
     {
         _input_events.clear();
         SDL_Event event;
-        bool running = true;
+        bool      running = true;
 
         while(SDL_PollEvent(&event))
         {
@@ -175,6 +173,25 @@ public:
             {
                 running = false;
                 continue;
+            }
+
+            if((event.type == SDL_EVENT_WINDOW_FOCUS_LOST || event.type == SDL_EVENT_WINDOW_MINIMIZED ||
+                event.type == SDL_EVENT_WINDOW_FOCUS_GAINED) &&
+               event.window.windowID == SDL_GetWindowID(_window.get()))
+            {
+                if(event.type == SDL_EVENT_WINDOW_FOCUS_LOST || event.type == SDL_EVENT_WINDOW_MINIMIZED)
+                {
+                    release_mouse_capture();
+                    _input_events.push_back({.type = event.type == SDL_EVENT_WINDOW_FOCUS_LOST
+                                                         ? input_event_type::focus_lost
+                                                         : input_event_type::pointer_cancelled});
+                    continue;
+                }
+                if(event.type == SDL_EVENT_WINDOW_FOCUS_GAINED)
+                {
+                    _input_events.push_back({.type = input_event_type::focus_gained});
+                    continue;
+                }
             }
 
             if(event.type == SDL_EVENT_WINDOW_MOUSE_LEAVE && event.window.windowID == SDL_GetWindowID(_window.get()))
@@ -195,29 +212,30 @@ public:
             if((event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) &&
                event.button.windowID == SDL_GetWindowID(_window.get()))
             {
+                const auto type = event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ? input_event_type::pointer_pressed : input_event_type::pointer_released;
+                if(type == input_event_type::pointer_released && event.button.button == SDL_BUTTON_LEFT)
+                {
+                    release_mouse_capture();
+                }
                 if(const auto position = to_pixel_position(event.button.x, event.button.y))
                 {
-                    const auto type = event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ? input_event_type::pointer_pressed : input_event_type::pointer_released;
-                    if(event.button.button == SDL_BUTTON_LEFT)
+                    if(type == input_event_type::pointer_pressed && event.button.button == SDL_BUTTON_LEFT)
                     {
-                        if(type == input_event_type::pointer_pressed)
-                        {
-                            _mouse_captured = SDL_CaptureMouse(true);
-                        }
-                        else if(_mouse_captured)
-                        {
-                            SDL_CaptureMouse(false);
-                            _mouse_captured = false;
-                        }
+                        _mouse_captured = SDL_CaptureMouse(true);
                     }
                     _input_events.push_back({.type = type,
                                              .x = position->first,
                                              .y = position->second,
                                              .button = translate_button(event.button.button)});
                 }
+                else
+                {
+                    _input_events.push_back({.type = input_event_type::pointer_cancelled});
+                }
             }
         }
 
+        refresh_viewport();
         return running;
     }
 
@@ -226,31 +244,37 @@ public:
         return std::exchange(_input_events, {});
     }
 
-    [[nodiscard]] bool begin_frame()
+    // The backend borrows this viewport. Refresh it before input, independently
+    // of whether a graphics frame will be submitted.
+    void refresh_viewport()
     {
         int width = 0;
         int height = 0;
+        if((SDL_GetWindowFlags(_window.get()) & SDL_WINDOW_MINIMIZED) ||
+           !SDL_GetWindowSizeInPixels(_window.get(), &width, &height) || width <= 0 || height <= 0)
+        {
+            _viewport = {};
+            return;
+        }
+        _viewport = {width, height};
+    }
 
-        if(!SDL_GetWindowSizeInPixels(_window.get(), &width, &height))
+    [[nodiscard]] bool begin_frame()
+    {
+        refresh_viewport();
+        if(_viewport.width <= 0 || _viewport.height <= 0)
         {
             return false;
         }
 
-        if(width <= 0 || height <= 0)
+        if(_viewport.width != _backbuffer.width || _viewport.height != _backbuffer.height)
         {
-            return false;
-        }
-
-        if(width != _viewport.width || height != _viewport.height)
-        {
-            _viewport.width = width;
-            _viewport.height = height;
-
             bgfx::SwapChain swap_chain;
             swap_chain.width = static_cast<std::uint32_t>(_viewport.width);
             swap_chain.height = static_cast<std::uint32_t>(_viewport.height);
 
             bgfx::reset(BGFX_RESET_VSYNC, &swap_chain);
+            _backbuffer = _viewport;
         }
 
         bgfx::setViewRect(0, 0, 0, static_cast<std::uint16_t>(_viewport.width), static_cast<std::uint16_t>(_viewport.height));
@@ -281,13 +305,23 @@ public:
     }
 
 private:
+    void release_mouse_capture() noexcept
+    {
+        if(_mouse_captured)
+        {
+            SDL_CaptureMouse(false);
+            _mouse_captured = false;
+        }
+    }
+
     [[nodiscard]] std::optional<std::pair<float, float>> to_pixel_position(float x, float y) const
     {
         int logical_width = 0;
         int logical_height = 0;
         int pixel_width = 0;
         int pixel_height = 0;
-        if(!SDL_GetWindowSize(_window.get(), &logical_width, &logical_height) ||
+        if((SDL_GetWindowFlags(_window.get()) & SDL_WINDOW_MINIMIZED) ||
+           !SDL_GetWindowSize(_window.get(), &logical_width, &logical_height) ||
            !SDL_GetWindowSizeInPixels(_window.get(), &pixel_width, &pixel_height) ||
            logical_width <= 0 || logical_height <= 0 || pixel_width <= 0 || pixel_height <= 0)
         {
@@ -318,9 +352,10 @@ private:
     detail::window_ptr                    _window;
     std::unique_ptr<detail::bgfx_context> _bgfx;
 
-    centui::viewport _viewport;
+    centui::viewport         _viewport;
+    centui::viewport         _backbuffer;
     std::vector<input_event> _input_events;
-    bool _mouse_captured = false;
+    bool                     _mouse_captured = false;
 };
 
 } // namespace centui
