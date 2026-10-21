@@ -2,13 +2,10 @@
 
 #include <SFML/Graphics.hpp>
 
-import centui.container;
+import centui.widgets;
 import centui.sfml;
-import centui.text;
-import centui.color;
-import centui.unit;
-import centui.ui;
-import centui.document;
+import centui.types;
+import centui.tree;
 
 struct panel_style
 {

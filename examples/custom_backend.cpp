@@ -3,14 +3,12 @@
 #include <span>
 #include <type_traits>
 #include <variant>
+#include <memory>
 
-import centui.container;
-import centui.color;
-import centui.draw;
-import centui.glyph;
-import centui.unit;
-import centui.ui;
-import centui.document;
+import centui.widgets;
+import centui.types;
+import centui.render;
+import centui.tree;
 
 struct panel_style
 {
@@ -22,22 +20,17 @@ struct panel_style
     } background_color;
 };
 
-class logging_backend
+class logging_backend final : public centui::renderer
 {
 public:
-    [[nodiscard]] centui::viewport viewport() const noexcept
+    [[nodiscard]] centui::viewport viewport() const noexcept override
     {
         return {800, 600};
     }
 
-    [[nodiscard]] centui::font& glyphs() noexcept
+    void draw(const centui::draw_list& list) override
     {
-        return _font;
-    }
-
-    void draw(std::span<const centui::draw_command> commands)
-    {
-        for(const auto& command: commands)
+        for(const auto& command: list.commands)
         {
             std::visit([](const auto& item)
             {
@@ -49,14 +42,12 @@ public:
                 }
                 else
                 {
-                    std::cout << "text: " << item.value << '\n';
+                    std::cout << "glyphs: " << item.shaped->glyphs.size() << '\n';
                 }
             }, command);
         }
     }
 
-private:
-    centui::font _font;
 };
 
 int main()

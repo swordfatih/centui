@@ -2,6 +2,7 @@
 module;
 
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -14,8 +15,7 @@ module;
 
 export module centui.window;
 
-export import centui.viewport;
-import centui.input;
+export import centui.types;
 
 namespace centui::detail
 {
@@ -266,6 +266,11 @@ public:
         {
             return false;
         }
+        if(_viewport.width > std::numeric_limits<std::uint16_t>::max() ||
+           _viewport.height > std::numeric_limits<std::uint16_t>::max())
+        {
+            throw std::invalid_argument("Window exceeds bgfx view dimensions");
+        }
 
         if(_viewport.width != _backbuffer.width || _viewport.height != _backbuffer.height)
         {
@@ -338,13 +343,21 @@ private:
         switch(button)
         {
         case SDL_BUTTON_LEFT:
+        {
             return mouse_button::primary;
+        }
         case SDL_BUTTON_RIGHT:
+        {
             return mouse_button::secondary;
+        }
         case SDL_BUTTON_MIDDLE:
+        {
             return mouse_button::middle;
+        }
         default:
+        {
             return mouse_button::other;
+        }
         }
     }
 

@@ -1,5 +1,6 @@
 #include <cstddef>
 #include <filesystem>
+#include <initializer_list>
 #include <limits>
 #include <stdexcept>
 #include <utility>

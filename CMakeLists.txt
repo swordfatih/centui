@@ -49,17 +49,17 @@ target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_26)
 target_compile_options(${PROJECT_NAME} PUBLIC -freflection)
 target_link_libraries(${PROJECT_NAME} PRIVATE ${PROJECT_NAME}_config)
 
-function(centui_sources directory)
+function(centui_sources target directory)
     file(GLOB_RECURSE cpp_sources CONFIGURE_DEPENDS "${directory}/*.cpp")
     file(GLOB_RECURSE module_sources CONFIGURE_DEPENDS "${directory}/*.cppm")
-    target_sources(${PROJECT_NAME}
+    target_sources(${target}
         PRIVATE ${cpp_sources}
         PUBLIC FILE_SET CXX_MODULES
             BASE_DIRS "${PROJECT_SOURCE_DIR}/src" FILES ${module_sources})
 endfunction()
 
 include(src/core/Dependencies.cmake)
-centui_sources("${PROJECT_SOURCE_DIR}/src/core")
+centui_sources(centui "${PROJECT_SOURCE_DIR}/src/core")
 target_link_libraries(${PROJECT_NAME} PRIVATE yogacore freetype harfbuzz)
 
 if(CENTUI_BUILD_BGFX)
@@ -90,6 +90,11 @@ if(BUILD_EXAMPLES)
         set(example_target "${PROJECT_NAME}_example_${example_name}")
         add_executable(${example_target} "${example_source}")
         target_link_libraries(${example_target} PRIVATE ${PROJECT_NAME}::${PROJECT_NAME} ${PROJECT_NAME}_config)
+        if(example_name STREQUAL "app")
+            target_link_libraries(${example_target} PRIVATE centui::app)
+        elseif(example_name STREQUAL "sfml")
+            target_link_libraries(${example_target} PRIVATE centui::sfml)
+        endif()
     endforeach()
 endif()
 

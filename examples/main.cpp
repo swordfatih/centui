@@ -9,12 +9,7 @@
 #include <vector>
 
 import centui.app;
-import centui.document;
-import centui.container;
-import centui.text;
-import centui.button;
-import centui.color;
-import centui.unit;
+import centui;
 
 struct panel_style
 {

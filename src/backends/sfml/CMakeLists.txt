@@ -1,3 +1,5 @@
 include(Dependencies.cmake)
-centui_sources("${CMAKE_CURRENT_SOURCE_DIR}")
-target_link_libraries(${PROJECT_NAME} PUBLIC SFML::Graphics)
+add_library(centui_sfml STATIC)
+add_library(centui::sfml ALIAS centui_sfml)
+centui_sources(centui_sfml "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(centui_sfml PUBLIC centui::centui SFML::Graphics PRIVATE centui_config)

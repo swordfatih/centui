@@ -6,9 +6,7 @@ export module centui.app;
 
 import centui.window;
 import centui.bgfx;
-import centui.ui;
-export import centui.element;
-export import centui.document;
+export import centui.tree;
 
 export namespace centui
 {
@@ -37,35 +35,6 @@ public:
     [[nodiscard]] bool poll_events()
     {
         return _window.poll_events();
-    }
-
-    [[nodiscard]] bool poll_events(element& root)
-    {
-        if(!_window.poll_events())
-        {
-            return false;
-        }
-
-        const auto events = _window.take_input_events();
-        _ui.process_events(root, events);
-        return true;
-    }
-
-    void render_frame(element& root)
-    {
-        if(_window.begin_frame())
-        {
-            _ui.render(root);
-            _window.end_frame();
-        }
-    }
-
-    void run(element& root)
-    {
-        while(poll_events(root))
-        {
-            render_frame(root);
-        }
     }
 
     [[nodiscard]] bool poll_events(document& owner)
@@ -97,10 +66,10 @@ public:
     }
 
 private:
-    // Reverse destruction: UI, GPU resources/font, then bgfx and SDL window.
-    window            _window;
-    bgfx::backend     _backend;
-    ui<bgfx::backend> _ui;
+    // Reverse destruction releases GPU resources before the graphics context.
+    window        _window;
+    bgfx::backend _backend;
+    ui            _ui;
 };
 
 } // namespace centui

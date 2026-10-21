@@ -9,7 +9,8 @@ module;
 #include <span>
 #include <stdexcept>
 #include <type_traits>
-#include <unordered_map>
+#include <map>
+#include <memory>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -39,12 +40,7 @@ module;
 
 export module centui.bgfx;
 
-import centui.node;
-import centui.color;
-import centui.unit;
-import centui.draw;
-import centui.glyph;
-import centui.viewport;
+import centui.render;
 
 namespace centui::details
 {
@@ -179,7 +175,7 @@ std::uint32_t pack_color(color value)
 export namespace centui::bgfx
 {
 
-class backend
+class backend final : public centui::renderer
 {
 public:
     explicit backend(const centui::viewport& target, std::uint16_t view_id = 0) : _viewport(target), _view_id(view_id)
@@ -205,7 +201,7 @@ public:
         }
     }
 
-    ~backend() = default;
+    ~backend() override = default;
 
     backend(const backend&) = delete;
     backend& operator=(const backend&) = delete;
@@ -213,16 +209,12 @@ public:
     backend(centui::viewport&&, std::uint16_t = 0) = delete;
     backend(const centui::viewport&&, std::uint16_t = 0) = delete;
 
-    [[nodiscard]] const centui::viewport& viewport() const noexcept
+    [[nodiscard]] centui::viewport viewport() const noexcept override
     {
         return _viewport;
     }
 
-    [[nodiscard]] font& glyphs() noexcept
-    {
-        return _font;
-    }
-
+private:
     void begin(std::uint16_t width, std::uint16_t height)
     {
         ::bgfx::setViewRect(_view_id, 0, 0, width, height);
@@ -271,127 +263,102 @@ public:
 
         ::bgfx::setVertexBuffer(0, &vertices);
         ::bgfx::setIndexBuffer(&indices);
-        ::bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA);
+        ::bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A |
+                         BGFX_STATE_BLEND_FUNC_SEPARATE(BGFX_STATE_BLEND_SRC_ALPHA, BGFX_STATE_BLEND_INV_SRC_ALPHA,
+                                                       BGFX_STATE_BLEND_ONE, BGFX_STATE_BLEND_INV_SRC_ALPHA));
         ::bgfx::submit(_view_id, _program.get());
     }
 
-    void text(const text_command& command)
+public:
+    void clear_cache()
     {
-        if(command.color.a == 0 || command.value.empty())
+        _glyphs.clear();
+    }
+
+    void set_cache_limit(std::size_t images)
+    {
+        _cache_limit = std::max(std::size_t{1}, images);
+        clear_cache();
+    }
+
+    void draw(const draw_list& list) override
+    {
+        const auto size = list.viewport;
+        if(size.width <= 0 || size.height <= 0)
         {
             return;
         }
-
-        const auto fallback = command.shaped ? text_layout{} : _font.layout_text(command.value, command.font_size);
-        const auto& shaped = command.shaped ? *command.shaped : fallback;
-        const auto baseline = command.bounds.y + shaped.ascender;
-
-        for(const auto& item: shaped.glyphs)
-        {
-            const auto& cached = get_glyph(item.id, command.font_size);
-
-            rect bounds{
-                .x = command.bounds.x + item.x + cached.left,
-                .y = baseline - item.y - cached.top,
-                .width = static_cast<float>(cached.width),
-                .height = static_cast<float>(cached.height)};
-
-            glyph(bounds, command.color, cached.texture.get());
-        }
-    }
-
-    void draw(const node& root)
-    {
-        const auto list = commands(root);
-        draw(list);
-    }
-
-    void draw(std::span<const draw_command> list)
-    {
-        if(_viewport.width <= 0 || _viewport.height <= 0)
-        {
-            return;
-        }
-        if(_viewport.width > std::numeric_limits<std::uint16_t>::max() || _viewport.height > std::numeric_limits<std::uint16_t>::max())
+        if(size.width > std::numeric_limits<std::uint16_t>::max() || size.height > std::numeric_limits<std::uint16_t>::max())
         {
             throw std::invalid_argument("UI viewport exceeds bgfx view dimensions");
         }
-        begin(static_cast<std::uint16_t>(_viewport.width), static_cast<std::uint16_t>(_viewport.height));
-        for(const auto& command: list)
+        std::erase_if(_glyphs, [](const auto& entry)
+        {
+            return entry.first.expired();
+        });
+        begin(static_cast<std::uint16_t>(size.width), static_cast<std::uint16_t>(size.height));
+        const rect clip{0, 0, float(size.width), float(size.height)};
+        for(const auto& command: list.commands)
         {
             std::visit([&](const auto& item)
             {
                 using type = std::decay_t<decltype(item)>;
-
                 if constexpr(std::is_same_v<type, rectangle_command>)
                 {
-                    rectangle(item.bounds, item.color);
+                    rectangle(intersection(intersection(item.bounds, item.clip), clip), item.color);
                 }
                 else
                 {
-                    text(item);
+                    details::for_each_glyph(item, clip, [&](const glyph_quad& quad)
+                    {
+                        glyph(quad.bounds, quad.color, quad.uv, get_glyph(quad.image).get());
+                    });
                 }
             }, command);
         }
     }
 
 private:
-    struct cached_glyph
+    const details::owned_handle<::bgfx::TextureHandle>& get_glyph(const std::shared_ptr<const glyph_bitmap>& bitmap)
     {
-        details::owned_handle<::bgfx::TextureHandle> texture{};
-        int                                      width = 0;
-        int                                      height = 0;
-        int                                      left = 0;
-        int                                      top = 0;
-    };
-
-    const cached_glyph& get_glyph(std::uint32_t id, float size)
-    {
-        const auto pixel_size = static_cast<std::uint32_t>(std::max(1.0f, std::round(size)));
-        const auto key = (std::uint64_t(pixel_size) << 32) | id;
-
-        if(const auto it = _glyphs.find(key); it != _glyphs.end())
+        const std::weak_ptr<const glyph_bitmap> key{bitmap};
+        if(const auto found = _glyphs.find(key); found != _glyphs.end())
         {
-            return it->second;
+            return found->second;
         }
-
-        const auto bitmap = _font.rasterize(id, size);
-
-        cached_glyph entry{
-            .width = bitmap.width,
-            .height = bitmap.height,
-            .left = bitmap.left,
-            .top = bitmap.top};
-
-        if(entry.width > 0 && entry.height > 0)
+        const auto limit = ::bgfx::getCaps()->limits.maxTextureSize;
+        if(bitmap->width <= 0 || bitmap->height <= 0 || bitmap->width > limit || bitmap->height > limit ||
+           bitmap->width > std::numeric_limits<std::uint16_t>::max() ||
+           bitmap->height > std::numeric_limits<std::uint16_t>::max())
         {
-            std::vector<std::uint32_t> pixels;
-            pixels.reserve(bitmap.pixels.size());
-
-            for(const auto alpha: bitmap.pixels)
-            {
-                pixels.push_back((std::uint32_t(alpha) << 24) | 0x00FFFFFF);
-            }
-
-            entry.texture = details::owned_handle{::bgfx::createTexture2D(
-                static_cast<std::uint16_t>(entry.width),
-                static_cast<std::uint16_t>(entry.height),
-                false,
-                1,
-                ::bgfx::TextureFormat::BGRA8,
-                BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP | BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT,
-                ::bgfx::copy(pixels.data(), static_cast<std::uint32_t>(pixels.size() * sizeof(std::uint32_t))))};
-
-            if(!::bgfx::isValid(entry.texture.get()))
-            {
-                throw std::runtime_error("Failed to create glyph texture");
-            }
+            throw std::invalid_argument("Glyph image exceeds bgfx texture dimensions");
         }
-
-        return _glyphs.emplace(key, std::move(entry)).first->second;
+        if(_glyphs.size() >= _cache_limit)
+        {
+            clear_cache();
+        }
+        if(bitmap->pixels.size() > std::numeric_limits<std::uint32_t>::max() / sizeof(std::uint32_t))
+        {
+            throw std::length_error("Glyph image exceeds bgfx upload size");
+        }
+        std::vector<std::uint32_t> pixels;
+        pixels.reserve(bitmap->pixels.size());
+        for(const auto alpha: bitmap->pixels)
+        {
+            pixels.push_back((std::uint32_t(alpha) << 24) | 0x00FFFFFF);
+        }
+        details::owned_handle texture{::bgfx::createTexture2D(
+            static_cast<std::uint16_t>(bitmap->width), static_cast<std::uint16_t>(bitmap->height),
+            false, 1, ::bgfx::TextureFormat::BGRA8,
+            BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP | BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT,
+            ::bgfx::copy(pixels.data(), static_cast<std::uint32_t>(pixels.size() * sizeof(std::uint32_t))))};
+        if(!::bgfx::isValid(texture.get()))
+        {
+            throw std::runtime_error("Failed to create glyph texture");
+        }
+        return _glyphs.emplace(key, std::move(texture)).first->second;
     }
-
-    void glyph(const rect& bounds, color value, ::bgfx::TextureHandle texture)
+    void glyph(const rect& bounds, color value, rect uv, ::bgfx::TextureHandle texture)
     {
         if(!::bgfx::isValid(texture) || bounds.width <= 0 || bounds.height <= 0 || value.a == 0)
         {
@@ -412,10 +379,10 @@ private:
         const auto packed = details::pack_color(value);
         auto v = std::span{reinterpret_cast<details::text_vertex*>(vertices.data), 4};
 
-        v[0] = {bounds.x, bounds.y, 0.0f, 0.0f, 0.0f, packed};
-        v[1] = {bounds.x + bounds.width, bounds.y, 0.0f, 1.0f, 0.0f, packed};
-        v[2] = {bounds.x + bounds.width, bounds.y + bounds.height, 0.0f, 1.0f, 1.0f, packed};
-        v[3] = {bounds.x, bounds.y + bounds.height, 0.0f, 0.0f, 1.0f, packed};
+        v[0] = {bounds.x, bounds.y, 0.0f, uv.x, uv.y, packed};
+        v[1] = {bounds.x + bounds.width, bounds.y, 0.0f, uv.x + uv.width, uv.y, packed};
+        v[2] = {bounds.x + bounds.width, bounds.y + bounds.height, 0.0f, uv.x + uv.width, uv.y + uv.height, packed};
+        v[3] = {bounds.x, bounds.y + bounds.height, 0.0f, uv.x, uv.y + uv.height, packed};
 
         auto i = std::span{reinterpret_cast<std::uint16_t*>(indices.data), 6};
 
@@ -429,12 +396,13 @@ private:
         ::bgfx::setVertexBuffer(0, &vertices);
         ::bgfx::setIndexBuffer(&indices);
         ::bgfx::setTexture(0, _sampler.get(), texture);
-        ::bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA);
+        ::bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A |
+                         BGFX_STATE_BLEND_FUNC_SEPARATE(BGFX_STATE_BLEND_SRC_ALPHA, BGFX_STATE_BLEND_INV_SRC_ALPHA,
+                                                       BGFX_STATE_BLEND_ONE, BGFX_STATE_BLEND_INV_SRC_ALPHA));
         ::bgfx::submit(_view_id, _text_program.get());
     }
 
     const centui::viewport& _viewport;
-    font _font;
     std::uint16_t _view_id;
 
     ::bgfx::VertexLayout _vertex_layout;
@@ -444,7 +412,9 @@ private:
     details::owned_handle<::bgfx::ProgramHandle> _text_program;
     details::owned_handle<::bgfx::UniformHandle> _sampler;
 
-    std::unordered_map<std::uint64_t, cached_glyph> _glyphs;
+    std::size_t _cache_limit = 1024;
+    std::map<std::weak_ptr<const glyph_bitmap>, details::owned_handle<::bgfx::TextureHandle>, std::owner_less<>> _glyphs;
 };
 
 } // namespace centui::bgfx
+
