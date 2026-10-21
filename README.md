@@ -56,6 +56,8 @@ auto root = centui::container{sample};
 
 Setters check mutation permission before changing fields and call `invalidate_layout()` or `invalidate_paint()`. Measurement receives exact/maximum/unconstrained axis constraints and a CPU text service. The framework paints backgrounds and traverses children; hooks paint content in document coordinates. Measurement and painting may not mutate the tree or recursively prepare it. See `examples/custom_primitive.cpp` for a complete mutable widget.
 
+Interactive widgets receive the press, captured moves, and matching release even outside their bounds or the viewport. The document tracks one widget/button pair; extra presses and unmatched releases do not steal or end that gesture. Primary, secondary, and middle buttons can initiate capture. Release ends capture before calling widget code. Built-in buttons recognize clicks themselves: a primary press followed by release inside the button. Leaving the widget is not cancellation; focus loss or invalidation of the captured target interrupts capture. Hover and pressed styling remain managed by the document.
+
 ## Backends
 
 Every backend implements the same base:

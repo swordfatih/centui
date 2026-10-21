@@ -213,15 +213,16 @@ public:
                event.button.windowID == SDL_GetWindowID(_window.get()))
             {
                 const auto type = event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ? input_event_type::pointer_pressed : input_event_type::pointer_released;
-                if(type == input_event_type::pointer_released && event.button.button == SDL_BUTTON_LEFT)
+                if(type == input_event_type::pointer_released && event.button.button == _capture_button)
                 {
                     release_mouse_capture();
                 }
                 if(const auto position = to_pixel_position(event.button.x, event.button.y))
                 {
-                    if(type == input_event_type::pointer_pressed && event.button.button == SDL_BUTTON_LEFT)
+                    if(type == input_event_type::pointer_pressed && !_mouse_captured)
                     {
                         _mouse_captured = SDL_CaptureMouse(true);
+                        _capture_button = event.button.button;
                     }
                     _input_events.push_back({.type = type,
                                              .x = position->first,
@@ -369,6 +370,7 @@ private:
     centui::viewport         _backbuffer;
     std::vector<input_event> _input_events;
     bool                     _mouse_captured = false;
+    std::uint8_t             _capture_button = 0;
 };
 
 } // namespace centui

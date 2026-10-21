@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <string>
 #include <variant>
+#include <vector>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -54,6 +55,24 @@ protected:
             patch_style({.width = centui::px(10)});
         }
         return {10, 10};
+    }
+};
+
+class pointer_probe final : public centui::widget
+{
+public:
+    pointer_probe()
+    {
+        patch_style({.width = centui::px(80), .height = centui::px(30)});
+        set_interactive();
+    }
+
+    std::vector<centui::input_event> events;
+
+protected:
+    void on_event(const centui::input_event& event) override
+    {
+        events.push_back(event);
     }
 };
 
@@ -227,4 +246,82 @@ TEST_CASE("Recursive dispatch is rejected without poisoning later input", "[docu
     button.set_on_click([&calls]() { ++calls; });
     REQUIRE_NOTHROW(click(document));
     REQUIRE(calls == 1);
+}
+
+TEST_CASE("Captured widgets receive outside movement and release for each mouse button", "[document][capture]")
+{
+    for(const auto button: {centui::mouse_button::primary, centui::mouse_button::secondary, centui::mouse_button::middle})
+    {
+        auto probe = centui::make_widget<pointer_probe>();
+        centui::document document{probe};
+        document.process_event({centui::input_event_type::pointer_pressed, 5, 5, button}, {200, 100});
+        document.process_event({centui::input_event_type::pointer_left}, {200, 100});
+        document.process_event({centui::input_event_type::pointer_moved, -20, 150}, {200, 100});
+        document.process_event({centui::input_event_type::pointer_released, -20, 150, button}, {200, 100});
+        REQUIRE(probe->events.size() == 3);
+        REQUIRE(probe->events[0].type == centui::input_event_type::pointer_pressed);
+        REQUIRE(probe->events[1].type == centui::input_event_type::pointer_moved);
+        REQUIRE(probe->events[2].type == centui::input_event_type::pointer_released);
+        REQUIRE(probe->events[2].button == button);
+        REQUIRE(probe->events[2].x == -20);
+        REQUIRE(probe->events[2].y == 150);
+        document.process_event({centui::input_event_type::pointer_moved, -30, 160}, {200, 100});
+        REQUIRE(probe->events.size() == 3);
+    }
+}
+
+TEST_CASE("Another mouse button cannot steal or end an active capture", "[document][capture]")
+{
+    auto probe = centui::make_widget<pointer_probe>();
+    centui::document document{probe};
+    document.process_event({centui::input_event_type::pointer_pressed, 5, 5, centui::mouse_button::secondary}, {200, 100});
+    document.process_event({centui::input_event_type::pointer_pressed, 5, 5, centui::mouse_button::primary}, {200, 100});
+    document.process_event({centui::input_event_type::pointer_released, 5, 5, centui::mouse_button::primary}, {200, 100});
+    REQUIRE(probe->events.size() == 1);
+    document.process_event({centui::input_event_type::pointer_moved, 150, 90}, {200, 100});
+    document.process_event({centui::input_event_type::pointer_released, 150, 90, centui::mouse_button::secondary}, {200, 100});
+    REQUIRE(probe->events.size() == 3);
+    REQUIRE(probe->events.back().type == centui::input_event_type::pointer_released);
+    REQUIRE(probe->events.back().button == centui::mouse_button::secondary);
+}
+
+TEST_CASE("Focus loss cancels a secondary capture without synthesizing release", "[document][capture]")
+{
+    auto probe = centui::make_widget<pointer_probe>();
+    centui::document document{probe};
+    document.process_event({centui::input_event_type::pointer_pressed, 5, 5, centui::mouse_button::secondary}, {200, 100});
+    document.process_event({centui::input_event_type::focus_lost}, {200, 100});
+    REQUIRE(probe->events.size() == 2);
+    REQUIRE(probe->events.back().type == centui::input_event_type::pointer_cancelled);
+    REQUIRE(probe->events.back().button == centui::mouse_button::secondary);
+    document.process_event({centui::input_event_type::focus_gained}, {200, 100});
+    document.process_event({centui::input_event_type::pointer_released, 5, 5, centui::mouse_button::secondary}, {200, 100});
+    REQUIRE(probe->events.size() == 2);
+}
+
+TEST_CASE("Buttons activate only for a primary gesture ending inside", "[document][button]")
+{
+    int calls = 0;
+    auto button = centui::button<button_style>{"Click", {.on_click = [&calls]() { ++calls; }}};
+    centui::document document{button};
+    document.process_event({centui::input_event_type::pointer_released, 5, 5}, {200, 100});
+    document.process_event({centui::input_event_type::pointer_pressed, 5, 5, centui::mouse_button::secondary}, {200, 100});
+    document.process_event({centui::input_event_type::pointer_released, 5, 5, centui::mouse_button::secondary}, {200, 100});
+    REQUIRE(calls == 0);
+    document.process_event({centui::input_event_type::pointer_pressed, 5, 5}, {200, 100});
+    document.process_event({centui::input_event_type::pointer_released, 100, 40}, {200, 100});
+    REQUIRE(calls == 0);
+    document.process_event({centui::input_event_type::pointer_pressed, 5, 5}, {200, 100});
+    document.process_event({centui::input_event_type::pointer_moved, 150, 90}, {200, 100});
+    document.process_event({centui::input_event_type::pointer_released, 5, 5, centui::mouse_button::secondary}, {200, 100});
+    REQUIRE(calls == 0);
+    document.process_event({centui::input_event_type::pointer_released, 5, 5}, {200, 100});
+    REQUIRE(calls == 1);
+    document.process_event({centui::input_event_type::pointer_pressed, 5, 5}, {200, 100});
+    button.set_enabled(false);
+    button.set_enabled(true);
+    document.process_event({centui::input_event_type::pointer_released, 5, 5}, {200, 100});
+    REQUIRE(calls == 1);
+    click(document);
+    REQUIRE(calls == 2);
 }

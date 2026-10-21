@@ -675,6 +675,7 @@ private:
     centui::viewport _viewport{};
     std::weak_ptr<widget> _hover;
     std::weak_ptr<widget> _capture;
+    mouse_button _capture_button = mouse_button::primary;
     std::weak_ptr<widget> _focus;
     std::vector<std::function<void()>> _edits;
     bool _dispatching = false;
@@ -947,7 +948,7 @@ private:
             _context->paint_dirty = true;
             if(_dispatching)
             {
-                captured->on_event({.type = input_event_type::pointer_cancelled});
+                captured->on_event({.type = input_event_type::pointer_cancelled, .button = _capture_button});
             }
         }
     }
@@ -1040,13 +1041,13 @@ private:
             }
             return;
         }
-        if(event.button != mouse_button::primary)
-        {
-            return;
-        }
         if(event.type == input_event_type::pointer_pressed)
         {
-            cancel_capture();
+            // One gesture at a time; extra presses cannot steal its capture.
+            if(!_capture.expired())
+            {
+                return;
+            }
             if(target)
             {
                 if(auto focused = _focus.lock())
@@ -1055,6 +1056,7 @@ private:
                 }
                 _focus = target;
                 _capture = target;
+                _capture_button = event.button;
                 target->_focused = true;
                 target->_pressed = true;
                 _context->paint_dirty = true;
@@ -1063,20 +1065,18 @@ private:
         }
         else if(event.type == input_event_type::pointer_released)
         {
+            if(event.button != _capture_button)
+            {
+                return;
+            }
             auto captured = _capture.lock();
+            // User code may mutate the tree or throw; capture is already ended.
             _capture.reset();
             if(captured)
             {
                 captured->_pressed = false;
                 _context->paint_dirty = true;
-                if(captured == target && eligible(captured))
-                {
-                    captured->on_event(event);
-                }
-                else
-                {
-                    captured->on_event({.type = input_event_type::pointer_cancelled});
-                }
+                captured->on_event(event);
             }
         }
     }

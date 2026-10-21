@@ -151,19 +151,46 @@ public:
 protected:
     void on_event(const input_event& event) override
     {
-        if(event.type == input_event_type::pointer_released && event.button == mouse_button::primary && enabled())
+        switch(event.type)
         {
-            // Retain the registration during self-replacement and preserve mutable captures.
-            auto callback = _on_click;
-            if(callback)
+        case input_event_type::pointer_pressed:
+        {
+            _armed = event.button == mouse_button::primary;
+            break;
+        }
+        case input_event_type::pointer_released:
+        {
+            const auto box = bounds();
+            const bool activate = std::exchange(_armed, false) &&
+                event.button == mouse_button::primary && enabled() &&
+                event.x >= box.x && event.y >= box.y &&
+                event.x < box.x + box.width && event.y < box.y + box.height;
+            if(activate)
             {
-                (*callback)();
+                // Retain the registration during self-replacement and preserve mutable captures.
+                auto callback = _on_click;
+                if(callback)
+                {
+                    (*callback)();
+                }
             }
+            break;
+        }
+        case input_event_type::pointer_cancelled:
+        {
+            _armed = false;
+            break;
+        }
+        default:
+        {
+            break;
+        }
         }
     }
 
 private:
     std::shared_ptr<std::function<void()>> _on_click;
+    bool _armed = false;
 };
 
 template <typename... Styles>
