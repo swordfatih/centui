@@ -32,10 +32,12 @@ struct heading
 {
     float font_size = 26;
 };
+
 struct caption
 {
     centui::states_color text_color = centui::states_color::all({170, 185, 204, 255});
 };
+
 struct control
 {
     centui::length height = centui::px(44);
@@ -52,11 +54,13 @@ struct control
 
 int main()
 {
-    sf::RenderWindow window{sf::VideoMode{{800, 520}}, "CentUI / Borrowed SFML window"};
+    sf::RenderWindow window{sf::VideoMode{{800, 520}}, "CentUI + SFML = <3"};
     window.setFramerateLimit(60);
+
     sf::CircleShape circle{150.f};
     circle.setPosition({60.f, 110.f});
     circle.setFillColor(sf::Color::Green);
+
     bool visible = true;
 
     centui::sfml::platform platform{window};
@@ -67,9 +71,9 @@ int main()
     // clang-format off
     auto root = centui::container<overlay>{
         centui::container<panel>{
-            centui::text<caption>{"SFML + CENTUI"},
+            centui::text<caption>{"SFML + CENTUI = <3"},
             centui::text<heading>{"Hello, green circle."},
-            centui::text<caption>{"SFML draws the scene. CentUI draws this panel on top."},
+            centui::text<caption>{"CentUI gives commands. SFML draws."},
             radius,
             centui::range<control>{{
                 .minimum = 40,
@@ -92,6 +96,7 @@ int main()
         },
     };
     // clang-format on
+
     centui::document document{root};
     document.set_font(centui::font{CENTUI_FONT_PATH});
 
@@ -114,6 +119,7 @@ int main()
                 }
             }
         }
+
         if(!window.isOpen())
         {
             break;
