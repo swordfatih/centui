@@ -1,5 +1,6 @@
 add_subdirectory(getting_started)
 add_subdirectory(hud_sfml)
+add_subdirectory(hud_sdl)
 add_subdirectory(gui_static)
 add_subdirectory(gui_dynamic)
 add_subdirectory(custom_backend)

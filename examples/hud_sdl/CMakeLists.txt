@@ -1,0 +1,11 @@
+if(NOT CENTUI_BUILD_SDL OR NOT CENTUI_BUILD_SDL_RENDERER)
+    return()
+endif()
+
+add_executable(centui_example_hud_sdl main.cpp)
+target_link_libraries(centui_example_hud_sdl PRIVATE
+    centui::centui
+    centui_config
+    centui::sdl_renderer
+)
+centui_font_asset(centui_example_hud_sdl)

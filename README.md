@@ -43,6 +43,6 @@ cmake -S . -B build -G Ninja -DCENTUI_BUILD_SFML=OFF -DCENTUI_BUILD_TESTS=OFF
 cmake --build build --target centui_example_getting_started
 ```
 
-The executable is in `build/examples/getting_started/`. Other examples include a [complete interface built as a nested tree](examples/gui_static/main.cpp), [the same interface built with helpers](examples/gui_dynamic/main.cpp), and [an overlay on a borrowed SFML window](examples/hud_sfml/main.cpp).
+The executable is in `build/examples/getting_started/`. Other examples include a [complete interface built as a nested tree](examples/gui_static/main.cpp), [the same interface built with helpers](examples/gui_dynamic/main.cpp), and overlays using a [borrowed SDL renderer](examples/hud_sdl/main.cpp) or [SFML window](examples/hud_sfml/main.cpp).
 
 CentUI is still evolving. Start with the [getting started guide](docs/getting-started.md), then explore [widgets and styles](docs/widgets-and-styles.md), [custom widgets](docs/extending.md), or [window and renderer integration](docs/backends.md).

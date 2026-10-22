@@ -18,6 +18,8 @@ centui::run(platform, renderer, document);
 
 Build the platform before the renderer so the renderer releases its graphics resources first. The [getting_started example](https://github.com/swordfatih/centui/blob/main/examples/getting_started/main.cpp) contains the full program.
 
+For SDL's own 2D renderer, import `centui.sdl_renderer` and construct `centui::sdl::backend renderer{platform}`. It supports the same `centui::run(platform, renderer, document)` loop. You can also borrow an existing `SDL_Renderer` with `centui::sdl::backend renderer{native_renderer, platform}`. Draw your SDL scene before `ui.render(document)` to put the interface on top. The [hud_sdl example](https://github.com/swordfatih/centui/blob/main/examples/hud_sdl/main.cpp) shows this setup.
+
 ## Draw over an existing SFML window
 
 ```cpp

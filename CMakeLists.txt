@@ -19,6 +19,7 @@ project_option(BUILD_TESTS "Build the test executable" ON)
 option(CENTUI_BUILD_BGFX "Build the bgfx backend and shaders" ON)
 option(CENTUI_BUILD_SFML "Build the SFML backend" ON)
 option(CENTUI_BUILD_SDL "Build the SDL platform" ON)
+option(CENTUI_BUILD_SDL_RENDERER "Build the SDL renderer backend" ON)
 
 include(FetchContent)
 
@@ -64,6 +65,9 @@ if(CENTUI_BUILD_SFML)
 endif()
 if(CENTUI_BUILD_SDL)
     add_subdirectory(src/platforms/sdl)
+endif()
+if(CENTUI_BUILD_SDL AND CENTUI_BUILD_SDL_RENDERER)
+    add_subdirectory(src/backends/sdl)
 endif()
 
 # ------------------------
