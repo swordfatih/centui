@@ -54,11 +54,17 @@ class style
 {
 public:
     template <typename... types>
-    static style resolve(style output = {})
+    static style resolve(style output)
     {
         (merge(output, types{}), ...);
         output.validate();
         return output;
+    }
+
+    template <typename... types>
+    static style resolve()
+    {
+        return resolve<types...>(style{});
     }
 
     edges          padding = edges::all(px(0));

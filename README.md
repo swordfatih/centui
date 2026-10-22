@@ -42,6 +42,30 @@ int main()
 
 Run this from the repository root so the font path resolves. For a styled counter you can build immediately, see [getting_started](examples/getting_started/main.cpp).
 
+## Use in your project
+
+Add CentUI with CMake FetchContent:
+
+```cmake
+cmake_minimum_required(VERSION 4.3)
+project(my_app LANGUAGES C CXX)
+
+include(FetchContent)
+set(CENTUI_BUILD_SDL ON CACHE BOOL "")
+set(CENTUI_BUILD_BGFX ON CACHE BOOL "")
+
+FetchContent_Declare(centui
+    GIT_REPOSITORY https://github.com/swordfatih/centui.git
+    GIT_TAG main
+)
+FetchContent_MakeAvailable(centui)
+
+add_executable(my_app main.cpp)
+target_link_libraries(my_app PRIVATE centui::centui centui::sdl centui::bgfx)
+```
+
+Save the Hello world code above as `main.cpp` and provide a font at `assets/fonts/Inter-Regular.ttf` relative to your working directory. Pin `GIT_TAG` to a commit for reproducible builds. C++26 and reflection flags propagate through the linked targets. See the [getting started guide](docs/getting-started.md#use-centui-in-your-own-project) for build commands and optional integrations.
+
 ## Try it
 
 You need CMake 4.3+, Ninja, and a C++26 compiler and standard library with static reflection support (`-freflection`). For GCC, use 16.2 or newer: earlier versions have a modules and reflection declaration merging bug ([PR124582](https://gcc.gnu.org/bugzilla/show_bug.cgi?id=124582)). CI uses the `gcc:16.2.0` container. CMake fetches the native dependencies during configuration.
