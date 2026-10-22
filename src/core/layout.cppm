@@ -7,6 +7,7 @@ module;
 #include <limits>
 #include <memory>
 #include <stdexcept>
+#include <type_traits>
 #include <utility>
 
 #include <yoga/Yoga.h>
@@ -232,7 +233,49 @@ struct config_deleter
     }
 };
 
-using measure_function = std::move_only_function<size(axis_constraint, axis_constraint) const>;
+// Keep measurement callbacks move-only and const-invocable without requiring
+// std::move_only_function from the experimental Clang toolchain's libc++.
+class measure_function
+{
+    struct callable
+    {
+        virtual ~callable() = default;
+        virtual size invoke(axis_constraint width, axis_constraint height) const = 0;
+    };
+
+    template <typename function>
+    struct implementation final : callable
+    {
+        function value;
+
+        explicit implementation(function input) : value(std::move(input)) {}
+
+        size invoke(axis_constraint width, axis_constraint height) const override
+        {
+            return std::invoke(value, width, height);
+        }
+    };
+
+    std::unique_ptr<callable> _callable;
+
+public:
+    measure_function() = default;
+    measure_function(measure_function&&) noexcept = default;
+    measure_function& operator=(measure_function&&) noexcept = default;
+
+    template <typename function>
+        requires (!std::is_same_v<std::decay_t<function>, measure_function> &&
+                  std::is_invocable_r_v<size, const std::decay_t<function>&, axis_constraint, axis_constraint>)
+    measure_function(function&& value)
+        : _callable(std::make_unique<implementation<std::decay_t<function>>>(std::forward<function>(value))) {}
+
+    explicit operator bool() const noexcept { return static_cast<bool>(_callable); }
+
+    size operator()(axis_constraint width, axis_constraint height) const
+    {
+        return _callable->invoke(width, height);
+    }
+};
 
 class layout
 {

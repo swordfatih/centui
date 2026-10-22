@@ -2,12 +2,6 @@ cmake_minimum_required(VERSION 4.3)
 
 project(centui LANGUAGES C CXX)
 
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 16.2)
-    message(FATAL_ERROR
-        "CentUI requires GCC 16.2 or newer. Earlier versions have a modules + reflection "
-        "declaration merging bug (GCC PR124582) that causes conflicting __mbstate_t declarations.")
-endif()
-
 set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 
 # ------------------------
@@ -46,13 +40,6 @@ add_library(${PROJECT_NAME} STATIC)
 add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_26)
-if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    # Bloomberg's clang-p2996 fork enables define_static_array and expansion
-    # statements alongside reflection with this flag.
-    target_compile_options(${PROJECT_NAME} PUBLIC -freflection-latest)
-else()
-    target_compile_options(${PROJECT_NAME} PUBLIC -freflection)
-endif()
 target_link_libraries(${PROJECT_NAME} PRIVATE ${PROJECT_NAME}_config)
 
 function(centui_sources target directory)

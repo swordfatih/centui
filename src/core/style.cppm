@@ -3,12 +3,32 @@ module;
 #include <cmath>
 #include <cstdint>
 #include <limits>
-#include <meta>
 #include <optional>
 #include <stdexcept>
-#include <string_view>
 #include <type_traits>
-#include <vector>
+#include <utility>
+
+// Single list shared by compile-time style merging and patch application.
+#define CENTUI_STYLE_PROPERTIES(X) \
+    X(padding)                     \
+    X(margin)                      \
+    X(inset)                       \
+    X(gap)                         \
+    X(position)                    \
+    X(width)                       \
+    X(height)                      \
+    X(flex_direction)              \
+    X(align_items)                 \
+    X(justify_content)             \
+    X(background_color)            \
+    X(text_color)                  \
+    X(font_size)                   \
+    X(font)                        \
+    X(text_align)                  \
+    X(visibility)                  \
+    X(overflow)                    \
+    X(border_width)                \
+    X(border_color)
 
 export module centui.style;
 
@@ -20,6 +40,65 @@ export namespace centui
 
 namespace details
 {
+
+// C++20 cannot enumerate arbitrary source fields. Check supported names explicitly.
+// Preserve recursive partial overrides for edges and states_color.
+template <typename...>
+inline constexpr bool always_false = false;
+
+template <typename Target, typename Source>
+void merge_value(Target& target, const Source& source);
+
+template <typename Target, typename Source>
+void merge_nested(Target& target, const Source& source)
+{
+#define CENTUI_MERGE_NESTED(name)                               \
+    if constexpr(requires { source.name; })                     \
+    {                                                           \
+        static_assert(requires { target.name; },                \
+                      "Unknown nested style property: " #name); \
+        merge_value(target.name, source.name);                  \
+    }
+
+    if constexpr(std::is_same_v<Target, edges>)
+    {
+        CENTUI_MERGE_NESTED(top)
+        CENTUI_MERGE_NESTED(right)
+        CENTUI_MERGE_NESTED(bottom)
+        CENTUI_MERGE_NESTED(left)
+    }
+    else if constexpr(std::is_same_v<Target, states_color>)
+    {
+        CENTUI_MERGE_NESTED(normal)
+        CENTUI_MERGE_NESTED(hover)
+        CENTUI_MERGE_NESTED(hovered)
+        CENTUI_MERGE_NESTED(pressed)
+        CENTUI_MERGE_NESTED(focus)
+        CENTUI_MERGE_NESTED(focused)
+        CENTUI_MERGE_NESTED(disabled)
+    }
+#undef CENTUI_MERGE_NESTED
+}
+
+template <typename Target, typename Source>
+void merge_value(Target& target, const Source& source)
+{
+    if constexpr(std::is_assignable_v<Target&, const Source&>)
+    {
+        target = source;
+    }
+    else if constexpr((std::is_same_v<Target, edges> ||
+                       std::is_same_v<Target, states_color>) &&
+                      std::is_class_v<Source>)
+    {
+        merge_nested(target, source);
+    }
+    else
+    {
+        static_assert(always_false<Target, Source>,
+                      "Incompatible style property type");
+    }
+}
 
 enum class visual_state
 {
@@ -67,25 +146,25 @@ public:
         return resolve<types...>(style{});
     }
 
-    edges          padding = edges::all(px(0));
-    edges          margin = edges::all(px(0));
-    edges          inset = edges::all(fit());
-    length         gap = px(0);
-    centui::position position = centui::position::relative;
-    length         width = fit();
-    length         height = fit();
-    direction      flex_direction = direction::column;
-    alignment      align_items = alignment::stretch;
-    justification  justify_content = justification::start;
-    states_color   background_color = states_color::all({0, 0, 0, 0});
-    states_color   text_color = states_color::all({255, 255, 255, 255});
-    float          font_size = 16.0f;
+    edges                       padding = edges::all(px(0));
+    edges                       margin = edges::all(px(0));
+    edges                       inset = edges::all(fit());
+    length                      gap = px(0);
+    centui::position            position = centui::position::relative;
+    length                      width = fit();
+    length                      height = fit();
+    direction                   flex_direction = direction::column;
+    alignment                   align_items = alignment::stretch;
+    justification               justify_content = justification::start;
+    states_color                background_color = states_color::all({0, 0, 0, 0});
+    states_color                text_color = states_color::all({255, 255, 255, 255});
+    float                       font_size = 16.0f;
     std::optional<centui::font> font = std::nullopt;
-    text_alignment text_align = text_alignment::left;
-    centui::visibility visibility = centui::visibility::visible;
-    centui::overflow overflow = centui::overflow::visible;
-    float border_width = 0;
-    states_color border_color = states_color::all({0, 0, 0, 0});
+    text_alignment              text_align = text_alignment::left;
+    centui::visibility          visibility = centui::visibility::visible;
+    centui::overflow            overflow = centui::overflow::visible;
+    float                       border_width = 0;
+    states_color                border_color = states_color::all({0, 0, 0, 0});
 
     bool operator==(const style&) const = default;
 
@@ -167,95 +246,63 @@ public:
     {
         const bool text_changed = font_size != previous.font_size || font != previous.font;
         const bool layout_changed = text_changed || padding != previous.padding || margin != previous.margin ||
-            inset != previous.inset || gap != previous.gap || position != previous.position ||
-            width != previous.width || height != previous.height || flex_direction != previous.flex_direction ||
-            align_items != previous.align_items || justify_content != previous.justify_content ||
-            visibility != previous.visibility || overflow != previous.overflow || border_width != previous.border_width;
+                                    inset != previous.inset || gap != previous.gap || position != previous.position ||
+                                    width != previous.width || height != previous.height || flex_direction != previous.flex_direction ||
+                                    align_items != previous.align_items || justify_content != previous.justify_content ||
+                                    visibility != previous.visibility || overflow != previous.overflow || border_width != previous.border_width;
         return {.layout = layout_changed,
                 .paint = layout_changed || background_color != previous.background_color ||
                          text_color != previous.text_color || text_align != previous.text_align || border_color != previous.border_color};
     }
 
 private:
-    static consteval std::meta::info member_named(std::meta::info type, std::string_view name)
+    template <typename Source>
+    static void merge(style& target, const Source& source)
     {
-        for(const auto member: std::meta::nonstatic_data_members_of(type, std::meta::access_context::current()))
-        {
-            if(std::meta::identifier_of(member) == name)
-            {
-                return member;
-            }
-        }
-        throw "Unknown style property";
+#define CENTUI_MERGE_PROPERTY(name)                     \
+    if constexpr(requires { source.name; })             \
+    {                                                   \
+        details::merge_value(target.name, source.name); \
     }
 
-    template <typename target_type, typename source_type>
-    static void merge(target_type& target, const source_type& source)
-    {
-        constexpr auto context = std::meta::access_context::current();
-        static constexpr auto fields = std::define_static_array(std::meta::nonstatic_data_members_of(^^source_type, context));
-        template for(constexpr auto source_field: fields)
-        {
-            constexpr auto target_field = member_named(^^target_type, std::meta::identifier_of(source_field));
-            using target_member = typename[:std::meta::type_of(target_field):];
-            using source_member = typename[:std::meta::type_of(source_field):];
-            if constexpr(std::is_assignable_v<target_member&, const source_member&>)
-            {
-                target.[:target_field:] = source.[:source_field:];
-            }
-            else if constexpr((std::is_same_v<target_member, edges> || std::is_same_v<target_member, states_color>) && std::is_class_v<source_member>)
-            {
-                merge(target.[:target_field:], source.[:source_field:]);
-            }
-            else
-            {
-                static_assert(std::is_assignable_v<target_member&, const source_member&>, "Incompatible style property type");
-            }
-        }
+        CENTUI_STYLE_PROPERTIES(CENTUI_MERGE_PROPERTY)
+#undef CENTUI_MERGE_PROPERTY
     }
 };
 
 // Each supplied field replaces that property; unspecified fields are preserved.
 struct style_patch
 {
-    std::optional<edges> padding = std::nullopt;
-    std::optional<edges> margin = std::nullopt;
-    std::optional<edges> inset = std::nullopt;
-    std::optional<length> gap = std::nullopt;
-    std::optional<centui::position> position = std::nullopt;
-    std::optional<length> width = std::nullopt;
-    std::optional<length> height = std::nullopt;
-    std::optional<direction> flex_direction = std::nullopt;
-    std::optional<alignment> align_items = std::nullopt;
-    std::optional<justification> justify_content = std::nullopt;
-    std::optional<states_color> background_color = std::nullopt;
-    std::optional<states_color> text_color = std::nullopt;
-    std::optional<float> font_size = std::nullopt;
+    std::optional<edges>                       padding = std::nullopt;
+    std::optional<edges>                       margin = std::nullopt;
+    std::optional<edges>                       inset = std::nullopt;
+    std::optional<length>                      gap = std::nullopt;
+    std::optional<centui::position>            position = std::nullopt;
+    std::optional<length>                      width = std::nullopt;
+    std::optional<length>                      height = std::nullopt;
+    std::optional<direction>                   flex_direction = std::nullopt;
+    std::optional<alignment>                   align_items = std::nullopt;
+    std::optional<justification>               justify_content = std::nullopt;
+    std::optional<states_color>                background_color = std::nullopt;
+    std::optional<states_color>                text_color = std::nullopt;
+    std::optional<float>                       font_size = std::nullopt;
     std::optional<std::optional<centui::font>> font = std::nullopt;
-    std::optional<text_alignment> text_align = std::nullopt;
-    std::optional<centui::visibility> visibility = std::nullopt;
-    std::optional<centui::overflow> overflow = std::nullopt;
-    std::optional<float> border_width = std::nullopt;
-    std::optional<states_color> border_color = std::nullopt;
+    std::optional<text_alignment>              text_align = std::nullopt;
+    std::optional<centui::visibility>          visibility = std::nullopt;
+    std::optional<centui::overflow>            overflow = std::nullopt;
+    std::optional<float>                       border_width = std::nullopt;
+    std::optional<states_color>                border_color = std::nullopt;
 
     [[nodiscard]] style apply(style candidate) const
     {
-        constexpr auto context = std::meta::access_context::current();
-        static constexpr auto patches = std::define_static_array(std::meta::nonstatic_data_members_of(^^style_patch, context));
-        static constexpr auto properties = std::define_static_array(std::meta::nonstatic_data_members_of(^^style, context));
-        template for(constexpr auto patch: patches)
-        {
-            template for(constexpr auto property: properties)
-            {
-                if constexpr(std::meta::identifier_of(patch) == std::meta::identifier_of(property))
-                {
-                    if(const auto& value = this->[:patch:]; value)
-                    {
-                        candidate.[:property:] = *value;
-                    }
-                }
-            }
-        }
+#define CENTUI_APPLY_PATCH(name) \
+    if(name)                     \
+    {                            \
+        candidate.name = *name;  \
+    }
+
+        CENTUI_STYLE_PROPERTIES(CENTUI_APPLY_PATCH)
+#undef CENTUI_APPLY_PATCH
         candidate.validate();
         return candidate;
     }
@@ -263,3 +310,4 @@ struct style_patch
 } // namespace centui
 
 
+#undef CENTUI_STYLE_PROPERTIES
