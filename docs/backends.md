@@ -18,6 +18,8 @@ CentUI keeps window input and drawing separate. A platform reports the window si
 
 Each linked example shows a supported pairing. A dash means CentUI does not provide that combination.
 
+`CENTUI_BUILD_SDL=ON` builds both the SDL platform and SDL renderer. `CENTUI_BUILD_SFML=ON` likewise builds both SFML adapters.
+
 For a window owned by CentUI's SDL adapter and drawn through bgfx:
 
 ```cpp

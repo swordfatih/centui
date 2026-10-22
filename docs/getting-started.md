@@ -13,11 +13,13 @@ CentUI uses C++26 modules and static reflection. You need CMake 4.3 or newer, Ni
 From the repository root:
 
 ```sh
-cmake -S . -B build -G Ninja -DCENTUI_BUILD_SFML=OFF -DCENTUI_BUILD_GLFW=OFF -DCENTUI_BUILD_TESTS=OFF
+cmake -S . -B build -G Ninja -DCENTUI_BUILD_EXAMPLES=ON -DCENTUI_BUILD_SDL=ON -DCENTUI_BUILD_BGFX=ON
 cmake --build build --target centui_example_getting_started
 ```
 
 Run `centui_example_getting_started` from `build/examples/getting_started/`. The example copies its font beside the executable. To build the SFML overlay too, configure with `-DCENTUI_BUILD_SFML=ON` and build `centui_example_hud_sfml`.
+
+All optional platforms, renderers, examples, and tests are off by default. Enable only the pieces your application uses.
 
 ## Meet the pieces
 

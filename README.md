@@ -41,7 +41,7 @@ Run this from the repository root so the font path resolves. For a styled counte
 You need CMake 4.3+, Ninja, and a C++26 compiler and standard library with static reflection support (`-freflection`). CMake fetches the native dependencies during configuration.
 
 ```sh
-cmake -S . -B build -G Ninja -DCENTUI_BUILD_SFML=OFF -DCENTUI_BUILD_GLFW=OFF -DCENTUI_BUILD_TESTS=OFF
+cmake -S . -B build -G Ninja -DCENTUI_BUILD_EXAMPLES=ON -DCENTUI_BUILD_SDL=ON -DCENTUI_BUILD_BGFX=ON
 cmake --build build --target centui_example_getting_started
 ```
 
