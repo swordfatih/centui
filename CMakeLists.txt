@@ -32,10 +32,6 @@ endif()
 add_library(${PROJECT_NAME}_config INTERFACE)
 target_compile_options(${PROJECT_NAME}_config INTERFACE -Wall -Wextra -Wpedantic -Wno-unused-but-set-variable -Wno-unused-parameter)
 
-if(MINGW)
-    target_link_options(${PROJECT_NAME}_config INTERFACE -static -static-libgcc -static-libstdc++)
-endif()
-
 # ------------------------
 # Library
 # ------------------------
