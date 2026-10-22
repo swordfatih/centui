@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core-tests:
+    name: Core tests / GCC 16
+    runs-on: ubuntu-latest
+    container: ubuntu:26.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Install checkout dependencies
+        run: |
+          apt-get update
+          apt-get install --no-install-recommends -y ca-certificates git
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install toolchain
+        run: |
+          apt-get update
+          apt-get install --no-install-recommends -y \
+            gcc-16 g++-16 ninja-build pkg-config python3 python3-pip python3-venv
+          python3 -m venv /opt/centui-cmake
+          /opt/centui-cmake/bin/pip install 'cmake>=4.3,<5'
+          echo /opt/centui-cmake/bin >> "$GITHUB_PATH"
+
+      - name: Configure
+        env:
+          CC: gcc-16
+          CXX: g++-16
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCENTUI_BUILD_SDL=OFF \
+            -DCENTUI_BUILD_SFML=OFF \
+            -DCENTUI_BUILD_BGFX=OFF \
+            -DCENTUI_BUILD_EXAMPLES=OFF \
+            -DCENTUI_BUILD_TESTS=ON
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Test
+        run: ctest --test-dir build --parallel 4 --output-on-failure

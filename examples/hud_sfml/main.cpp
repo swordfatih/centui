@@ -77,7 +77,7 @@ int main()
             radius,
             centui::range<control>{{
                 .minimum = 40,
-                .maximum = 180,
+                .maximum = 1000,
                 .step = 1,
                 .value = 150,
                 .on_change = [&circle, radius](float value) mutable
