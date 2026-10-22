@@ -64,12 +64,12 @@ class custom_composite final : public centui::widget
 public:
     explicit custom_composite(std::span<const centui::handle<>> children = {})
     {
-        attach_children(children);
+        append(children);
     }
 
     void compose(std::span<const centui::handle<>> children)
     {
-        attach_children(children);
+        append(children);
     }
 };
 

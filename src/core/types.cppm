@@ -100,6 +100,13 @@ struct size
     float height = 0;
 };
 
+struct vec2
+{
+    float x = 0;
+    float y = 0;
+    constexpr bool operator==(const vec2&) const = default;
+};
+
 enum class constraint_mode
 {
     unconstrained,
@@ -160,8 +167,7 @@ struct edges
 
 enum class position
 {
-    static_,
-    fixed = static_,
+    normal,
     relative,
     absolute
 };

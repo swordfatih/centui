@@ -327,7 +327,8 @@ private:
             return found->second;
         }
         const auto limit = ::bgfx::getCaps()->limits.maxTextureSize;
-        if(bitmap->width <= 0 || bitmap->height <= 0 || bitmap->width > limit || bitmap->height > limit ||
+        if(bitmap->width <= 0 || bitmap->height <= 0 ||
+           std::cmp_greater(bitmap->width, limit) || std::cmp_greater(bitmap->height, limit) ||
            bitmap->width > std::numeric_limits<std::uint16_t>::max() ||
            bitmap->height > std::numeric_limits<std::uint16_t>::max())
         {

@@ -138,7 +138,7 @@ public:
                 throw std::invalid_argument("Invalid style enum value");
             }
         };
-        check_enum(position, centui::position::static_, centui::position::absolute);
+        check_enum(position, centui::position::normal, centui::position::absolute);
         check_enum(flex_direction, direction::column, direction::row_reverse);
         check_enum(align_items, alignment::automatic, alignment::space_evenly);
         check_enum(justify_content, justification::start, justification::space_evenly);

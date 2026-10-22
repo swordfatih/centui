@@ -48,7 +48,7 @@ YGPositionType to_yoga(position value)
 {
     switch(value)
     {
-    case position::static_:
+    case position::normal:
     {
         return YGPositionTypeStatic;
     }

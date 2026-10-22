@@ -1,21 +1,21 @@
 module;
 
 #include <algorithm>
+#include <cmath>
 #include <concepts>
+#include <cstddef>
+#include <exception>
 #include <functional>
 #include <initializer_list>
+#include <limits>
 #include <memory>
 #include <span>
 #include <stdexcept>
+#include <string_view>
 #include <type_traits>
 #include <utility>
-#include <vector>
-#include <cmath>
-#include <cstddef>
-#include <exception>
-#include <limits>
-#include <string_view>
 #include <variant>
+#include <vector>
 
 export module centui.tree;
 
@@ -58,7 +58,7 @@ namespace details
 } // namespace details
 
 // A short-lived widget painting context. Bounds use document coordinates.
-// Framework traversal supplies content bounds and the inherited viewport clip.
+// Framework traversal supplies translated bounds and the inherited clip.
 class painter
 {
 public:
@@ -111,11 +111,11 @@ public:
     }
 
 private:
-    draw_list& _output;
-    text_service& _fonts;
-    rect _bounds;
-    rect _clip;
-    const centui::style& _style;
+    draw_list&            _output;
+    text_service&         _fonts;
+    rect                  _bounds;
+    rect                  _clip;
+    const centui::style&  _style;
     details::visual_state _state;
 };
 
@@ -126,24 +126,31 @@ export namespace centui
 
 class widget;
 class document;
-template <typename T = widget> class handle;
-template <typename T = widget> class weak_handle;
+template <typename T = widget>
+class handle;
+template <typename T = widget>
+class weak_handle;
 
 struct measure_context
 {
     axis_constraint width;
     axis_constraint height;
-    text_service& text;
+    text_service&   text;
 };
 
 namespace details
 {
 struct document_context
 {
+    explicit document_context(document& value) : owner(value)
+    {
+    }
+
     bool layout_dirty = true;
     bool paint_dirty = true;
     bool preparing = false;
-    std::function<void()> interaction_changed;
+    // The document owns this context; widgets only keep weak references to it.
+    document& owner;
 
     void check_mutation() const
     {
@@ -154,7 +161,7 @@ struct document_context
     }
 };
 struct widget_access;
-}
+} // namespace details
 
 // Widgets, documents and font services are confined to one application thread.
 // Parents own children; parent and document links never prolong their lifetimes.
@@ -169,6 +176,50 @@ public:
     {
         return _style;
     }
+
+    [[nodiscard]] const centui::style& appearance() const noexcept
+    {
+        return _style;
+    }
+    [[nodiscard]] rect content_bounds() const noexcept
+    {
+        return _content;
+    }
+    [[nodiscard]] bool hovered() const noexcept
+    {
+        return _hovered;
+    }
+    [[nodiscard]] bool pressed() const noexcept
+    {
+        return _pressed;
+    }
+    [[nodiscard]] bool focused() const noexcept
+    {
+        return _focused;
+    }
+    [[nodiscard]] bool effectively_enabled() const noexcept
+    {
+        if(!_enabled)
+        {
+            return false;
+        }
+        for(auto parent = _parent.lock(); parent; parent = parent->_parent.lock())
+        {
+            if(!parent->_enabled)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    void                                append(const handle<>& child);
+    void                                append(std::span<const handle<>> children);
+    void                                remove(const handle<>& child);
+    [[nodiscard]] std::vector<handle<>> children() const;
+    [[nodiscard]] handle<>              parent() const;
+    // Returns whether the request was accepted. Requests made in callbacks are deferred.
+    bool request_focus();
 
     void set_style(centui::style replacement)
     {
@@ -217,16 +268,9 @@ public:
         {
             _hovered = false;
             _pressed = false;
-            _focused = false;
         }
         invalidate_paint();
-        if(auto context = _document.lock())
-        {
-            if(context->interaction_changed)
-            {
-                context->interaction_changed();
-            }
-        }
+        interaction_changed();
     }
 
 protected:
@@ -244,21 +288,62 @@ protected:
     {
     }
 
-    virtual void on_event(const input_event&)
+    virtual bool on_event(const input_event&)
+    {
+        return false;
+    }
+
+    virtual void on_focus_changed(bool)
     {
     }
 
     void set_interactive(bool value = true)
     {
         check_mutation();
-        _interactive = value;
-        if(auto context = _document.lock())
+        if(_interactive == value)
         {
-            if(context->interaction_changed)
-            {
-                context->interaction_changed();
-            }
+            return;
         }
+        _interactive = value;
+        interaction_changed();
+    }
+
+    void set_focusable(bool value = true)
+    {
+        check_mutation();
+        if(_focusable == value)
+        {
+            return;
+        }
+        _focusable = value;
+        interaction_changed();
+    }
+
+    void set_clip_children(bool value)
+    {
+        check_mutation();
+        if(_clip_children == value)
+        {
+            return;
+        }
+        _clip_children = value;
+        invalidate_paint();
+        interaction_changed();
+    }
+
+    void set_child_offset(vec2 value)
+    {
+        check_mutation();
+        if(!std::isfinite(value.x) || !std::isfinite(value.y))
+        {
+            throw std::invalid_argument("Child offsets must be finite");
+        }
+        if(_child_offset == value)
+        {
+            return;
+        }
+        _child_offset = value;
+        invalidate_layout();
     }
 
     void check_mutation() const
@@ -288,26 +373,28 @@ protected:
         }
     }
 
-    // Construction only. make_widget binds weak parent links after construction.
-    // A claim token also rejects duplicate ownership inside composite constructors.
-    void attach_children(std::span<const handle<>> children);
-
 private:
     friend class document;
     friend struct details::widget_access;
-    centui::style _style;
-    rect _bounds{};
-    rect _content{};
-    std::vector<std::shared_ptr<widget>> _children;
-    std::weak_ptr<widget> _parent;
-    std::shared_ptr<const int> _identity = std::make_shared<const int>(0);
-    std::weak_ptr<const int> _parent_claim;
+    void                                     interaction_changed();
+    void                                     validate_children(std::span<const handle<>> children) const;
+    void                                     insert_children(std::span<const handle<>> children);
+    centui::style                            _style;
+    rect                                     _bounds{};
+    rect                                     _content{};
+    std::vector<std::shared_ptr<widget>>     _children;
+    std::weak_ptr<widget>                    _parent;
+    std::shared_ptr<const int>               _identity = std::make_shared<const int>(0);
+    std::weak_ptr<const int>                 _parent_claim;
     std::weak_ptr<details::document_context> _document;
-    bool _interactive = false;
-    bool _enabled = true;
-    bool _hovered = false;
-    bool _pressed = false;
-    bool _focused = false;
+    bool                                     _interactive = false;
+    bool                                     _focusable = false;
+    bool                                     _clip_children = false;
+    vec2                                     _child_offset{};
+    bool                                     _enabled = true;
+    bool                                     _hovered = false;
+    bool                                     _pressed = false;
+    bool                                     _focused = false;
 };
 
 // Empty and moved-from handles throw std::logic_error on access. Copies alias.
@@ -319,7 +406,8 @@ public:
     explicit handle(std::shared_ptr<T> value) : _value(std::move(value))
     {
     }
-    template <typename U> requires std::derived_from<U, T>
+    template <typename U>
+        requires std::derived_from<U, T>
     handle(const handle<U>& other) : _value(other._value)
     {
     }
@@ -362,8 +450,10 @@ public:
     [[nodiscard]] bool operator==(const handle&) const noexcept = default;
 
 private:
-    template <typename> friend class handle;
-    template <typename> friend class weak_handle;
+    template <typename>
+    friend class handle;
+    template <typename>
+    friend class weak_handle;
     friend class document;
     friend class widget;
     friend struct details::widget_access;
@@ -383,6 +473,7 @@ public:
     {
         return handle<T>{_value.lock()};
     }
+
 private:
     std::weak_ptr<T> _value;
 };
@@ -399,7 +490,7 @@ struct widget_access
         }
     }
 };
-}
+} // namespace details
 
 template <typename T, typename... Args>
     requires std::derived_from<T, widget> && (!std::is_abstract_v<T>) && std::constructible_from<T, Args...>
@@ -410,21 +501,16 @@ template <typename T, typename... Args>
     return handle<T>{std::move(value)};
 }
 
-void widget::attach_children(std::span<const handle<>> children)
+void widget::validate_children(std::span<const handle<>> children) const
 {
-    check_mutation();
-    if(!_document.expired())
-    {
-        throw std::logic_error("Mounted children must be edited through their document");
-    }
-    std::vector<std::shared_ptr<widget>> batch;
-    batch.reserve(children.size());
+    std::vector<std::shared_ptr<widget>> seen;
+    seen.reserve(children.size());
     for(const auto& child: children)
     {
         (void)child.get();
         auto value = child._value;
         if(value.get() == this || !value->_parent_claim.expired() || !value->_document.expired() ||
-           std::ranges::find(batch, value) != batch.end())
+           std::ranges::find(seen, value) != seen.end())
         {
             throw std::invalid_argument("A child must be distinct, detached and unmounted");
         }
@@ -435,14 +521,18 @@ void widget::attach_children(std::span<const handle<>> children)
                 throw std::invalid_argument("Child insertion would create a cycle");
             }
         }
-        batch.push_back(std::move(value));
+        seen.push_back(value);
     }
-    _children.reserve(_children.size() + batch.size());
-    for(auto& child: batch)
+}
+
+void widget::insert_children(std::span<const handle<>> children)
+{
+    _children.reserve(_children.size() + children.size());
+    for(const auto& child: children)
     {
-        child->_parent_claim = _identity;
-        child->_parent = weak_from_this();
-        _children.push_back(std::move(child));
+        child._value->_parent_claim = _identity;
+        child._value->_parent = weak_from_this();
+        _children.push_back(child._value);
     }
 }
 
@@ -453,12 +543,8 @@ export namespace centui
 class document
 {
 public:
-    document() : _context(std::make_shared<details::document_context>())
+    document() : _context(std::make_shared<details::document_context>(*this))
     {
-        _context->interaction_changed = [this]
-        {
-            synchronize_input();
-        };
     }
     explicit document(handle<> root) : document()
     {
@@ -515,16 +601,13 @@ public:
             dirty_tree();
         });
     }
+    void set_root(handle<> value)
+    {
+        replace_root(std::move(value));
+    }
     [[nodiscard]] std::vector<handle<>> children(const handle<>& parent) const
     {
-        auto value = checked(parent);
-        std::vector<handle<>> result;
-        result.reserve(value->_children.size());
-        for(const auto& child: value->_children)
-        {
-            result.emplace_back(child);
-        }
-        return result;
+        return checked(parent)->children();
     }
     [[nodiscard]] handle<> parent(const handle<>& child) const
     {
@@ -543,13 +626,10 @@ public:
         {
             validate_append(parent, batch);
             auto target = checked(parent);
-            target->_children.reserve(target->_children.size() + batch.size());
+            target->insert_children(batch);
             for(const auto& child: batch)
             {
-                child._value->_parent = target;
-                child._value->_parent_claim = target->_identity;
                 associate(child._value, _context);
-                target->_children.push_back(child._value);
             }
             dirty_tree();
         });
@@ -582,8 +662,7 @@ public:
     [[nodiscard]] const draw_list& prepare(centui::viewport viewport)
     {
         _context->check_mutation();
-        update_layout(viewport);
-        synchronize_input();
+        process_events({}, viewport);
         if(viewport.width <= 0 || viewport.height <= 0)
         {
             _draw.commands.clear();
@@ -593,7 +672,7 @@ public:
         if(_context->paint_dirty)
         {
             phase_guard guard{*_context};
-            draw_list candidate{viewport, {}};
+            draw_list   candidate{viewport, {}};
             if(_root.valid())
             {
                 paint_tree(*_root._value, candidate, {0, 0, static_cast<float>(viewport.width), static_cast<float>(viewport.height)}, true);
@@ -610,6 +689,56 @@ public:
     }
     void process_events(std::span<const input_event> events, centui::viewport viewport)
     {
+        dispatch_guarded([&]
+        {
+            settle_input(viewport);
+            for(const auto& event: events)
+            {
+                dispatch(event);
+                settle_input(viewport);
+            }
+        });
+    }
+
+private:
+    friend class widget;
+
+    void interaction_changed()
+    {
+        _hit_dirty = true;
+        if(_dispatching)
+        {
+            synchronize_input();
+        }
+        else
+        {
+            dispatch_guarded([this]
+            {
+                synchronize_input();
+            });
+        }
+    }
+
+    bool request_focus(const handle<>& target)
+    {
+        _context->check_mutation();
+        if(!focus_eligible(checked(target)))
+        {
+            return false;
+        }
+        edit([this, target]
+        {
+            if(focus_eligible(target._value))
+            {
+                set_focus(target._value);
+            }
+        });
+        return true;
+    }
+
+    template <typename Operation>
+    void dispatch_guarded(Operation&& operation)
+    {
         _context->check_mutation();
         if(_dispatching)
         {
@@ -618,12 +747,8 @@ public:
         _dispatching = true;
         try
         {
-            settle_input(viewport);
-            for(const auto& event: events)
-            {
-                dispatch(event);
-                settle_input(viewport);
-            }
+            operation();
+            settle_input(_viewport);
             _dispatching = false;
         }
         catch(...)
@@ -635,8 +760,7 @@ public:
                 {
                     flush_edits();
                     synchronize_input();
-                }
-                while(!_edits.empty());
+                } while(!_edits.empty());
             }
             catch(...)
             {
@@ -647,7 +771,6 @@ public:
         }
     }
 
-private:
     struct phase_guard
     {
         details::document_context& context;
@@ -663,23 +786,27 @@ private:
     };
     struct layout_entry
     {
-        std::shared_ptr<widget> value;
-        centui::layout native;
+        std::shared_ptr<widget>                    value;
+        centui::layout                             native;
         std::vector<std::unique_ptr<layout_entry>> children;
     };
-    handle<> _root;
+    handle<>                                   _root;
     std::shared_ptr<details::document_context> _context;
-    text_service _fonts;
-    std::shared_ptr<const void> _font_revision;
-    draw_list _draw;
-    centui::viewport _viewport{};
-    std::weak_ptr<widget> _hover;
-    std::weak_ptr<widget> _capture;
-    mouse_button _capture_button = mouse_button::primary;
-    std::weak_ptr<widget> _focus;
-    std::vector<std::function<void()>> _edits;
-    bool _dispatching = false;
-    bool _host_focused = true;
+    text_service                               _fonts;
+    std::shared_ptr<const void>                _font_revision;
+    draw_list                                  _draw;
+    centui::viewport                           _viewport{};
+    std::weak_ptr<widget>                      _hover;
+    std::weak_ptr<widget>                      _capture;
+    mouse_button                               _capture_button = mouse_button::primary;
+    std::weak_ptr<widget>                      _focus;
+    std::vector<std::function<void()>>         _edits;
+    bool                                       _dispatching = false;
+    bool                                       _host_focused = true;
+    bool                                       _pointer_known = false;
+    bool                                       _hit_dirty = true;
+    float                                      _pointer_x = 0;
+    float                                      _pointer_y = 0;
 
     static void associate(const std::shared_ptr<widget>& value, const std::shared_ptr<details::document_context>& context) noexcept
     {
@@ -721,29 +848,11 @@ private:
     }
     void validate_append(const handle<>& parent, std::span<const handle<>> children) const
     {
-        auto target = checked(parent);
-        std::vector<const widget*> seen;
-        seen.reserve(children.size());
-        for(const auto& child: children)
-        {
-            auto* value = std::addressof(child.get());
-            if(!value->_parent_claim.expired() || !value->_document.expired() ||
-               std::ranges::find(seen, value) != seen.end())
-            {
-                throw std::invalid_argument("Children must be distinct, detached and unmounted");
-            }
-            for(auto ancestor = target; ancestor; ancestor = ancestor->_parent.lock())
-            {
-                if(ancestor.get() == value)
-                {
-                    throw std::invalid_argument("Child insertion would create a cycle");
-                }
-            }
-            seen.push_back(value);
-        }
+        checked(parent)->validate_children(children);
     }
     void dirty_tree() noexcept
     {
+        _hit_dirty = true;
         _context->layout_dirty = true;
         _context->paint_dirty = true;
     }
@@ -755,7 +864,7 @@ private:
         }
         else
         {
-            operation();
+            dispatch_guarded(operation);
         }
     }
     void flush_edits()
@@ -791,8 +900,7 @@ private:
             flush_edits();
             update_layout(viewport);
             synchronize_input();
-        }
-        while(!_edits.empty());
+        } while(!_edits.empty() || (_context->layout_dirty && viewport.width > 0 && viewport.height > 0));
     }
     std::unique_ptr<layout_entry> make_layout(const std::shared_ptr<widget>& value)
     {
@@ -842,7 +950,8 @@ private:
         entry.value->_content = content;
         for(auto& child: entry.children)
         {
-            store_bounds(*child, box.x, box.y);
+            store_bounds(*child, box.x + entry.value->_child_offset.x,
+                         box.y + entry.value->_child_offset.y);
         }
     }
     void update_layout(centui::viewport viewport)
@@ -869,22 +978,25 @@ private:
             store_bounds(*tree, 0, 0);
         }
         _context->layout_dirty = false;
+        _hit_dirty = true;
         _context->paint_dirty = true;
         _font_revision = _fonts.identity();
     }
     void paint_tree(const widget& value, draw_list& output, rect clip, bool enabled)
     {
         enabled = enabled && value._enabled;
-        const auto state = !enabled ? details::visual_state::disabled :
-            value._pressed ? details::visual_state::pressed : value._hovered ? details::visual_state::hovered :
-            value._focused ? details::visual_state::focused : details::visual_state::normal;
-        painter background{output, _fonts, value._bounds, clip, value._style, state};
+        const auto state = !enabled ? details::visual_state::disabled : value._pressed ? details::visual_state::pressed
+                                                                    : value._hovered   ? details::visual_state::hovered
+                                                                    : value._focused   ? details::visual_state::focused
+                                                                                       : details::visual_state::normal;
+        painter    background{output, _fonts, value._bounds, clip, value._style, state};
         background.rectangle(value._bounds, details::state_color(value._style.background_color, state));
         painter content{output, _fonts, value._content, intersection(clip, value._content), value._style, state};
         value.paint(content);
+        const auto child_clip = value._clip_children ? intersection(clip, value._content) : clip;
         for(const auto& child: value._children)
         {
-            paint_tree(*child, output, clip, enabled);
+            paint_tree(*child, output, child_clip, enabled);
         }
     }
     static bool contains(rect box, float x, float y) noexcept
@@ -898,29 +1010,65 @@ private:
         {
             return false;
         }
-        for(auto current = value; current; current = current->_parent.lock())
-        {
-            if(!current->_enabled)
-            {
-                return false;
-            }
-        }
-        return true;
+        return value->effectively_enabled();
     }
-    std::shared_ptr<widget> hit(const std::shared_ptr<widget>& value, float x, float y) const
+    [[nodiscard]] bool focus_eligible(const std::shared_ptr<widget>& value) const
     {
-        if(!value || !value->_enabled)
+        return value && _host_focused && value->_document.lock() == _context &&
+               value->_focusable && value->effectively_enabled();
+    }
+    void set_focus(std::shared_ptr<widget> value)
+    {
+        auto old = _focus.lock();
+        if(old == value)
+        {
+            return;
+        }
+        _focus.reset();
+        _context->paint_dirty = true;
+        if(old)
+        {
+            old->_focused = false;
+            old->on_focus_changed(false);
+        }
+        if(focus_eligible(value))
+        {
+            _focus = value;
+            value->_focused = true;
+            value->on_focus_changed(true);
+        }
+    }
+    std::shared_ptr<widget> hit(const std::shared_ptr<widget>& value, float x, float y, rect clip) const
+    {
+        if(!value || !value->_enabled || !contains(clip, x, y))
         {
             return {};
         }
+        const auto child_clip = value->_clip_children ? intersection(clip, value->_content) : clip;
         for(auto child = value->_children.rbegin(); child != value->_children.rend(); ++child)
         {
-            if(auto target = hit(*child, x, y))
+            if(auto target = hit(*child, x, y, child_clip))
             {
                 return target;
             }
         }
         return eligible(value) && contains(value->_bounds, x, y) ? value : nullptr;
+    }
+    std::shared_ptr<widget> hit(float x, float y) const
+    {
+        return hit(_root._value, x, y,
+                   {0, 0, static_cast<float>(_viewport.width), static_cast<float>(_viewport.height)});
+    }
+    // Uncaptured motion may fall back to an ancestor. Gestures remain target-only.
+    void route_motion(std::shared_ptr<widget> target, const input_event& event)
+    {
+        for(auto current = std::move(target); current; current = current->_parent.lock())
+        {
+            if(eligible(current) && current->on_event(event))
+            {
+                return;
+            }
+        }
     }
     void set_hover(std::shared_ptr<widget> value)
     {
@@ -946,22 +1094,14 @@ private:
         {
             captured->_pressed = false;
             _context->paint_dirty = true;
-            if(_dispatching)
-            {
-                captured->on_event({.type = input_event_type::pointer_cancelled, .button = _capture_button});
-            }
+            captured->on_event({.type = input_event_type::pointer_cancelled, .button = _capture_button});
         }
     }
     void clear_input()
     {
         set_hover({});
-        if(auto focused = _focus.lock())
-        {
-            focused->_focused = false;
-            _context->paint_dirty = true;
-        }
-        _focus.reset();
         cancel_capture();
+        set_focus({});
     }
     void synchronize_input()
     {
@@ -973,19 +1113,37 @@ private:
         {
             cancel_capture();
         }
-        if(auto focused = _focus.lock(); focused && !eligible(focused))
+        if(auto focused = _focus.lock(); focused && !focus_eligible(focused))
         {
-            focused->_focused = false;
-            _focus.reset();
-            _context->paint_dirty = true;
+            set_focus({});
+        }
+        if(_hit_dirty && !_context->layout_dirty)
+        {
+            _hit_dirty = false;
+            const bool inside = _pointer_known && _host_focused &&
+                                _pointer_x >= 0 && _pointer_y >= 0 &&
+                                _pointer_x < _viewport.width && _pointer_y < _viewport.height;
+            auto       target = inside ? hit(_pointer_x, _pointer_y) : nullptr;
+            set_hover(target);
+            if(auto captured = _capture.lock())
+            {
+                const bool pressed = captured == target;
+                if(captured->_pressed != pressed)
+                {
+                    captured->_pressed = pressed;
+                    _context->paint_dirty = true;
+                }
+            }
         }
     }
     void dispatch(const input_event& event)
     {
+        _hit_dirty = true;
         switch(event.type)
         {
         case input_event_type::focus_lost:
         {
+            _pointer_known = false;
             _host_focused = false;
             clear_input();
             return;
@@ -997,6 +1155,7 @@ private:
         }
         case input_event_type::pointer_left:
         {
+            _pointer_known = false;
             set_hover({});
             if(auto captured = _capture.lock())
             {
@@ -1007,6 +1166,7 @@ private:
         }
         case input_event_type::pointer_cancelled:
         {
+            _pointer_known = false;
             set_hover({});
             cancel_capture();
             return;
@@ -1016,8 +1176,11 @@ private:
             break;
         }
         }
+        _pointer_known = true;
+        _pointer_x = event.x;
+        _pointer_y = event.y;
         const bool in_viewport = event.x >= 0 && event.y >= 0 && event.x < _viewport.width && event.y < _viewport.height;
-        auto target = in_viewport ? hit(_root._value, event.x, event.y) : nullptr;
+        auto       target = in_viewport ? hit(event.x, event.y) : nullptr;
         set_hover(target);
         if(event.type == input_event_type::pointer_moved)
         {
@@ -1033,7 +1196,8 @@ private:
             }
             else
             {
-                active = target;
+                route_motion(target, event);
+                return;
             }
             if(active)
             {
@@ -1050,17 +1214,19 @@ private:
             }
             if(target)
             {
-                if(auto focused = _focus.lock())
-                {
-                    focused->_focused = false;
-                }
-                _focus = target;
                 _capture = target;
                 _capture_button = event.button;
-                target->_focused = true;
                 target->_pressed = true;
                 _context->paint_dirty = true;
-                target->on_event(event);
+                if(event.button == mouse_button::primary && focus_eligible(target))
+                {
+                    set_focus(target);
+                }
+                // Focus callbacks may disable the target and cancel the gesture.
+                if(_capture.lock() == target)
+                {
+                    target->on_event(event);
+                }
             }
         }
         else if(event.type == input_event_type::pointer_released)
@@ -1081,10 +1247,83 @@ private:
         }
     }
 };
-}
+} // namespace centui
 
 export namespace centui
 {
+void widget::interaction_changed()
+{
+    if(auto context = _document.lock())
+    {
+        context->owner.interaction_changed();
+    }
+}
+
+void widget::append(const handle<>& child)
+{
+    append(std::span{std::addressof(child), std::size_t{1}});
+}
+
+void widget::append(std::span<const handle<>> children)
+{
+    check_mutation();
+    if(auto context = _document.lock())
+    {
+        context->owner.append(handle<>{shared_from_this()}, children);
+    }
+    else
+    {
+        validate_children(children);
+        insert_children(children);
+    }
+}
+
+void widget::remove(const handle<>& child)
+{
+    check_mutation();
+    (void)child.get();
+    if(child._value->_parent_claim.lock() != _identity)
+    {
+        throw std::invalid_argument("Widget is not a child of this parent");
+    }
+    if(auto context = _document.lock())
+    {
+        context->owner.remove(child);
+    }
+    else
+    {
+        std::erase(_children, child._value);
+        child._value->_parent.reset();
+        child._value->_parent_claim.reset();
+    }
+}
+
+std::vector<handle<>> widget::children() const
+{
+    std::vector<handle<>> result;
+    result.reserve(_children.size());
+    for(const auto& child: _children)
+    {
+        result.emplace_back(child);
+    }
+    return result;
+}
+
+handle<> widget::parent() const
+{
+    return handle<>{_parent.lock()};
+}
+
+bool widget::request_focus()
+{
+    check_mutation();
+    if(auto context = _document.lock())
+    {
+        return context->owner.request_focus(handle<>{shared_from_this()});
+    }
+    return false;
+}
+
 class ui
 {
 public:
@@ -1093,7 +1332,7 @@ public:
     }
     void render(document& owner)
     {
-        const auto viewport = _backend.viewport();
+        const auto  viewport = _backend.viewport();
         const auto& list = owner.prepare(viewport);
         if(viewport.width > 0 && viewport.height > 0)
         {
@@ -1108,7 +1347,8 @@ public:
     {
         owner.process_events(events, _backend.viewport());
     }
+
 private:
     renderer& _backend;
 };
-}
+} // namespace centui

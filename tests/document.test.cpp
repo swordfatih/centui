@@ -1,4 +1,5 @@
 #include <array>
+#include <functional>
 #include <initializer_list>
 #include <stdexcept>
 #include <string>
@@ -68,11 +69,17 @@ public:
     }
 
     std::vector<centui::input_event> events;
+    std::function<void()> on_cancel;
 
 protected:
-    void on_event(const centui::input_event& event) override
+    bool on_event(const centui::input_event& event) override
     {
         events.push_back(event);
+        if(event.type == centui::input_event_type::pointer_cancelled && on_cancel)
+        {
+            on_cancel();
+        }
+        return true;
     }
 };
 
@@ -268,6 +275,82 @@ TEST_CASE("Captured widgets receive outside movement and release for each mouse 
         document.process_event({centui::input_event_type::pointer_moved, -30, 160}, {200, 100});
         REQUIRE(probe->events.size() == 3);
     }
+}
+
+TEST_CASE("External capture cancellation guards callbacks and settles their edits", "[document][capture]")
+{
+    auto probe = centui::make_widget<pointer_probe>();
+    auto root = centui::container<panel_style>{probe};
+    centui::document document{root};
+    bool throw_callback = false;
+    SECTION("Successful cancellation") {}
+    SECTION("Throwing cancellation") { throw_callback = true; }
+    probe->on_cancel = [&]
+    {
+        REQUIRE_THROWS_AS(click(document), std::logic_error);
+        document.remove(probe);
+        REQUIRE(document.children(root).size() == 1);
+        if(throw_callback)
+        {
+            throw std::runtime_error("cancel");
+        }
+    };
+    document.process_event({centui::input_event_type::pointer_pressed, 5, 5,
+                            centui::mouse_button::secondary}, {200, 100});
+    if(throw_callback)
+    {
+        REQUIRE_THROWS_AS(probe->set_enabled(false), std::runtime_error);
+    }
+    else
+    {
+        REQUIRE_NOTHROW(probe->set_enabled(false));
+    }
+    REQUIRE(document.children(root).empty());
+    REQUIRE(probe->events.size() == 2);
+    REQUIRE(probe->events.back().type == centui::input_event_type::pointer_cancelled);
+    REQUIRE(probe->events.back().button == centui::mouse_button::secondary);
+    REQUIRE_NOTHROW(click(document));
+    REQUIRE(probe->events.size() == 2);
+}
+
+TEST_CASE("Stationary pointer hover follows layout and topology changes", "[document][hover]")
+{
+    const centui::color normal{10, 20, 30, 255};
+    const centui::color hovered{40, 50, 60, 255};
+    auto colors = centui::states_color::all(normal);
+    colors.hover = hovered;
+    auto first = centui::make_widget<pointer_probe>();
+    auto second = centui::make_widget<pointer_probe>();
+    first.patch_style({.background_color = colors});
+    second.patch_style({.background_color = colors});
+    auto root = centui::container<panel_style>{first, second};
+    centui::document document{root};
+    const auto color_at = [&](std::size_t index)
+    {
+        return std::get<centui::rectangle_command>(document.prepare({200, 100}).commands.at(index)).color;
+    };
+    document.process_event({centui::input_event_type::pointer_moved, 5, 35}, {200, 100});
+    REQUIRE(color_at(0) == normal);
+    REQUIRE(color_at(1) == hovered);
+    first.patch_style({.height = centui::px(50)});
+    REQUIRE(color_at(0) == hovered);
+    REQUIRE(color_at(1) == normal);
+    document.remove(first);
+    REQUIRE(color_at(0) == normal);
+    second.patch_style({.height = centui::px(50)});
+    REQUIRE(color_at(0) == hovered);
+    second->set_enabled(false);
+    REQUIRE(color_at(0) == normal);
+    second->set_enabled(true);
+    REQUIRE(color_at(0) == hovered);
+    document.process_event({centui::input_event_type::pointer_left}, {200, 100});
+    second.patch_style({.height = centui::px(60)});
+    REQUIRE(color_at(0) == normal);
+    document.process_event({centui::input_event_type::pointer_moved, 5, 5}, {200, 100});
+    REQUIRE(color_at(0) == hovered);
+    document.process_event({centui::input_event_type::focus_lost}, {200, 100});
+    document.process_event({centui::input_event_type::focus_gained}, {200, 100});
+    REQUIRE(color_at(0) == normal);
 }
 
 TEST_CASE("Another mouse button cannot steal or end an active capture", "[document][capture]")
