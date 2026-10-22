@@ -6,6 +6,8 @@ module;
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <functional>
+#include <concepts>
 #include <span>
 #include <stdexcept>
 #include <type_traits>
@@ -41,6 +43,7 @@ module;
 export module centui.bgfx;
 
 import centui.render;
+import centui.platform;
 
 namespace centui::details
 {
@@ -178,8 +181,59 @@ export namespace centui::bgfx
 class backend final : public centui::renderer
 {
 public:
-    explicit backend(const centui::viewport& target, std::uint16_t view_id = 0) : _viewport(target), _view_id(view_id)
+    explicit backend(const centui::viewport& target, std::uint16_t view_id = 0)
+        : backend([&target] { return target; }, {}, view_id)
     {
+    }
+
+    template <typename Platform>
+        requires std::derived_from<Platform, centui::platform> && requires(Platform& host) { host.native_handles(); }
+    explicit backend(Platform& host, std::uint16_t view_id = 0)
+        : backend([&host] { return host.viewport(); }, create_context(host), view_id)
+    {
+    }
+
+private:
+    struct context
+    {
+        explicit context(const ::bgfx::Init& init)
+        {
+            if(!::bgfx::init(init))
+            {
+                throw std::runtime_error("Failed to initialize bgfx");
+            }
+        }
+        ~context()
+        {
+            ::bgfx::shutdown();
+        }
+        context(const context&) = delete;
+        context& operator=(const context&) = delete;
+    };
+
+    template <typename Platform>
+    static std::unique_ptr<context> create_context(Platform& host)
+    {
+        const auto size = host.viewport();
+        ::bgfx::Init init;
+        const auto handles = host.native_handles();
+        init.swapChain.nwh = handles.window;
+        init.swapChain.ndt = handles.display;
+        init.platformData.type = handles.wayland ? ::bgfx::NativeWindowHandleType::Wayland : ::bgfx::NativeWindowHandleType::Default;
+        if(!init.swapChain.nwh || size.width <= 0 || size.height <= 0)
+        {
+            throw std::invalid_argument("bgfx requires a native window with positive dimensions");
+        }
+        init.swapChain.width = static_cast<std::uint32_t>(size.width);
+        init.swapChain.height = static_cast<std::uint32_t>(size.height);
+        init.reset = BGFX_RESET_VSYNC;
+        return std::make_unique<context>(init);
+    }
+
+    backend(std::function<centui::viewport()> surface, std::unique_ptr<context> owner, std::uint16_t view_id)
+        : _context(std::move(owner)), _surface(std::move(surface)), _view_id(view_id)
+    {
+        _backbuffer = viewport();
         _vertex_layout.begin()
             .add(::bgfx::Attrib::Position, 3, ::bgfx::AttribType::Float)
             .add(::bgfx::Attrib::Color0, 4, ::bgfx::AttribType::Uint8, true)
@@ -201,6 +255,7 @@ public:
         }
     }
 
+public:
     ~backend() override = default;
 
     backend(const backend&) = delete;
@@ -209,11 +264,50 @@ public:
     backend(centui::viewport&&, std::uint16_t = 0) = delete;
     backend(const centui::viewport&&, std::uint16_t = 0) = delete;
 
-    [[nodiscard]] centui::viewport viewport() const noexcept override
+    [[nodiscard]] centui::viewport viewport() const override
     {
-        return _viewport;
+        return _surface();
     }
 
+    [[nodiscard]] bool begin_frame(color clear = {32, 40, 64, 255})
+    {
+        if(!_context)
+        {
+            throw std::logic_error("Frame lifecycle requires a backend constructed from a platform");
+        }
+        const auto size = viewport();
+        if(size.width <= 0 || size.height <= 0)
+        {
+            return false;
+        }
+        if(size.width > std::numeric_limits<std::uint16_t>::max() || size.height > std::numeric_limits<std::uint16_t>::max())
+        {
+            throw std::invalid_argument("Window exceeds bgfx view dimensions");
+        }
+        if(size.width != _backbuffer.width || size.height != _backbuffer.height)
+        {
+            ::bgfx::SwapChain chain;
+            chain.width = static_cast<std::uint32_t>(size.width);
+            chain.height = static_cast<std::uint32_t>(size.height);
+            ::bgfx::reset(BGFX_RESET_VSYNC, &chain);
+            _backbuffer = size;
+        }
+        const auto rgba = (std::uint32_t{clear.r} << 24) | (std::uint32_t{clear.g} << 16) |
+                          (std::uint32_t{clear.b} << 8) | clear.a;
+        ::bgfx::setViewRect(_view_id, 0, 0, static_cast<std::uint16_t>(size.width), static_cast<std::uint16_t>(size.height));
+        ::bgfx::setViewClear(_view_id, BGFX_CLEAR_COLOR, rgba);
+        ::bgfx::touch(_view_id);
+        return true;
+    }
+
+    void end_frame()
+    {
+        if(!_context)
+        {
+            throw std::logic_error("Frame lifecycle requires a backend constructed from a platform");
+        }
+        ::bgfx::frame();
+    }
 private:
     void begin(std::uint16_t width, std::uint16_t height, float scale)
     {
@@ -405,7 +499,9 @@ private:
         ::bgfx::submit(_view_id, _text_program.get());
     }
 
-    const centui::viewport& _viewport;
+    std::unique_ptr<context> _context;
+    std::function<centui::viewport()> _surface;
+    centui::viewport _backbuffer;
     std::uint16_t _view_id;
 
     ::bgfx::VertexLayout _vertex_layout;
@@ -420,4 +516,3 @@ private:
 };
 
 } // namespace centui::bgfx
-

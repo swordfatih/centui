@@ -19,6 +19,7 @@ module;
 #include <vector>
 
 export module centui.tree;
+export import centui.platform;
 
 export import centui.style;
 export import centui.render;
@@ -1585,15 +1586,22 @@ text_service& widget::fonts()
     throw std::logic_error("A detached widget has no document text service");
 }
 
+template <typename Platform = centui::platform>
 class ui
 {
 public:
     explicit ui(renderer& backend) : _backend(backend)
     {
     }
+
+    ui(Platform& host, renderer& backend) : _backend(backend), _platform(host)
+    {
+    }
+
     void render(document& owner)
     {
-        const auto  viewport = _backend.viewport();
+        attach(owner);
+        const auto  viewport = surface();
         const auto& list = owner.prepare(viewport);
         if(viewport.width > 0 && viewport.height > 0)
         {
@@ -1602,14 +1610,60 @@ public:
     }
     void process_event(document& owner, const input_event& event)
     {
-        owner.process_event(event, _backend.viewport());
+        attach(owner);
+        owner.process_event(event, surface());
     }
+
+    template <typename Event>
+        requires requires(Platform& host, const Event& event) { host.translate(event); }
+    void process_event(document& owner, const Event& event)
+    {
+        if(!_platform)
+        {
+            throw std::logic_error("Native events require a platform");
+        }
+        if(auto translated = _platform->get().translate(event))
+        {
+            process_event(owner, *translated);
+        }
+    }
+
     void process_events(document& owner, std::span<const input_event> events)
     {
-        owner.process_events(events, _backend.viewport());
+        attach(owner);
+        owner.process_events(events, surface());
     }
 
 private:
+    void attach(document& owner)
+    {
+        if(_platform)
+        {
+            owner.set_host_services(_platform->get().services());
+        }
+    }
+
+    centui::viewport surface() const
+    {
+        return _platform ? _platform->get().viewport() : _backend.viewport();
+    }
+
     renderer& _backend;
+    std::optional<std::reference_wrapper<Platform>> _platform;
 };
+
+template <typename Platform, typename Renderer>
+void run(Platform& host, Renderer& backend, document& owner)
+{
+    ui integration{host, backend};
+    while(host.poll_events())
+    {
+        integration.process_events(owner, host.events());
+        if(backend.begin_frame())
+        {
+            integration.render(owner);
+            backend.end_frame();
+        }
+    }
+}
 } // namespace centui

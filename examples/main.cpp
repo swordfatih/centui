@@ -8,7 +8,8 @@
 #include <variant>
 #include <vector>
 
-import centui.app;
+import centui.sdl;
+import centui.bgfx;
 import centui;
 
 struct panel_style
@@ -50,7 +51,8 @@ struct action_button_style
 
 int main()
 {
-    centui::app app{{.title = "CentUI", .width = 800, .height = 600}};
+    centui::sdl::platform platform{{.title = "CentUI", .width = 800, .height = 600}};
+    centui::bgfx::backend renderer{platform};
 
     int counter = 0;
 
@@ -78,5 +80,5 @@ int main()
     // clang-format on
 
     centui::document document{root};
-    app.run(document);
+    centui::run(platform, renderer, document);
 }

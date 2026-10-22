@@ -1,0 +1,5 @@
+include(${PROJECT_SOURCE_DIR}/src/backends/sfml/Dependencies.cmake)
+add_library(centui_sfml_platform STATIC)
+add_library(centui::sfml_platform ALIAS centui_sfml_platform)
+centui_sources(centui_sfml_platform "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(centui_sfml_platform PUBLIC centui::centui SFML::Graphics PRIVATE centui_config)

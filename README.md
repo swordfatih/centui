@@ -27,6 +27,8 @@ The styled example in `examples/main.cpp` is unchanged. The `container<Styles...
 
 `examples/widgets_static.cpp` presents the same showcase with compile-time style structs and initializer-list composition, like `main.cpp`. The `toggle`, `range`, `selection`, `scroll`, `popup`, and `input` handles accept style packs directly. Constructor options provide initial values and callbacks; runtime operations remain available through `->`. Only widgets referenced elsewhere need named handles. Its target is `centui_example_widgets_static`.
 
+The static showcase uses `centui::sdl::platform` and bgfx directly. `examples/widgets_sfml.cpp` provides the same showcase with an owned SFML platform. `examples/sfml.cpp` demonstrates borrowing an existing SFML window and forwarding native events individually.
+
 ## Ownership
 
 Widget copies alias one stable object. Parents and handles share ownership; parent and document links are weak. Removing a subtree detaches it; surviving handles remain usable. Document destruction releases its root without invalidating external handles. Empty or moved-from handles reject access.
@@ -94,7 +96,7 @@ class renderer
 {
 public:
     virtual ~renderer() = default;
-    virtual centui::viewport viewport() const noexcept = 0;
+    virtual centui::viewport viewport() const = 0;
     virtual void draw(const centui::draw_list&) = 0;
 };
 ```
@@ -103,11 +105,23 @@ public:
 
 Draw lists are owned by the document and borrowed until its next preparation or destruction. Commands retain CPU resources while live. Rendering is synchronous; backends must retain anything needed afterward. There is no retained-frame or raw-node API.
 
-The host clears, presents, translates native input, and owns the graphics context. Destroy backend GPU resources before the context. The optional SDL/bgfx `app` handles this order. SFML borrows its render target and restores its view/graphics state.
+Platforms provide window dimensions, event translation, and host services. Backends draw; their optional `begin_frame()` and `end_frame()` helpers clear and present. Construct the platform before its backend so graphics resources are released before the window. The bgfx backend owns graphics initialization when constructed from a platform; its viewport constructor instead borrows an already initialized bgfx context. SFML borrows its target and restores its view/graphics state.
+
+For an owned window, import `centui.sfml` and `centui`, then construct:
+
+```cpp
+centui::sfml::platform platform{{.title = "CentUI", .width = 800, .height = 600}};
+centui::sfml::backend renderer{platform};
+centui::run(platform, renderer, document);
+```
+
+For an existing SFML application, construct `centui::sfml::platform platform{window}`, `centui::sfml::backend renderer{window}`, and `centui::ui ui{platform, renderer}`. Forward each native event with `ui.process_event(document, event)` and draw with `ui.render(document)` between your own clear and display calls. Forwarding does not poll, close, clear, or present your window. The borrowed window must outlive both adapters. Native events remain available to your application.
+
+The shared platform interface exposes `poll_events()`, `events()`, `viewport()`, and `services()`. Concrete platforms additionally expose `translate(native_event)` and a polling overload accepting a native-event callback. Polling is a convenience loop that handles window close requests; application-owned loops can decide their own close behavior. Event spans remain valid until the next poll. `ui` attaches host services automatically and uses the platform's surface; `run` forwards events and sequences rendering. `app` is now only an SDL/bgfx convenience wrapper to keep `main.cpp` unchanged.
 
 `viewport{width, height, scale}` describes framebuffer pixels and the effective display scale. Its logical dimensions are derived by division. Layout, draw-command bounds, pointer events, wheel deltas, and text-input areas use logical units. Renderers map these units to the framebuffer; text is rasterized at `font_size * scale`, with glyph origins aligned to physical pixels. Display-scale changes refresh layout and prepared text. Widgets do not manage DPI.
 
-SDL supplies scale automatically and converts native input and IME coordinates. The SFML backend accepts the host's scale in its constructor and through `set_scale()`; its example queries Windows DPI, while other platforms currently use scale 1 and require host integration for automatic DPI detection. Custom hosts must distinguish native window coordinates from CentUI logical coordinates. Text-layout caches must account for `text_service::scale()` as well as font identity and size.
+SDL supplies scale automatically and converts native input and IME coordinates. The SFML platform detects Windows DPI and accepts an explicit `set_scale()` override; other systems currently require this override for non-unit display scaling. Both adapters translate keyboard, committed text, mouse buttons, wheel, and focus events and provide clipboard services. SDL also supplies composition previews and IME placement. SFML 3.1 exposes no public composition or IME-placement API; its adapter only forwards committed text and virtual-keyboard visibility. Custom hosts must distinguish native window coordinates from CentUI logical coordinates. Text-layout caches must account for `text_service::scale()` as well as font identity and size.
 
 ## Text and rendering scope
 
@@ -117,7 +131,7 @@ Coordinates start at the top left with Y downward. Colors use straight RGBA. Sty
 
 `centui.controls` provides toggle, range, scroll, selection, and popup widgets. `centui.input` provides a single-line or multiline editor with selection, clipboard hooks, composition preview, and undo/redo. Construct these through `make_widget<T>()` and compose ordinary children. The optional `centui.animation` module provides caller-advanced numeric animations; `centui.easing` can be used independently.
 
-The SDL host translates keyboard, text, composition, and wheel input and supplies clipboard/text-input services. The SFML example still translates pointer input only. Full Unicode paragraph bidi, grapheme editing, fallback-font chains, and accessibility remain outside this milestone. See [implementation status](docs/implementation-status.md) for validation and remaining work.
+Both platform adapters support the widget showcase's keyboard, committed text, scrolling, and clipboard interactions. Full Unicode paragraph bidi, grapheme editing, fallback-font chains, and accessibility remain outside this milestone. See [implementation status](docs/implementation-status.md) for validation and remaining work.
 
 ## Build boundaries and verification
 
@@ -126,6 +140,7 @@ The library uses ordinary named modules, without partitions:
 | Module | Responsibility |
 | --- | --- |
 | `centui.types` | Geometry, colors, input, units, font identifiers |
+| `centui.platform` | Shared platform interface and window options |
 | `centui.style` | Reflected style composition, validation, patches |
 | `centui.render` | Portable glyph/drawing data and renderer contract; depends only on types |
 | `centui.font` | Font resources, shaping, glyph caches; produces rendering data |
@@ -137,9 +152,9 @@ The library uses ordinary named modules, without partitions:
 | `centui.easing`, `centui.animation` | Optional easing functions and caller-advanced values |
 | `centui` | Public umbrella |
 
-SFML, bgfx, window, and app remain separate modules. Widget/document friendship is local to `tree.cppm`. There is no separate `document.cpp` or cross-module accessor bridge.
+`centui.sdl`, `centui.sfml.platform`, `centui.sfml`, `centui.bgfx`, and `centui.app` are separate modules. SDL has no graphics dependency. The native SDL handle bridge used by bgfx currently supports Windows. Widget/document friendship is local to `tree.cppm`.
 
-The `centui::centui` target is headless. Optional targets are `centui::sfml`, `centui::bgfx`, and `centui::app`. CMake options `CENTUI_BUILD_SFML`, `CENTUI_BUILD_BGFX`, `CENTUI_BUILD_APP`, `CENTUI_BUILD_TESTS`, and `CENTUI_BUILD_EXAMPLES` control them. Consumers needing the app must link `centui::app`; the core does not acquire graphics dependencies.
+The `centui::centui` target is headless. Optional targets are `centui::sdl`, `centui::sfml_platform`, `centui::sfml`, `centui::bgfx`, and `centui::app`. `CENTUI_BUILD_SDL`, `CENTUI_BUILD_SFML`, `CENTUI_BUILD_BGFX`, and `CENTUI_BUILD_APP` control integrations. The app requires SDL and bgfx. SFML's renderer links its platform adapter; SDL can build independently of bgfx. The core does not acquire graphics dependencies.
 
 Requires CMake 4.3+, Ninja, and a compiler/standard library supporting C++26 modules, `<meta>`, reflection expressions, and expansion statements with `-freflection`.
 

@@ -21,14 +21,24 @@ module;
 export module centui.sfml;
 
 import centui.render;
+export import centui.sfml.platform;
 
 export namespace centui::sfml
 {
 
-// Borrows the target. The host clears and presents; this renderer only draws.
+// Borrows its target. Frame helpers are optional for window-backed renderers.
 class backend final : public centui::renderer
 {
 public:
+    explicit backend(::sf::RenderWindow& window) : _target(window), _window(window)
+    {
+    }
+
+    explicit backend(platform& host) : backend(host.native_window())
+    {
+        _platform = host;
+    }
+
     explicit backend(::sf::RenderTarget& target, float scale) : _target(target)
     {
         set_scale(scale);
@@ -50,11 +60,38 @@ public:
     backend(backend&&) = delete;
     backend& operator=(backend&&) = delete;
 
-    [[nodiscard]] centui::viewport viewport() const noexcept override
+    [[nodiscard]] centui::viewport viewport() const override
     {
+        if(_platform)
+        {
+            return _platform->get().viewport();
+        }
         const auto size = _target.getSize();
         const auto maximum = static_cast<unsigned int>(std::numeric_limits<int>::max());
         return {static_cast<int>(std::min(size.x, maximum)), static_cast<int>(std::min(size.y, maximum)), _scale};
+    }
+
+    [[nodiscard]] bool begin_frame(color clear = {18, 24, 32, 255})
+    {
+        if(!_window)
+        {
+            throw std::logic_error("Frame presentation requires a window-backed renderer");
+        }
+        if(!_window->get().isOpen())
+        {
+            return false;
+        }
+        _window->get().clear({clear.r, clear.g, clear.b, clear.a});
+        return true;
+    }
+
+    void end_frame()
+    {
+        if(!_window)
+        {
+            throw std::logic_error("Frame presentation requires a window-backed renderer");
+        }
+        _window->get().display();
     }
 
     void clear_cache()
@@ -171,6 +208,8 @@ private:
     }
 
     ::sf::RenderTarget& _target;
+    std::optional<std::reference_wrapper<::sf::RenderWindow>> _window;
+    std::optional<std::reference_wrapper<platform>> _platform;
     float _scale = 1;
     std::size_t _cache_limit = 1024;
     std::map<std::weak_ptr<const bitmap>, ::sf::Texture, std::owner_less<>> _images;

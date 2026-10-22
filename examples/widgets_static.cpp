@@ -8,7 +8,8 @@
 #include <vector>
 
 import centui;
-import centui.app;
+import centui.sdl;
+import centui.bgfx;
 import centui.animation;
 
 struct panel_style
@@ -64,7 +65,9 @@ struct accent_style
 
 int main()
 {
-    centui::app app{{.title = "CentUI widgets", .width = 800, .height = 720}};
+    centui::sdl::platform platform{{.title = "CentUI widgets", .width = 800, .height = 720}};
+    centui::bgfx::backend renderer{platform};
+    centui::ui ui{platform, renderer};
 
     auto status = centui::text{"Tab to focus. Use arrows, Enter, and the mouse wheel."};
     auto accent = centui::container<control_style, accent_style>{};
@@ -137,8 +140,9 @@ int main()
     centui::document document{root};
     centui::animation<float> reveal{0, 100, std::chrono::duration<float>{1.2f}, centui::easing::curve::out_cubic};
     auto previous = std::chrono::steady_clock::now();
-    while(app.poll_events(document))
+    while(platform.poll_events())
     {
+        ui.process_events(document, platform.events());
         const auto now = std::chrono::steady_clock::now();
         if(!reveal.finished())
         {
@@ -147,8 +151,10 @@ int main()
         }
         previous = now;
 
-        app.render_frame(document);
+        if(renderer.begin_frame())
+        {
+            ui.render(document);
+            renderer.end_frame();
+        }
     }
 }
-
-

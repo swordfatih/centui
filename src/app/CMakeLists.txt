@@ -1,5 +1,0 @@
-include(Dependencies.cmake)
-add_library(centui_app STATIC)
-add_library(centui::app ALIAS centui_app)
-centui_sources(centui_app "${CMAKE_CURRENT_SOURCE_DIR}")
-target_link_libraries(centui_app PUBLIC centui::centui centui::bgfx PRIVATE SDL3::SDL3 bgfx centui_config)

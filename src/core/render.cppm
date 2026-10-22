@@ -235,7 +235,7 @@ class renderer
 {
 public:
     virtual ~renderer() = default;
-    [[nodiscard]] virtual centui::viewport viewport() const noexcept = 0;
+    [[nodiscard]] virtual centui::viewport viewport() const = 0;
     virtual void draw(const draw_list&) = 0;
 };
 
