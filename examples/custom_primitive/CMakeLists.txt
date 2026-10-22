@@ -1,0 +1,3 @@
+add_executable(centui_example_custom_primitive main.cpp)
+target_link_libraries(centui_example_custom_primitive PRIVATE centui::centui centui_config)
+centui_font_asset(centui_example_custom_primitive)

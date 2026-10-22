@@ -1,10 +1,10 @@
 #include <filesystem>
 #include <initializer_list>
 #include <iostream>
+#include <memory>
 #include <span>
 #include <type_traits>
 #include <variant>
-#include <memory>
 
 import centui.widgets;
 import centui.types;
@@ -33,6 +33,7 @@ public:
     {
         for(const auto& command: list.commands)
         {
+            // clang-format off
             std::visit([](const auto& item)
             {
                 using type = std::decay_t<decltype(item)>;
@@ -50,9 +51,9 @@ public:
                     std::cout << "image: " << item.image->width << 'x' << item.image->height << '\n';
                 }
             }, command);
+            // clang-format on
         }
     }
-
 };
 
 int main()
