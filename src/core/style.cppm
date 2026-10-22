@@ -65,7 +65,7 @@ public:
     edges          margin = edges::all(px(0));
     edges          inset = edges::all(fit());
     length         gap = px(0);
-    position       position = position::relative;
+    centui::position position = centui::position::relative;
     length         width = fit();
     length         height = fit();
     direction      flex_direction = direction::column;

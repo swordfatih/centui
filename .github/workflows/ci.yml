@@ -61,3 +61,48 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build --parallel 4 --output-on-failure
+
+  clang-core-tests:
+    name: Core tests / Clang P2996 (experimental)
+    runs-on: ubuntu-latest
+    # Upstream Clang does not yet implement reflection. This image packages
+    # Bloomberg's clang-p2996 fork and its matching libc++.
+    container: vsavkov/clang-p2996:amd64
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install build tools
+        run: |
+          apt-get update
+          apt-get install --no-install-recommends -y \
+            ninja-build pkg-config python3 python3-pip python3-venv lld
+          python3 -m venv /opt/centui-cmake
+          /opt/centui-cmake/bin/pip install 'cmake>=4.3,<5'
+          echo /opt/centui-cmake/bin >> "$GITHUB_PATH"
+          /opt/p2996/clang/bin/clang++ --version
+          /opt/p2996/clang/bin/clang-scan-deps --version
+
+      - name: Configure
+        env:
+          CC: /opt/p2996/clang/bin/clang
+          CXX: /opt/p2996/clang/bin/clang++
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_FLAGS=-stdlib=libc++ \
+            -DCMAKE_CXX_COMPILER_CLANG_SCAN_DEPS=/opt/p2996/clang/bin/clang-scan-deps \
+            -DCENTUI_BUILD_SDL=OFF \
+            -DCENTUI_BUILD_SFML=OFF \
+            -DCENTUI_BUILD_GLFW=OFF \
+            -DCENTUI_BUILD_BGFX=OFF \
+            -DCENTUI_BUILD_EXAMPLES=OFF \
+            -DCENTUI_BUILD_TESTS=ON
+
+      - name: Build
+        run: cmake --build build --parallel 4
+
+      - name: Test
+        run: ctest --test-dir build --parallel 4 --output-on-failure
