@@ -16,9 +16,10 @@ concurrency:
 
 jobs:
   core-tests:
-    name: Core tests / GCC 16
+    name: Core tests / GCC 16.2
     runs-on: ubuntu-latest
-    container: ubuntu:26.04
+    # GCC 16.2 includes the modules + reflection fix for GCC PR124582.
+    container: gcc:16.2.0
     timeout-minutes: 45
 
     steps:
@@ -34,15 +35,17 @@ jobs:
         run: |
           apt-get update
           apt-get install --no-install-recommends -y \
-            gcc-16 g++-16 ninja-build pkg-config python3 python3-pip python3-venv
+            ninja-build pkg-config python3 python3-pip python3-venv
           python3 -m venv /opt/centui-cmake
           /opt/centui-cmake/bin/pip install 'cmake>=4.3,<5'
           echo /opt/centui-cmake/bin >> "$GITHUB_PATH"
+          gcc --version
+          g++ --version
 
       - name: Configure
         env:
-          CC: gcc-16
-          CXX: g++-16
+          CC: gcc
+          CXX: g++
         run: |
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \

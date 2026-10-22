@@ -2,6 +2,12 @@ cmake_minimum_required(VERSION 4.3)
 
 project(centui LANGUAGES C CXX)
 
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 16.2)
+    message(FATAL_ERROR
+        "CentUI requires GCC 16.2 or newer. Earlier versions have a modules + reflection "
+        "declaration merging bug (GCC PR124582) that causes conflicting __mbstate_t declarations.")
+endif()
+
 set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 
 # ------------------------

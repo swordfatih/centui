@@ -44,7 +44,7 @@ Run this from the repository root so the font path resolves. For a styled counte
 
 ## Try it
 
-You need CMake 4.3+, Ninja, and a C++26 compiler and standard library with static reflection support (`-freflection`). CMake fetches the native dependencies during configuration.
+You need CMake 4.3+, Ninja, and a C++26 compiler and standard library with static reflection support (`-freflection`). For GCC, use 16.2 or newer: earlier versions have a modules and reflection declaration merging bug ([PR124582](https://gcc.gnu.org/bugzilla/show_bug.cgi?id=124582)). CI uses the `gcc:16.2.0` container. CMake fetches the native dependencies during configuration.
 
 ```sh
 cmake -S . -B build -G Ninja -DCENTUI_BUILD_EXAMPLES=ON -DCENTUI_BUILD_SDL=ON -DCENTUI_BUILD_BGFX=ON

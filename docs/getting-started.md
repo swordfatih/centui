@@ -6,7 +6,7 @@ nav_order: 2
 
 # Getting Started
 
-CentUI uses C++26 modules and static reflection. You need CMake 4.3 or newer, Ninja, and a compiler and standard library that support the features used by `<meta>` and `-freflection`. The build downloads Yoga, FreeType, HarfBuzz, and the enabled window and rendering libraries.
+CentUI uses C++26 modules and static reflection. You need CMake 4.3 or newer, Ninja, and a compiler and standard library that support the features used by `<meta>` and `-freflection`. GCC builds require 16.2 or newer to avoid the modules and reflection declaration merging bug [PR124582](https://gcc.gnu.org/bugzilla/show_bug.cgi?id=124582). The build downloads Yoga, FreeType, HarfBuzz, and the enabled window and rendering libraries.
 
 ## Build the first example
 
