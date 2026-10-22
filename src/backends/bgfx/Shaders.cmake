@@ -17,7 +17,7 @@ function(centui_compile_shaders target)
             OUTPUT_DIR "${output_dir}"
             INCLUDE_DIRS "${include_dir}"
             AS_HEADERS
-            PROFILES spirv 430 300_es s_5_0
+            OUT_FILES_VAR vertex_outputs
         )
     endif()
 
@@ -29,11 +29,32 @@ function(centui_compile_shaders target)
             OUTPUT_DIR "${output_dir}"
             INCLUDE_DIRS "${include_dir}"
             AS_HEADERS
-            PROFILES spirv 430 300_es s_5_0
+            OUT_FILES_VAR fragment_outputs
         )
     endif()
 
-    target_sources(${target} PRIVATE ${vertex_shaders} ${fragment_shaders})
+    set(shader_outputs ${vertex_outputs} ${fragment_outputs})
+    set(shader_header "#pragma once\n\n")
+    foreach(format DXBC DXIL ESSL GLSL METAL NVN PSSL SPIRV WGSL)
+        string(TOLOWER "${format}" directory)
+        set(available 0)
+        foreach(output IN LISTS shader_outputs)
+            file(RELATIVE_PATH relative "${output_dir}" "${output}")
+            if(relative MATCHES "^${directory}/")
+                set(available 1)
+                break()
+            endif()
+        endforeach()
+        string(APPEND shader_header "#define BGFX_PLATFORM_SUPPORTS_${format} ${available}\n")
+    endforeach()
+    foreach(output IN LISTS shader_outputs)
+        file(RELATIVE_PATH relative "${output_dir}" "${output}")
+        string(APPEND shader_header "#include <${relative}>\n")
+    endforeach()
+    file(GENERATE OUTPUT "${output_dir}/centui_shaders.h" CONTENT "${shader_header}")
+
+    target_sources(${target} PRIVATE ${vertex_shaders} ${fragment_shaders} ${shader_outputs}
+        "${output_dir}/centui_shaders.h")
     target_include_directories(${target} PRIVATE "${output_dir}" "${bgfx_cmake_SOURCE_DIR}/bx/include")
     target_link_libraries(${target} PRIVATE bgfx)
 endfunction()

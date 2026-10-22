@@ -18,27 +18,9 @@ module;
 #include <vector>
 
 #include <bgfx/bgfx.h>
+#include <centui_shaders.h>
 #include <bgfx/embedded_shader.h>
 #include <bx/math.h>
-#include <essl/fs_color.sc.bin.h>
-#include <essl/fs_text.sc.bin.h>
-#include <essl/vs_color.sc.bin.h>
-#include <essl/vs_text.sc.bin.h>
-#include <glsl/fs_color.sc.bin.h>
-#include <glsl/fs_text.sc.bin.h>
-#include <glsl/vs_color.sc.bin.h>
-#include <glsl/vs_text.sc.bin.h>
-#include <spirv/fs_color.sc.bin.h>
-#include <spirv/fs_text.sc.bin.h>
-#include <spirv/vs_color.sc.bin.h>
-#include <spirv/vs_text.sc.bin.h>
-
-#if defined(_WIN32)
-#include <dxbc/fs_color.sc.bin.h>
-#include <dxbc/fs_text.sc.bin.h>
-#include <dxbc/vs_color.sc.bin.h>
-#include <dxbc/vs_text.sc.bin.h>
-#endif
 
 export module centui.bgfx;
 
@@ -127,45 +109,13 @@ struct text_vertex
 };
 
 static const ::bgfx::EmbeddedShader color_shaders[] = {
-    {"vs_color",
-     {
-#if defined(_WIN32)
-         {::bgfx::RendererType::Direct3D11, vs_color_dxbc, sizeof(vs_color_dxbc)},
-#endif
-         {::bgfx::RendererType::OpenGLES, vs_color_essl, sizeof(vs_color_essl)},
-         {::bgfx::RendererType::OpenGL, vs_color_glsl, sizeof(vs_color_glsl)},
-         {::bgfx::RendererType::Vulkan, vs_color_spv, sizeof(vs_color_spv)},
-         {::bgfx::RendererType::Count, nullptr, 0}}},
-    {"fs_color",
-     {
-#if defined(_WIN32)
-         {::bgfx::RendererType::Direct3D11, fs_color_dxbc, sizeof(fs_color_dxbc)},
-#endif
-         {::bgfx::RendererType::OpenGLES, fs_color_essl, sizeof(fs_color_essl)},
-         {::bgfx::RendererType::OpenGL, fs_color_glsl, sizeof(fs_color_glsl)},
-         {::bgfx::RendererType::Vulkan, fs_color_spv, sizeof(fs_color_spv)},
-         {::bgfx::RendererType::Count, nullptr, 0}}},
+    BGFX_EMBEDDED_SHADER(vs_color),
+    BGFX_EMBEDDED_SHADER(fs_color),
     BGFX_EMBEDDED_SHADER_END()};
 
 static const ::bgfx::EmbeddedShader text_shaders[] = {
-    {"vs_text",
-     {
-#if defined(_WIN32)
-         {::bgfx::RendererType::Direct3D11, vs_text_dxbc, sizeof(vs_text_dxbc)},
-#endif
-         {::bgfx::RendererType::OpenGLES, vs_text_essl, sizeof(vs_text_essl)},
-         {::bgfx::RendererType::OpenGL, vs_text_glsl, sizeof(vs_text_glsl)},
-         {::bgfx::RendererType::Vulkan, vs_text_spv, sizeof(vs_text_spv)},
-         {::bgfx::RendererType::Count, nullptr, 0}}},
-    {"fs_text",
-     {
-#if defined(_WIN32)
-         {::bgfx::RendererType::Direct3D11, fs_text_dxbc, sizeof(fs_text_dxbc)},
-#endif
-         {::bgfx::RendererType::OpenGLES, fs_text_essl, sizeof(fs_text_essl)},
-         {::bgfx::RendererType::OpenGL, fs_text_glsl, sizeof(fs_text_glsl)},
-         {::bgfx::RendererType::Vulkan, fs_text_spv, sizeof(fs_text_spv)},
-         {::bgfx::RendererType::Count, nullptr, 0}}},
+    BGFX_EMBEDDED_SHADER(vs_text),
+    BGFX_EMBEDDED_SHADER(fs_text),
     BGFX_EMBEDDED_SHADER_END()};
 
 std::uint32_t pack_color(color value)
