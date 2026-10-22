@@ -2,9 +2,15 @@
 
 CentUI is a small C++26 library for building interfaces from ordinary widgets. Compose a tree, give it a style, and connect callbacks to your application state. SDL/bgfx and SFML integrations let you draw in a CentUI window or over one you already own.
 
+## Showcase
+
 <p align="center">
   <img src="docs/assets/showcase.png" alt="CentUI Studio showcase" width="600">
+  <br>
+  <em><a href="examples/gui_static/main.cpp">gui_static example</a> (SDL platform, bgfx rendering backend)</em>
 </p>
+
+## Hello world
 
 ```cpp
 #include <filesystem>
