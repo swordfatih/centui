@@ -4,6 +4,7 @@ module;
 #include <string>
 #include <string_view>
 #include <utility>
+#include <memory>
 
 export module centui.widgets.button;
 export import centui.widgets.pressable;

@@ -10,6 +10,7 @@ module;
 #include <string>
 #include <utility>
 #include <vector>
+#include <memory>
 
 export module centui.widgets.selection;
 export import centui.tree;

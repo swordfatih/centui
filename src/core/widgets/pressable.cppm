@@ -4,6 +4,7 @@ module;
 #include <initializer_list>
 #include <span>
 #include <utility>
+#include <memory>
 
 export module centui.widgets.pressable;
 export import centui.widgets.container;

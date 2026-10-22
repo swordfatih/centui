@@ -2,6 +2,7 @@ module;
 
 #include <functional>
 #include <utility>
+#include <memory>
 
 export module centui.widgets.popup;
 export import centui.widgets.container;

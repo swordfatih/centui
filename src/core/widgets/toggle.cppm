@@ -4,6 +4,7 @@ module;
 #include <functional>
 #include <string>
 #include <utility>
+#include <memory>
 
 export module centui.widgets.toggle;
 export import centui.widgets.button;

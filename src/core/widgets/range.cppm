@@ -5,6 +5,7 @@ module;
 #include <functional>
 #include <stdexcept>
 #include <utility>
+#include <memory>
 
 export module centui.widgets.range;
 export import centui.tree;
