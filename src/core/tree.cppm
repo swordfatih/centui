@@ -1172,7 +1172,8 @@ private:
         }
     }
 
-    void paint_tree(const widget& value, draw_list& output, rect clip, bool enabled)
+    void paint_tree(const widget& value, draw_list& output, rect clip, bool enabled,
+                    details::visual_state inherited_state = details::visual_state::normal)
     {
         if(value._style.visibility != visibility::visible)
         {
@@ -1183,7 +1184,8 @@ private:
         const auto state = !enabled ? details::visual_state::disabled : value._pressed ? details::visual_state::pressed
                                                                     : value._hovered   ? details::visual_state::hovered
                                                                     : value._focused   ? details::visual_state::focused
-                                                                                       : details::visual_state::normal;
+                                                                    : !value._interactive ? inherited_state
+                                                                                         : details::visual_state::normal;
         const auto appearance = value.resolved_style();
         painter background{output, _fonts, value._bounds, clip, appearance, state};
         background.rectangle(value._bounds, details::state_color(value._style.background_color, state));
@@ -1202,7 +1204,7 @@ private:
         const auto child_clip = value._clip_children || value._style.overflow != overflow::visible ? intersection(clip, value._content) : clip;
         for(const auto& child: value._children)
         {
-            paint_tree(*child, output, child_clip, enabled);
+            paint_tree(*child, output, child_clip, enabled, state);
         }
     }
     static bool contains(rect box, float x, float y) noexcept

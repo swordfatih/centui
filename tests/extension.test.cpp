@@ -41,17 +41,17 @@ protected:
     }
 };
 
-class counting_button : public centui::button_widget
+class counting_button : public centui::pressable_widget
 {
 public:
-    using button_widget::button_widget;
+    using pressable_widget::pressable_widget;
     int activations = 0;
 
 protected:
     void activate() override
     {
         ++activations;
-        button_widget::activate();
+        pressable_widget::activate();
     }
 };
 
@@ -93,7 +93,7 @@ TEST_CASE("Widget child operations work detached and mounted", "[widget][extensi
 TEST_CASE("Composite callbacks edit their children through the widget API", "[widget][extension]")
 {
     auto root = centui::make_widget<centui::container_widget>(box(200, 100));
-    auto action = centui::make_widget<centui::button_widget>(box(80, 30));
+    auto action = centui::make_widget<centui::pressable_widget>(box(80, 30));
     auto replacement = centui::make_widget<centui::container_widget>(box(80, 30));
     root->append(action);
     centui::document document{root};

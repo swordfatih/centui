@@ -90,7 +90,7 @@ int main()
     dialog_style.gap = centui::px(16);
     auto dialog = centui::make_widget<centui::container_widget>(dialog_style);
     dialog->append(centui::make_widget<centui::text_widget>("A popup composed from ordinary widgets."));
-    auto dismiss = centui::make_widget<centui::text_button_widget>("Close", control);
+    auto dismiss = centui::make_widget<centui::button_widget>("Close", control);
     dialog->append(dismiss);
 
     centui::style overlay_style;
@@ -106,7 +106,7 @@ int main()
         }
     });
 
-    auto open = centui::make_widget<centui::text_button_widget>("Open popup", control);
+    auto open = centui::make_widget<centui::button_widget>("Open popup", control);
     open->set_on_click([popup]
     {
         popup->open();
