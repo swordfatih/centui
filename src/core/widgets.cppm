@@ -1,6 +1,7 @@
 module;
 
 #include <functional>
+#include <algorithm>
 #include <initializer_list>
 #include <limits>
 #include <memory>
@@ -48,6 +49,28 @@ export namespace centui
 {
 namespace details
 {
+template <typename... Args>
+class callback
+{
+public:
+    void set(std::function<void(Args...)> value)
+    {
+        _value = value ? std::make_shared<std::function<void(Args...)>>(std::move(value)) : nullptr;
+    }
+
+    void operator()(Args... args) const
+    {
+        auto value = _value;
+        if(value)
+        {
+            (*value)(std::forward<Args>(args)...);
+        }
+    }
+
+private:
+    std::shared_ptr<std::function<void(Args...)>> _value;
+};
+
 // Shared text presentation for labels and text buttons; no tree or input behavior.
 class text_content
 {
@@ -92,7 +115,8 @@ private:
     const text_layout& prepared(text_service& fonts, const centui::style& appearance, float width) const
     {
         auto identity = fonts.font_identity(appearance.font);
-        if(!_cached || identity != _font_identity || _font_size != appearance.font_size || _width != width)
+        if(!_cached || identity != _font_identity || _font_size != appearance.font_size || _width != width ||
+           _cached->raster_scale != fonts.scale())
         {
             auto candidate = fonts.prepare(_value, appearance.font, appearance.font_size, width);
             _cached = std::move(candidate);
@@ -104,6 +128,41 @@ private:
     }
 };
 } // namespace details
+
+class image_widget : public widget
+{
+public:
+    explicit image_widget(bitmap value, centui::style appearance = {}) : widget(std::move(appearance))
+    {
+        set_image(std::move(value));
+    }
+
+    void set_image(bitmap value)
+    {
+        check_mutation();
+        validate_bitmap(value);
+        _image = std::make_shared<const bitmap>(std::move(value));
+        invalidate_layout();
+    }
+
+protected:
+    size measure(const measure_context&) override
+    {
+        return {static_cast<float>(_image->width), static_cast<float>(_image->height)};
+    }
+
+    void paint(painter& output) const override
+    {
+        const auto area = output.bounds();
+        const auto scale = std::min(area.width / _image->width, area.height / _image->height);
+        const auto width = _image->width * scale;
+        const auto height = _image->height * scale;
+        output.image(_image, {area.x + (area.width - width) / 2, area.y + (area.height - height) / 2, width, height});
+    }
+
+private:
+    std::shared_ptr<const bitmap> _image;
+};
 
 class text_widget : public widget
 {
@@ -167,7 +226,7 @@ export namespace centui
 struct button_options
 {
     bool                  enabled = true;
-    std::function<void()> on_click;
+    std::function<void()> on_click{};
 };
 
 class button_widget : public widget
@@ -189,23 +248,27 @@ public:
     void set_on_click(std::function<void()> callback)
     {
         check_mutation();
-        auto replacement = callback ? std::make_shared<std::function<void()>>(std::move(callback)) : nullptr;
-        _on_click = std::move(replacement);
+        _on_click.set(std::move(callback));
     }
 
 protected:
     virtual void activate()
     {
-        // Retain the registration during self-replacement and preserve mutable captures.
-        auto callback = _on_click;
-        if(callback)
-        {
-            (*callback)();
-        }
+        _on_click();
     }
 
     bool on_event(const input_event& event) override
     {
+        if(event.type == input_event_type::key_pressed && (event.code == key::space || event.code == key::enter))
+        {
+            if(!event.repeat && effectively_enabled())
+            {
+                activate();
+            }
+
+            return true;
+        }
+
         switch(event.type)
         {
         case input_event_type::pointer_pressed:
@@ -239,7 +302,7 @@ protected:
     }
 
 private:
-    std::shared_ptr<std::function<void()>> _on_click;
+    details::callback<> _on_click;
     bool                                   _armed = false;
 };
 

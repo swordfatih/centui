@@ -25,7 +25,7 @@ class logging_backend final : public centui::renderer
 public:
     [[nodiscard]] centui::viewport viewport() const noexcept override
     {
-        return {800, 600};
+        return {1600, 1200, 2.0f};
     }
 
     void draw(const centui::draw_list& list) override
@@ -40,9 +40,13 @@ public:
                     std::cout << "rectangle at (" << item.bounds.x << ", " << item.bounds.y << "), size "
                               << item.bounds.width << 'x' << item.bounds.height << '\n';
                 }
-                else
+                else if constexpr(std::is_same_v<type, centui::text_command>)
                 {
                     std::cout << "glyphs: " << item.shaped->glyphs.size() << '\n';
+                }
+                else
+                {
+                    std::cout << "image: " << item.image->width << 'x' << item.image->height << '\n';
                 }
             }, command);
         }

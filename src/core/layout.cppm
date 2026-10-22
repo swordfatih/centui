@@ -259,6 +259,10 @@ public:
         YGNodeStyleSetPositionType(node, details::to_yoga(style.position));
         YGNodeStyleSetAlignItems(node, details::to_yoga(style.align_items));
         YGNodeStyleSetJustifyContent(node, details::to_yoga(style.justify_content));
+        YGNodeStyleSetDisplay(node, style.visibility == visibility::collapsed ? YGDisplayNone : YGDisplayFlex);
+        YGNodeStyleSetOverflow(node, style.overflow == overflow::scroll ? YGOverflowScroll :
+                                    style.overflow == overflow::clip ? YGOverflowHidden : YGOverflowVisible);
+        YGNodeStyleSetBorder(node, YGEdgeAll, style.border_width);
 
         details::set_width(node, style.width);
         details::set_height(node, style.height);
@@ -290,11 +294,11 @@ public:
     [[nodiscard]] rect content_bounds() const
     {
         const auto box = bounds();
-        const auto left = YGNodeLayoutGetPadding(_internal.get(), YGEdgeLeft);
-        const auto top = YGNodeLayoutGetPadding(_internal.get(), YGEdgeTop);
+        const auto left = YGNodeLayoutGetPadding(_internal.get(), YGEdgeLeft) + YGNodeLayoutGetBorder(_internal.get(), YGEdgeLeft);
+        const auto top = YGNodeLayoutGetPadding(_internal.get(), YGEdgeTop) + YGNodeLayoutGetBorder(_internal.get(), YGEdgeTop);
         return {left, top,
-                std::max(0.0f, box.width - left - YGNodeLayoutGetPadding(_internal.get(), YGEdgeRight)),
-                std::max(0.0f, box.height - top - YGNodeLayoutGetPadding(_internal.get(), YGEdgeBottom))};
+                std::max(0.0f, box.width - left - YGNodeLayoutGetPadding(_internal.get(), YGEdgeRight) - YGNodeLayoutGetBorder(_internal.get(), YGEdgeRight)),
+                std::max(0.0f, box.height - top - YGNodeLayoutGetPadding(_internal.get(), YGEdgeBottom) - YGNodeLayoutGetBorder(_internal.get(), YGEdgeBottom))};
     }
 
     void rethrow_measure_failure()

@@ -3,6 +3,7 @@ module;
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cmath>
 #include <limits>
 #include <memory>
 #include <stdexcept>
@@ -26,6 +27,8 @@ struct shaped_glyph
     // UTF-8 byte offset, independent of the number and order of output glyphs.
     std::uint32_t cluster = 0;
     std::shared_ptr<const struct glyph_bitmap> image = nullptr;
+    float advance = 0;
+    float origin = 0;
 };
 
 struct text_layout
@@ -35,22 +38,164 @@ struct text_layout
         std::size_t begin;
         std::size_t end;
         float width;
+        std::size_t text_begin = 0;
+        std::size_t text_end = 0;
     };
 
     std::vector<shaped_glyph> glyphs;
     rect                     bounds{};
     float                    ascender = 0;
     std::vector<line>         lines;
+    struct caret
+    {
+        std::size_t offset;
+        vec2 position;
+    };
+
+    float line_height = 0;
+    float raster_scale = 1;
+    std::vector<caret> carets;
 };
 
-struct glyph_bitmap
+[[nodiscard]] inline rect caret_bounds(const text_layout& layout, std::size_t offset)
 {
-    int                       width;
-    int                       height;
-    int                       left;
-    int                       top;
-    std::vector<std::uint8_t> pixels;
+    rect result{0, 0, 1, layout.line_height};
+    std::size_t distance = std::numeric_limits<std::size_t>::max();
+    for(const auto& caret: layout.carets)
+    {
+        const auto delta = caret.offset > offset ? caret.offset - offset : offset - caret.offset;
+        if(delta <= distance)
+        {
+            distance = delta;
+            result.x = caret.position.x;
+            result.y = caret.position.y;
+        }
+    }
+
+    return result;
+}
+
+[[nodiscard]] inline std::size_t text_hit(const text_layout& layout, vec2 point)
+{
+    std::size_t result = 0;
+    float best_y = std::numeric_limits<float>::infinity();
+    float best_x = std::numeric_limits<float>::infinity();
+    for(const auto& caret: layout.carets)
+    {
+        const auto dy = std::abs(point.y - caret.position.y - layout.line_height / 2);
+        const auto dx = std::abs(point.x - caret.position.x);
+        if(dy < best_y || (dy == best_y && dx < best_x))
+        {
+            best_y = dy;
+            best_x = dx;
+            result = caret.offset;
+        }
+    }
+
+    return result;
+}
+
+[[nodiscard]] inline std::vector<rect> selection_bounds(const text_layout& layout, std::size_t begin, std::size_t end)
+{
+    if(begin > end)
+    {
+        std::swap(begin, end);
+    }
+
+    std::vector<rect> result;
+    for(std::size_t index = 0; index < layout.lines.size() && begin != end; ++index)
+    {
+        const auto& line = layout.lines[index];
+        if(end <= line.text_begin || begin > line.text_end)
+        {
+            continue;
+        }
+
+        const auto start = std::clamp(begin, line.text_begin, line.text_end);
+        const auto finish = std::clamp(end, line.text_begin, line.text_end);
+        const auto y = index * layout.line_height;
+        float left = 0;
+        float right = line.width;
+        for(const auto& caret: layout.carets)
+        {
+            if(std::abs(caret.position.y - y) < layout.line_height / 2 && caret.offset == start)
+            {
+                left = caret.position.x;
+            }
+            if(std::abs(caret.position.y - y) < layout.line_height / 2 && caret.offset == finish)
+            {
+                right = caret.position.x;
+            }
+        }
+
+        result.push_back({std::min(left, right), y, std::max(1.0f, std::abs(right - left)), layout.line_height});
+    }
+
+    return result;
+}
+
+enum class pixel_format
+{
+    alpha,
+    rgba
 };
+
+struct bitmap
+{
+    int width = 0;
+    int height = 0;
+    std::vector<std::uint8_t> pixels;
+    pixel_format format = pixel_format::rgba;
+};
+
+struct glyph_bitmap : bitmap
+{
+    glyph_bitmap(int width, int height, int left, int top, std::vector<std::uint8_t> pixels)
+        : bitmap{width, height, std::move(pixels), pixel_format::alpha}, left(left), top(top)
+    {
+    }
+
+    int left = 0;
+    int top = 0;
+};
+
+inline void validate_bitmap(const bitmap& image)
+{
+    if(image.format != pixel_format::alpha && image.format != pixel_format::rgba)
+    {
+        throw std::invalid_argument("Unknown bitmap pixel format");
+    }
+
+    const auto channels = image.format == pixel_format::rgba ? std::size_t{4} : std::size_t{1};
+    if(image.width <= 0 || image.height <= 0 ||
+       static_cast<std::size_t>(image.width) > std::numeric_limits<std::size_t>::max() / static_cast<std::size_t>(image.height) / channels ||
+       image.pixels.size() != static_cast<std::size_t>(image.width) * image.height * channels)
+    {
+        throw std::invalid_argument("Image pixels must match positive bitmap dimensions");
+    }
+}
+
+[[nodiscard]] inline std::vector<std::uint8_t> rgba_pixels(const bitmap& image)
+{
+    validate_bitmap(image);
+    if(image.format == pixel_format::rgba)
+    {
+        return image.pixels;
+    }
+
+    if(image.pixels.size() > std::numeric_limits<std::size_t>::max() / 4)
+    {
+        throw std::length_error("Image exceeds RGBA storage limits");
+    }
+
+    std::vector<std::uint8_t> result(image.pixels.size() * 4, 255);
+    for(std::size_t index = 0; index < image.pixels.size(); ++index)
+    {
+        result[index * 4 + 3] = image.pixels[index];
+    }
+
+    return result;
+}
 
 struct rectangle_command
 {
@@ -68,7 +213,15 @@ struct text_command
     rect clip{};
 };
 
-using draw_command = std::variant<rectangle_command, text_command>;
+struct image_command
+{
+    rect bounds;
+    rect clip;
+    std::shared_ptr<const bitmap> image;
+    centui::color color = {255, 255, 255, 255};
+};
+
+using draw_command = std::variant<rectangle_command, text_command, image_command>;
 
 // Document-owned storage, borrowed synchronously until its next preparation.
 // Commands retain immutable CPU resources independently of the font cache.
@@ -104,6 +257,25 @@ struct glyph_quad
 
 namespace details
 {
+
+template <typename Draw>
+void draw_image(const image_command& command, rect viewport, Draw&& draw)
+{
+    if(!command.image || command.color.a == 0 || command.bounds.width <= 0 || command.bounds.height <= 0)
+    {
+        return;
+    }
+
+    validate_bitmap(*command.image);
+    const auto bounds = intersection(intersection(command.bounds, command.clip), viewport);
+    if(bounds.width > 0 && bounds.height > 0)
+    {
+        const rect uv{(bounds.x - command.bounds.x) / command.bounds.width,
+                      (bounds.y - command.bounds.y) / command.bounds.height,
+                      bounds.width / command.bounds.width, bounds.height / command.bounds.height};
+        draw(bounds, uv);
+    }
+}
 
 // Shared placement and clipping. Coordinates point down; HB offsets point up.
 // UV coordinates are normalized; command colors use straight RGBA.
@@ -143,9 +315,10 @@ void for_each_glyph(const text_command& command, rect viewport, draw_function&& 
             {
                 throw std::invalid_argument("Glyph pixels do not match their image dimensions");
             }
-            const rect original{command.bounds.x + offset + glyph.x + image.left,
-                                command.bounds.y + shaped.ascender - glyph.y - image.top,
-                                static_cast<float>(image.width), static_cast<float>(image.height)};
+            const auto scale = shaped.raster_scale;
+            const rect original{std::round((command.bounds.x + offset + glyph.x) * scale + image.left) / scale,
+                                std::round((command.bounds.y + shaped.ascender - glyph.y) * scale - image.top) / scale,
+                                image.width / scale, image.height / scale};
             const auto bounds = intersection(original, clip);
             if(bounds.width <= 0 || bounds.height <= 0)
             {

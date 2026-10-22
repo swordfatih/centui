@@ -250,6 +250,8 @@ text_layout font::layout_text(std::string_view text, float size)
                                  x + positions[i].x_offset / 64.0f,
                                  y + positions[i].y_offset / 64.0f,
                                  infos[i].cluster});
+        result.glyphs.back().advance = positions[i].x_advance / 64.0f;
+        result.glyphs.back().origin = x;
 
         x += positions[i].x_advance / 64.0f;
         y += positions[i].y_advance / 64.0f;
@@ -324,7 +326,7 @@ float font::ascender(float size)
 export namespace centui
 {
 
-// Copies share a single-threaded CPU service. No window or graphics context.
+// Copies share font resources and caches; raster scale belongs to each service.
 class text_service
 {
     struct font_entry
@@ -347,6 +349,20 @@ class text_service
 public:
     text_service() : _data(std::make_shared<data>())
     {
+    }
+
+    void set_scale(float value)
+    {
+        if(!std::isfinite(value) || value <= 0)
+        {
+            throw std::invalid_argument("Text scale must be finite and positive");
+        }
+        _scale = value;
+    }
+
+    [[nodiscard]] float scale() const noexcept
+    {
+        return _scale;
     }
 
     explicit text_service(const centui::font& face) : text_service()
@@ -468,22 +484,41 @@ public:
         }
 
         text_layout result;
+        result.raster_scale = _scale;
         const auto metrics = entry.face.layout_text({}, size);
         result.ascender = metrics.ascender;
+        result.line_height = metrics.bounds.height;
         float y = 0;
         const auto append_line = [&](std::string_view line, std::size_t offset)
         {
             auto shaped = entry.face.layout_text(line, size);
             const auto first = result.glyphs.size();
             result.bounds.width = std::max(result.bounds.width, shaped.bounds.width);
+            const bool rtl = shaped.glyphs.size() > 1 && shaped.glyphs.front().cluster > shaped.glyphs.back().cluster;
+            result.carets.push_back({offset, {rtl ? shaped.bounds.width : 0, y}});
+            for(std::size_t index = 0; index < shaped.glyphs.size();)
+            {
+                const auto cluster = shaped.glyphs[index].cluster;
+                float left = shaped.glyphs[index].origin;
+                float right = left;
+                while(index < shaped.glyphs.size() && shaped.glyphs[index].cluster == cluster)
+                {
+                    left = std::min(left, shaped.glyphs[index].origin);
+                    right = std::max(right, shaped.glyphs[index].origin + shaped.glyphs[index].advance);
+                    ++index;
+                }
+
+                result.carets.push_back({offset + cluster, {rtl ? right : left, y}});
+            }
+            result.carets.push_back({offset + line.size(), {rtl ? 0 : shaped.bounds.width, y}});
             for(auto& glyph: shaped.glyphs)
             {
                 glyph.cluster += static_cast<std::uint32_t>(offset);
                 glyph.y -= y;
-                glyph.image = image(entry, glyph.id, size);
+                glyph.image = image(entry, glyph.id, size * _scale);
                 result.glyphs.push_back(std::move(glyph));
             }
-            result.lines.push_back({first, result.glyphs.size(), shaped.bounds.width});
+            result.lines.push_back({first, result.glyphs.size(), shaped.bounds.width, offset, offset + line.size()});
             y += metrics.bounds.height;
         };
 
@@ -615,6 +650,7 @@ private:
     }
 
     std::shared_ptr<data> _data;
+    float _scale = 1;
 };
 
 } // namespace centui

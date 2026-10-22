@@ -215,13 +215,13 @@ public:
     }
 
 private:
-    void begin(std::uint16_t width, std::uint16_t height)
+    void begin(std::uint16_t width, std::uint16_t height, float scale)
     {
         ::bgfx::setViewRect(_view_id, 0, 0, width, height);
         ::bgfx::setViewMode(_view_id, ::bgfx::ViewMode::Sequential);
 
         std::array<float, 16> projection{};
-        bx::mtxOrtho(projection.data(), 0.0f, float(width), float(height), 0.0f, 0.0f, 100.0f, 0.0f, ::bgfx::getCaps()->homogeneousDepth);
+        bx::mtxOrtho(projection.data(), 0.0f, width / scale, height / scale, 0.0f, 0.0f, 100.0f, 0.0f, ::bgfx::getCaps()->homogeneousDepth);
 
         ::bgfx::setViewTransform(_view_id, nullptr, projection.data());
     }
@@ -296,8 +296,8 @@ public:
         {
             return entry.first.expired();
         });
-        begin(static_cast<std::uint16_t>(size.width), static_cast<std::uint16_t>(size.height));
-        const rect clip{0, 0, float(size.width), float(size.height)};
+        begin(static_cast<std::uint16_t>(size.width), static_cast<std::uint16_t>(size.height), size.scale);
+        const rect clip{0, 0, size.logical_width(), size.logical_height()};
         for(const auto& command: list.commands)
         {
             std::visit([&](const auto& item)
@@ -307,11 +307,18 @@ public:
                 {
                     rectangle(intersection(intersection(item.bounds, item.clip), clip), item.color);
                 }
-                else
+                else if constexpr(std::is_same_v<type, text_command>)
                 {
                     details::for_each_glyph(item, clip, [&](const glyph_quad& quad)
                     {
                         glyph(quad.bounds, quad.color, quad.uv, get_glyph(quad.image).get());
+                    });
+                }
+                else
+                {
+                    details::draw_image(item, clip, [&](rect bounds, rect uv)
+                    {
+                        glyph(bounds, item.color, uv, get_glyph(item.image).get());
                     });
                 }
             }, command);
@@ -319,9 +326,9 @@ public:
     }
 
 private:
-    const details::owned_handle<::bgfx::TextureHandle>& get_glyph(const std::shared_ptr<const glyph_bitmap>& bitmap)
+    const details::owned_handle<::bgfx::TextureHandle>& get_glyph(const std::shared_ptr<const bitmap>& bitmap)
     {
-        const std::weak_ptr<const glyph_bitmap> key{bitmap};
+        const std::weak_ptr<const centui::bitmap> key{bitmap};
         if(const auto found = _glyphs.find(key); found != _glyphs.end())
         {
             return found->second;
@@ -342,17 +349,12 @@ private:
         {
             throw std::length_error("Glyph image exceeds bgfx upload size");
         }
-        std::vector<std::uint32_t> pixels;
-        pixels.reserve(bitmap->pixels.size());
-        for(const auto alpha: bitmap->pixels)
-        {
-            pixels.push_back((std::uint32_t(alpha) << 24) | 0x00FFFFFF);
-        }
+        const auto pixels = rgba_pixels(*bitmap);
         details::owned_handle texture{::bgfx::createTexture2D(
             static_cast<std::uint16_t>(bitmap->width), static_cast<std::uint16_t>(bitmap->height),
-            false, 1, ::bgfx::TextureFormat::BGRA8,
+            false, 1, ::bgfx::TextureFormat::RGBA8,
             BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP | BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT,
-            ::bgfx::copy(pixels.data(), static_cast<std::uint32_t>(pixels.size() * sizeof(std::uint32_t))))};
+            ::bgfx::copy(pixels.data(), static_cast<std::uint32_t>(pixels.size())))};
         if(!::bgfx::isValid(texture.get()))
         {
             throw std::runtime_error("Failed to create glyph texture");
@@ -414,7 +416,7 @@ private:
     details::owned_handle<::bgfx::UniformHandle> _sampler;
 
     std::size_t _cache_limit = 1024;
-    std::map<std::weak_ptr<const glyph_bitmap>, details::owned_handle<::bgfx::TextureHandle>, std::owner_less<>> _glyphs;
+    std::map<std::weak_ptr<const bitmap>, details::owned_handle<::bgfx::TextureHandle>, std::owner_less<>> _glyphs;
 };
 
 } // namespace centui::bgfx

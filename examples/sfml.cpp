@@ -4,10 +4,28 @@
 
 #include <SFML/Graphics.hpp>
 
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 import centui.widgets;
 import centui.sfml;
 import centui.types;
 import centui.tree;
+
+float display_scale(const sf::RenderWindow& window)
+{
+#ifdef _WIN32
+    const auto dpi = GetDpiForWindow(window.getNativeHandle());
+    return dpi > 0 ? static_cast<float>(dpi) / 96.0f : 1.0f;
+#else
+    // Supply the platform's display preference when embedding this renderer.
+    return 1.0f;
+#endif
+}
 
 struct panel_style
 {
@@ -48,7 +66,7 @@ int main()
     sf::RenderWindow window{sf::VideoMode{{960, 540}}, "CentUI with SFML"};
     window.setFramerateLimit(60);
 
-    centui::sfml::backend backend{window};
+    centui::sfml::backend backend{window, display_scale(window)};
     centui::ui            ui{backend};
 
     // clang-format off
@@ -73,6 +91,7 @@ int main()
 
     while(window.isOpen())
     {
+        backend.set_scale(display_scale(window));
         while(const auto event = window.pollEvent())
         {
             if(event->is<sf::Event::Closed>())
@@ -86,8 +105,8 @@ int main()
                     document,
                     {
                         .type = centui::input_event_type::pointer_moved,
-                        .x = float(moved->position.x),
-                        .y = float(moved->position.y),
+                        .x = float(moved->position.x) / backend.viewport().scale,
+                        .y = float(moved->position.y) / backend.viewport().scale,
                     });
             }
             else if(const auto* pressed = event->getIf<sf::Event::MouseButtonPressed>())
@@ -98,8 +117,8 @@ int main()
                         document,
                         {
                             .type = centui::input_event_type::pointer_pressed,
-                            .x = float(pressed->position.x),
-                            .y = float(pressed->position.y),
+                            .x = float(pressed->position.x) / backend.viewport().scale,
+                            .y = float(pressed->position.y) / backend.viewport().scale,
                         });
                 }
             }
@@ -111,8 +130,8 @@ int main()
                         document,
                         {
                             .type = centui::input_event_type::pointer_released,
-                            .x = float(released->position.x),
-                            .y = float(released->position.y),
+                            .x = float(released->position.x) / backend.viewport().scale,
+                            .y = float(released->position.y) / backend.viewport().scale,
                         });
                 }
             }

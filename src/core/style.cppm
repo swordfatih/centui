@@ -75,6 +75,10 @@ public:
     float          font_size = 16.0f;
     font_handle    font;
     text_alignment text_align = text_alignment::left;
+    centui::visibility visibility = centui::visibility::visible;
+    centui::overflow overflow = centui::overflow::visible;
+    float border_width = 0;
+    states_color border_color = states_color::all({0, 0, 0, 0});
 
     constexpr bool operator==(const style&) const = default;
 
@@ -143,6 +147,13 @@ public:
         check_enum(align_items, alignment::automatic, alignment::space_evenly);
         check_enum(justify_content, justification::start, justification::space_evenly);
         check_enum(text_align, text_alignment::left, text_alignment::right);
+        check_enum(visibility, centui::visibility::visible, centui::visibility::collapsed);
+        check_enum(overflow, centui::overflow::visible, centui::overflow::scroll);
+
+        if(!std::isfinite(border_width) || border_width < 0)
+        {
+            throw std::invalid_argument("Border width must be finite and nonnegative");
+        }
     }
 
     [[nodiscard]] constexpr invalidation changes_from(const style& previous) const noexcept
@@ -151,10 +162,11 @@ public:
         const bool layout_changed = text_changed || padding != previous.padding || margin != previous.margin ||
             inset != previous.inset || gap != previous.gap || position != previous.position ||
             width != previous.width || height != previous.height || flex_direction != previous.flex_direction ||
-            align_items != previous.align_items || justify_content != previous.justify_content;
+            align_items != previous.align_items || justify_content != previous.justify_content ||
+            visibility != previous.visibility || overflow != previous.overflow || border_width != previous.border_width;
         return {.layout = layout_changed,
                 .paint = layout_changed || background_color != previous.background_color ||
-                         text_color != previous.text_color || text_align != previous.text_align};
+                         text_color != previous.text_color || text_align != previous.text_align || border_color != previous.border_color};
     }
 
 private:
@@ -214,6 +226,10 @@ struct style_patch
     std::optional<float> font_size = std::nullopt;
     std::optional<font_handle> font = std::nullopt;
     std::optional<text_alignment> text_align = std::nullopt;
+    std::optional<centui::visibility> visibility = std::nullopt;
+    std::optional<centui::overflow> overflow = std::nullopt;
+    std::optional<float> border_width = std::nullopt;
+    std::optional<states_color> border_color = std::nullopt;
 
     [[nodiscard]] style apply(style candidate) const
     {

@@ -39,6 +39,7 @@ public:
 
     [[nodiscard]] bool poll_events(document& owner)
     {
+        owner.set_host_services(_window.services());
         if(!_window.poll_events())
         {
             return false;

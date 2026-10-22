@@ -4,8 +4,11 @@ module;
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cmath>
 #include <limits>
 #include <map>
+#include <functional>
+#include <optional>
 #include <memory>
 #include <stdexcept>
 #include <type_traits>
@@ -26,8 +29,18 @@ export namespace centui::sfml
 class backend final : public centui::renderer
 {
 public:
-    explicit backend(::sf::RenderTarget& target) : _target(target)
+    explicit backend(::sf::RenderTarget& target, float scale) : _target(target)
     {
+        set_scale(scale);
+    }
+
+    void set_scale(float value)
+    {
+        if(!std::isfinite(value) || value <= 0)
+        {
+            throw std::invalid_argument("Display scale must be finite and positive");
+        }
+        _scale = value;
     }
 
     ~backend() override = default;
@@ -41,7 +54,7 @@ public:
     {
         const auto size = _target.getSize();
         const auto maximum = static_cast<unsigned int>(std::numeric_limits<int>::max());
-        return {static_cast<int>(std::min(size.x, maximum)), static_cast<int>(std::min(size.y, maximum))};
+        return {static_cast<int>(std::min(size.x, maximum)), static_cast<int>(std::min(size.y, maximum)), _scale};
     }
 
     void clear_cache()
@@ -78,8 +91,8 @@ public:
             }
         } restore{_target, _target.getView()};
         _target.pushGLStates();
-        _target.setView(::sf::View{::sf::FloatRect{{0, 0}, {float(size.width), float(size.height)}}});
-        const rect clip{0, 0, float(size.width), float(size.height)};
+        _target.setView(::sf::View{::sf::FloatRect{{0, 0}, {size.logical_width(), size.logical_height()}}});
+        const rect clip{0, 0, size.logical_width(), size.logical_height()};
         for(const auto& command: list.commands)
         {
             std::visit([&](const auto& item)
@@ -87,13 +100,20 @@ public:
                 using type = std::decay_t<decltype(item)>;
                 if constexpr(std::is_same_v<type, rectangle_command>)
                 {
-                    quad(intersection(intersection(item.bounds, item.clip), clip), item.color, {0, 0, 1, 1}, nullptr);
+                    quad(intersection(intersection(item.bounds, item.clip), clip), item.color, {0, 0, 1, 1}, std::nullopt);
                 }
-                else
+                else if constexpr(std::is_same_v<type, text_command>)
                 {
                     details::for_each_glyph(item, clip, [&](const glyph_quad& glyph)
                     {
-                        quad(glyph.bounds, glyph.color, glyph.uv, &texture(glyph.image));
+                        quad(glyph.bounds, glyph.color, glyph.uv, std::cref(texture(glyph.image)));
+                    });
+                }
+                else
+                {
+                    details::draw_image(item, clip, [&](rect bounds, rect uv)
+                    {
+                        quad(bounds, item.color, uv, std::cref(texture(item.image)));
                     });
                 }
             }, command);
@@ -101,9 +121,9 @@ public:
     }
 
 private:
-    const ::sf::Texture& texture(const std::shared_ptr<const glyph_bitmap>& bitmap)
+    const ::sf::Texture& texture(const std::shared_ptr<const bitmap>& bitmap)
     {
-        const std::weak_ptr<const glyph_bitmap> key{bitmap};
+        const std::weak_ptr<const centui::bitmap> key{bitmap};
         if(const auto found = _images.find(key); found != _images.end())
         {
             return found->second;
@@ -112,18 +132,7 @@ private:
         {
             clear_cache();
         }
-        if(bitmap->pixels.size() > std::numeric_limits<std::size_t>::max() / 4)
-        {
-            throw std::length_error("Glyph image exceeds SFML upload size");
-        }
-        std::vector<std::uint8_t> rgba(bitmap->pixels.size() * 4);
-        for(std::size_t i = 0; i < bitmap->pixels.size(); ++i)
-        {
-            rgba[i * 4] = 255;
-            rgba[i * 4 + 1] = 255;
-            rgba[i * 4 + 2] = 255;
-            rgba[i * 4 + 3] = bitmap->pixels[i];
-        }
+        const auto rgba = rgba_pixels(*bitmap);
         const ::sf::Image image{{static_cast<unsigned int>(bitmap->width), static_cast<unsigned int>(bitmap->height)}, rgba.data()};
         ::sf::Texture texture;
         if(!texture.loadFromImage(image))
@@ -134,13 +143,13 @@ private:
         return _images.emplace(key, std::move(texture)).first->second;
     }
 
-    void quad(rect bounds, color tint, rect uv, const ::sf::Texture* texture)
+    void quad(rect bounds, color tint, rect uv, std::optional<std::reference_wrapper<const ::sf::Texture>> texture)
     {
         if(tint.a == 0 || bounds.width <= 0 || bounds.height <= 0)
         {
             return;
         }
-        const auto size = texture ? texture->getSize() : ::sf::Vector2u{1, 1};
+        const auto size = texture ? texture->get().getSize() : ::sf::Vector2u{1, 1};
         const float u0 = uv.x * size.x;
         const float v0 = uv.y * size.y;
         const float u1 = (uv.x + uv.width) * size.x;
@@ -157,13 +166,14 @@ private:
             ::sf::Vertex{{bounds.x, bottom}, color, {u0, v1}}};
         ::sf::RenderStates states;
         states.blendMode = ::sf::BlendAlpha;
-        states.texture = texture;
+        states.texture = texture ? std::addressof(texture->get()) : nullptr;
         _target.draw(vertices.data(), vertices.size(), ::sf::PrimitiveType::Triangles, states);
     }
 
     ::sf::RenderTarget& _target;
+    float _scale = 1;
     std::size_t _cache_limit = 1024;
-    std::map<std::weak_ptr<const glyph_bitmap>, ::sf::Texture, std::owner_less<>> _images;
+    std::map<std::weak_ptr<const bitmap>, ::sf::Texture, std::owner_less<>> _images;
 };
 
 } // namespace centui::sfml

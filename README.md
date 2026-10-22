@@ -23,6 +23,10 @@ int main()
 
 The styled example in `examples/main.cpp` is unchanged. The `container<Styles...>`, `text<Styles...>`, and `button<Styles...>` handles remain convenient constructors over ordinary widget classes. Style packs resolve into style values at compile time; runtime styles are also accepted. Unknown fields and incompatible property types are rejected. Runtime `patch_style` validates the complete candidate before changing the widget.
 
+`examples/widgets.cpp` demonstrates toggle, range, single-line and multiline input, a selection list inside a scroll container, a composed popup, and caller-advanced easing. Its target is `centui_example_widgets` and requires `CENTUI_BUILD_APP`.
+
+`examples/widgets_static.cpp` presents the same showcase with compile-time style structs and initializer-list composition, like `main.cpp`. The `toggle`, `range`, `selection`, `scroll`, `popup`, and `input` handles accept style packs directly. Constructor options provide initial values and callbacks; runtime operations remain available through `->`. Only widgets referenced elsewhere need named handles. Its target is `centui_example_widgets_static`.
+
 ## Ownership
 
 Widget copies alias one stable object. Parents and handles share ownership; parent and document links are weak. Removing a subtree detaches it; surviving handles remain usable. Document destruction releases its root without invalidating external handles. Empty or moved-from handles reject access.
@@ -62,7 +66,7 @@ Derived containers can use `set_clip_children(true)` to clip descendants to thei
 
 `set_focusable()` is independent of `set_interactive()`. Mounted, effectively enabled focusable widgets can call `request_focus()`, and receive `on_focus_changed(bool)`. A request made in a callback is deferred and revalidated when applied; its return value reports acceptance, not immediate focus. Disabling, detaching, or losing host focus clears focus and notifies the widget. Document destruction silently detaches surviving handles. A primary pointer press focuses a focusable target; other pointer buttons do not change focus.
 
-`bool on_event(const input_event&)` returns whether an event was handled. Uncaptured pointer motion falls back through interactive ancestors until handled. Presses, captured moves, releases, and cancellations belong only to the gesture target; an unhandled gesture does not activate an ancestor. Keyboard/text events and Tab traversal remain future additions.
+`bool on_event(const input_event&)` returns whether an event was handled. Uncaptured pointer motion falls back through interactive ancestors until handled. Presses, captured moves, releases, and cancellations belong only to the gesture target; an unhandled gesture does not activate an ancestor. Keyboard/text events bubble from the focused widget, wheel events from the pointer target. Unhandled Tab traverses focus within the nearest focus scope.
 
 Interactive widgets receive the press, captured moves, and matching release even outside their bounds or the viewport. The document tracks one widget/button pair; extra presses and unmatched releases do not steal or end that gesture. Primary, secondary, and middle buttons can initiate capture. Release ends capture before calling widget code. Built-in buttons recognize clicks themselves: a primary press followed by release over the same visible hit target. Leaving the widget is not cancellation; focus loss or invalidation of the captured target interrupts capture, including invalidation outside event dispatch. Hover and pressed styling remain managed by the document and refresh after geometry or targeting changes beneath a stationary pointer.
 
@@ -95,21 +99,29 @@ public:
 };
 ```
 
-`centui::ui ui{backend};` borrows a renderer and forwards rendering/input to a document. Backends only upload glyph images and draw rectangles/prepared glyph runs. Font selection, shaping, measurement, interaction, and tree traversal belong to the core. See `examples/custom_backend.cpp`.
+`centui::ui ui{backend};` borrows a renderer and forwards rendering/input to a document. Backends upload bitmap resources and draw rectangles, images, and prepared glyph runs. Font selection, shaping, measurement, interaction, and tree traversal belong to the core. See `examples/custom_backend.cpp`.
 
 Draw lists are owned by the document and borrowed until its next preparation or destruction. Commands retain CPU resources while live. Rendering is synchronous; backends must retain anything needed afterward. There is no retained-frame or raw-node API.
 
 The host clears, presents, translates native input, and owns the graphics context. Destroy backend GPU resources before the context. The optional SDL/bgfx `app` handles this order. SFML borrows its render target and restores its view/graphics state.
 
+`viewport{width, height, scale}` describes framebuffer pixels and the effective display scale. Its logical dimensions are derived by division. Layout, draw-command bounds, pointer events, wheel deltas, and text-input areas use logical units. Renderers map these units to the framebuffer; text is rasterized at `font_size * scale`, with glyph origins aligned to physical pixels. Display-scale changes refresh layout and prepared text. Widgets do not manage DPI.
+
+SDL supplies scale automatically and converts native input and IME coordinates. The SFML backend accepts the host's scale in its constructor and through `set_scale()`; its example queries Windows DPI, while other platforms currently use scale 1 and require host integration for automatic DPI detection. Custom hosts must distinguish native window coordinates from CentUI logical coordinates. Text-layout caches must account for `text_service::scale()` as well as font identity and size.
+
 ## Text and rendering scope
 
 System fonts load lazily. Explicit fonts, UTF-8 byte clusters, LF/CRLF, ASCII-space wrapping, line alignment, and content/viewport text clipping are supported. Long words overflow intact and clip. CPU and GPU caches have bounds on cached ownership; live draw resources can retain additional memory.
 
-Coordinates start at the top left with Y downward. Colors use straight RGBA. Widget overflow remains visible outside its parent unless an ancestor opts into descendant clipping. Text content and the viewport are always clipped. Unicode paragraph bidi, fallback-font chains, editable text, keyboard navigation, accessibility, scroll controls, and animations are outside this implementation.
+Coordinates start at the top left with Y downward. Colors use straight RGBA. Styles provide visibility, overflow clipping, and rectangular borders. Scrolling behavior belongs to `scroll_widget`; overflow styling alone does not implement wheel handling or offset limits.
+
+`centui.controls` provides toggle, range, scroll, selection, and popup widgets. `centui.input` provides a single-line or multiline editor with selection, clipboard hooks, composition preview, and undo/redo. Construct these through `make_widget<T>()` and compose ordinary children. The optional `centui.animation` module provides caller-advanced numeric animations; `centui.easing` can be used independently.
+
+The SDL host translates keyboard, text, composition, and wheel input and supplies clipboard/text-input services. The SFML example still translates pointer input only. Full Unicode paragraph bidi, grapheme editing, fallback-font chains, and accessibility remain outside this milestone. See [implementation status](docs/implementation-status.md) for validation and remaining work.
 
 ## Build boundaries and verification
 
-The core uses eight ordinary named modules, without partitions:
+The library uses ordinary named modules, without partitions:
 
 | Module | Responsibility |
 | --- | --- |
@@ -119,7 +131,10 @@ The core uses eight ordinary named modules, without partitions:
 | `centui.font` | Font resources, shaping, glyph caches; produces rendering data |
 | `centui.layout` | Yoga integration |
 | `centui.tree` | Widget, handles, document, painter, and UI facade together |
-| `centui.widgets` | Container, text, and button |
+| `centui.widgets` | Container, text, button, and image |
+| `centui.controls` | Reusable control behavior and composition |
+| `centui.input` | Text editing behavior |
+| `centui.easing`, `centui.animation` | Optional easing functions and caller-advanced values |
 | `centui` | Public umbrella |
 
 SFML, bgfx, window, and app remain separate modules. Widget/document friendship is local to `tree.cppm`. There is no separate `document.cpp` or cross-module accessor bridge.

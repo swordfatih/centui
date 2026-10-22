@@ -1,6 +1,11 @@
 module;
 
 #include <cstdint>
+#include <cstddef>
+#include <functional>
+#include <optional>
+#include <string>
+#include <string_view>
 
 export module centui.types;
 
@@ -54,8 +59,22 @@ export namespace centui
 
 struct viewport
 {
+    // Framebuffer pixels; widget geometry uses logical units.
     int width = 0;
     int height = 0;
+    float scale = 1.0f;
+
+    [[nodiscard]] constexpr float logical_width() const noexcept
+    {
+        return width / scale;
+    }
+
+    [[nodiscard]] constexpr float logical_height() const noexcept
+    {
+        return height / scale;
+    }
+
+    constexpr bool operator==(const viewport&) const = default;
 };
 
 enum class input_event_type
@@ -66,7 +85,26 @@ enum class input_event_type
     pointer_left,
     pointer_cancelled,
     focus_lost,
-    focus_gained
+    focus_gained,
+    wheel,
+    key_pressed,
+    key_released,
+    text_entered,
+    composition
+};
+
+enum class key
+{
+    unknown, tab, enter, space, escape, left, right, up, down,
+    home, end, page_up, page_down, backspace, delete_, a, c, v, x, y, z
+};
+
+struct modifiers
+{
+    bool shift = false;
+    bool control = false;
+    bool alt = false;
+    bool system = false;
 };
 
 enum class mouse_button
@@ -83,6 +121,14 @@ struct input_event
     float x = 0;
     float y = 0;
     mouse_button button = mouse_button::primary;
+    centui::key code = key::unknown;
+    modifiers mods{};
+    bool repeat = false;
+    float delta_x = 0;
+    float delta_y = 0;
+    std::string text{};
+    std::size_t selection_start = 0;
+    std::size_t selection_length = 0;
 };
 
 struct rect
@@ -105,6 +151,27 @@ struct vec2
     float x = 0;
     float y = 0;
     constexpr bool operator==(const vec2&) const = default;
+};
+
+struct host_services
+{
+    std::function<std::string()> read_clipboard;
+    std::function<void(std::string_view)> write_clipboard;
+    std::function<void(std::optional<rect>)> text_input;
+};
+
+enum class visibility
+{
+    visible,
+    hidden,
+    collapsed
+};
+
+enum class overflow
+{
+    visible,
+    clip,
+    scroll
 };
 
 enum class constraint_mode
