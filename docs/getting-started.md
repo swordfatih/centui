@@ -13,7 +13,7 @@ CentUI uses C++26 modules and static reflection. You need CMake 4.3 or newer, Ni
 From the repository root:
 
 ```sh
-cmake -S . -B build -G Ninja -DCENTUI_BUILD_SFML=OFF -DCENTUI_BUILD_TESTS=OFF
+cmake -S . -B build -G Ninja -DCENTUI_BUILD_SFML=OFF -DCENTUI_BUILD_GLFW=OFF -DCENTUI_BUILD_TESTS=OFF
 cmake --build build --target centui_example_getting_started
 ```
 

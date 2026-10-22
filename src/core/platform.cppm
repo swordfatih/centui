@@ -16,6 +16,22 @@ struct window_options
     int height = 600;
 };
 
+enum class native_window_system
+{
+    win32,
+    cocoa,
+    android,
+    x11,
+    wayland
+};
+
+struct native_window_handles
+{
+    void* window = nullptr;
+    void* display = nullptr;
+    native_window_system system = native_window_system::win32;
+};
+
 class platform
 {
 public:

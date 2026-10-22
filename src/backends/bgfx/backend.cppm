@@ -169,7 +169,9 @@ private:
         const auto handles = host.native_handles();
         init.swapChain.nwh = handles.window;
         init.swapChain.ndt = handles.display;
-        init.platformData.type = handles.wayland ? ::bgfx::NativeWindowHandleType::Wayland : ::bgfx::NativeWindowHandleType::Default;
+        init.platformData.type = handles.system == native_window_system::wayland
+                                     ? ::bgfx::NativeWindowHandleType::Wayland
+                                     : ::bgfx::NativeWindowHandleType::Default;
         if(!init.swapChain.nwh || size.width <= 0 || size.height <= 0)
         {
             throw std::invalid_argument("bgfx requires a native window with positive dimensions");

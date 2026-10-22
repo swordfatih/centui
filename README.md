@@ -2,7 +2,9 @@
 
 CentUI is a small C++26 library for building interfaces from ordinary widgets. Compose a tree, give it a style, and connect callbacks to your application state. SDL/bgfx and SFML integrations let you draw in a CentUI window or over one you already own.
 
-![CentUI Studio showcase](docs/assets/showcase.png)
+<p align="center">
+  <img src="docs/assets/showcase.png" alt="CentUI Studio showcase" width="600">
+</p>
 
 ```cpp
 #include <filesystem>
@@ -39,10 +41,10 @@ Run this from the repository root so the font path resolves. For a styled counte
 You need CMake 4.3+, Ninja, and a C++26 compiler and standard library with static reflection support (`-freflection`). CMake fetches the native dependencies during configuration.
 
 ```sh
-cmake -S . -B build -G Ninja -DCENTUI_BUILD_SFML=OFF -DCENTUI_BUILD_TESTS=OFF
+cmake -S . -B build -G Ninja -DCENTUI_BUILD_SFML=OFF -DCENTUI_BUILD_GLFW=OFF -DCENTUI_BUILD_TESTS=OFF
 cmake --build build --target centui_example_getting_started
 ```
 
-The executable is in `build/examples/getting_started/`. Other examples include a [complete interface built as a nested tree](examples/gui_static/main.cpp), [the same interface built with helpers](examples/gui_dynamic/main.cpp), and overlays using a [borrowed SDL renderer](examples/hud_sdl/main.cpp) or [SFML window](examples/hud_sfml/main.cpp).
+The executable is in `build/examples/getting_started/`. Other examples include a [complete interface built as a nested tree](examples/gui_static/main.cpp), [the same interface built with helpers](examples/gui_dynamic/main.cpp), and SDL, SFML, and GLFW overlays in [hud_sdl](examples/hud_sdl/main.cpp), [hud_sfml](examples/hud_sfml/main.cpp), and [hud_glfw](examples/hud_glfw/main.cpp).
 
 CentUI is still evolving. Start with the [getting started guide](docs/getting-started.md), then explore [widgets and styles](docs/widgets-and-styles.md), [custom widgets](docs/extending.md), or [window and renderer integration](docs/backends.md).

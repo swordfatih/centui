@@ -68,13 +68,6 @@ using window_ptr = std::unique_ptr<SDL_Window, window_deleter>;
 export namespace centui::sdl
 {
 
-struct native_window_handles
-{
-    void* window = nullptr;
-    void* display = nullptr;
-    bool wayland = false;
-};
-
 class platform final : public centui::platform
 {
 public:
@@ -359,7 +352,7 @@ public:
         return _window;
     }
 
-    [[nodiscard]] native_window_handles native_handles() const
+    [[nodiscard]] centui::native_window_handles native_handles() const
     {
         const auto properties = SDL_GetWindowProperties(std::addressof(_window));
         if(properties == 0)
@@ -367,14 +360,17 @@ public:
             throw std::runtime_error(SDL_GetError());
         }
 
-        for(const auto property: {SDL_PROP_WINDOW_WIN32_HWND_POINTER,
-                                  SDL_PROP_WINDOW_COCOA_WINDOW_POINTER,
-                                  SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER})
+        if(const auto window = SDL_GetPointerProperty(properties, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr))
         {
-            if(const auto window = SDL_GetPointerProperty(properties, property, nullptr))
-            {
-                return {window};
-            }
+            return {window, nullptr, native_window_system::win32};
+        }
+        if(const auto window = SDL_GetPointerProperty(properties, SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, nullptr))
+        {
+            return {window, nullptr, native_window_system::cocoa};
+        }
+        if(const auto window = SDL_GetPointerProperty(properties, SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER, nullptr))
+        {
+            return {window, nullptr, native_window_system::android};
         }
 
         if(const auto window = SDL_GetPointerProperty(properties, SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, nullptr))
@@ -384,7 +380,7 @@ public:
             {
                 throw std::runtime_error("SDL did not expose the Wayland display");
             }
-            return {window, display, true};
+            return {window, display, native_window_system::wayland};
         }
 
         const auto window = SDL_GetNumberProperty(properties, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0);
@@ -395,7 +391,7 @@ public:
             {
                 throw std::runtime_error("SDL did not expose the X11 display");
             }
-            return {reinterpret_cast<void*>(static_cast<std::uintptr_t>(window)), display};
+            return {reinterpret_cast<void*>(static_cast<std::uintptr_t>(window)), display, native_window_system::x11};
         }
 
         throw std::runtime_error("SDL video driver has no supported native window properties");

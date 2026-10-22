@@ -20,6 +20,7 @@ option(CENTUI_BUILD_BGFX "Build the bgfx backend and shaders" ON)
 option(CENTUI_BUILD_SFML "Build the SFML backend" ON)
 option(CENTUI_BUILD_SDL "Build the SDL platform" ON)
 option(CENTUI_BUILD_SDL_RENDERER "Build the SDL renderer backend" ON)
+option(CENTUI_BUILD_GLFW "Build the GLFW platform" ON)
 
 include(FetchContent)
 
@@ -68,6 +69,9 @@ if(CENTUI_BUILD_SDL)
 endif()
 if(CENTUI_BUILD_SDL AND CENTUI_BUILD_SDL_RENDERER)
     add_subdirectory(src/backends/sdl)
+endif()
+if(CENTUI_BUILD_GLFW)
+    add_subdirectory(src/platforms/glfw)
 endif()
 
 # ------------------------
