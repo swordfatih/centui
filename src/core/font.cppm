@@ -1,14 +1,12 @@
 module;
 
 #include <algorithm>
-#include <atomic>
 #include <map>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
 #include <filesystem>
-#include <initializer_list>
+#include <optional>
 #include <limits>
 #include <memory>
 #include <stdexcept>
@@ -33,12 +31,11 @@ export namespace centui
 class font
 {
 public:
-    font();
     explicit font(const std::filesystem::path& path);
     ~font();
 
-    font(const font&) = delete;
-    font& operator=(const font&) = delete;
+    font(const font&);
+    font& operator=(const font&);
 
     font(font&&) noexcept;
     font& operator=(font&&) noexcept;
@@ -50,22 +47,12 @@ public:
     [[nodiscard]] glyph_bitmap              rasterize(std::uint32_t id, float size);
     [[nodiscard]] float                     ascender(float size);
 
-    // Identifies the font data across moves without retaining native resources.
     [[nodiscard]] std::shared_ptr<const void> identity() const;
-
-    // Share native data with CPU preparation without changing move-only handles.
-    [[nodiscard]] font share() const
-    {
-        (void)state();
-        return font{_data};
-    }
+    bool operator==(const font&) const = default;
 
 private:
     struct data;
     [[nodiscard]] data& state() const;
-    explicit font(std::shared_ptr<data> value) : _data(std::move(value))
-    {
-    }
 
     std::shared_ptr<data> _data;
 };
@@ -122,42 +109,6 @@ struct font::data
     }
 };
 
-namespace details
-{
-
-std::filesystem::path default_font_path()
-{
-#ifdef _WIN32
-    const auto* windows = std::getenv("WINDIR");
-    return (windows ? std::filesystem::path{windows} : std::filesystem::path{"C:\\Windows"}) / "Fonts" / "segoeui.ttf";
-#elif defined(__APPLE__)
-    for(const auto* path: {"/System/Library/Fonts/SFNS.ttf", "/System/Library/Fonts/Helvetica.ttc"})
-    {
-        if(std::filesystem::exists(path))
-        {
-            return path;
-        }
-    }
-#else
-    for(const auto* path: {"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-                          "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
-                          "/usr/share/fonts/TTF/DejaVuSans.ttf"})
-    {
-        if(std::filesystem::exists(path))
-        {
-            return path;
-        }
-    }
-#endif
-    throw std::runtime_error("No default system font found; supply a font file explicitly");
-}
-
-} // namespace details
-
-font::font() : font(details::default_font_path())
-{
-}
-
 font::font(const std::filesystem::path& path) : _data(std::make_shared<data>())
 {
     if(FT_Init_FreeType(std::out_ptr(_data->library)))
@@ -184,6 +135,8 @@ font::font(const std::filesystem::path& path) : _data(std::make_shared<data>())
 }
 
 font::~font() = default;
+font::font(const font&) = default;
+font& font::operator=(const font&) = default;
 
 font::font(font&&) noexcept = default;
 font& font::operator=(font&&) noexcept = default;
@@ -329,19 +282,13 @@ export namespace centui
 // Copies share font resources and caches; raster scale belongs to each service.
 class text_service
 {
-    struct font_entry
-    {
-        centui::font face;
-        std::map<std::pair<float, std::uint32_t>, std::shared_ptr<const glyph_bitmap>> images;
-    };
+    using image_cache = std::map<std::pair<float, std::uint32_t>, std::shared_ptr<const glyph_bitmap>>;
 
     struct data
     {
         std::shared_ptr<const void> revision = std::make_shared<const int>(0);
-        std::map<std::uint64_t, font_entry> fonts;
-        font_handle default_font;
-        font_handle shared_font;
-        bool system_default = true;
+        std::map<std::shared_ptr<const void>, image_cache> images;
+        std::optional<centui::font> default_font;
         std::size_t cache_budget = 8 * 1024 * 1024;
         std::size_t cache_bytes = 0;
     };
@@ -367,78 +314,19 @@ public:
 
     explicit text_service(const centui::font& face) : text_service()
     {
-        set_default_font(face);
+        set_font(face);
     }
 
-    [[nodiscard]] font_handle load_font(const std::filesystem::path& path)
-    {
-        return add_font(centui::font{path});
-    }
-
-    [[nodiscard]] font_handle add_font(centui::font face)
+    void set_font(const centui::font& face)
     {
         (void)face.identity();
-        static std::atomic<std::uint64_t> next{1};
-        auto id = next.load(std::memory_order_relaxed);
-        do
-        {
-            if(id == std::numeric_limits<std::uint64_t>::max())
-            {
-                throw std::overflow_error("Font identity space exhausted");
-            }
-        } while(!next.compare_exchange_weak(id, id + 1, std::memory_order_relaxed));
-
-        auto revision = std::make_shared<const int>(0);
-        _data->fonts.emplace(id, font_entry{std::move(face), {}});
-        _data->revision = std::move(revision);
-        return {id};
-    }
-
-    void set_default_font(font_handle handle)
-    {
-        (void)find(handle, false);
-        if(_data->default_font == handle)
+        if(_data->default_font == face)
         {
             return;
         }
-        auto revision = std::make_shared<const int>(0);
-        _data->default_font = handle;
-        _data->revision = std::move(revision);
-    }
 
-    void set_default_font(const centui::font& face)
-    {
-        const auto identity = face.identity();
-        if(_data->default_font.value != 0 && find(_data->default_font).face.identity() == identity)
-        {
-            return;
-        }
-        const auto previous = _data->shared_font;
-        const auto handle = add_font(face.share());
-        set_default_font(handle);
-        if(previous.value != 0)
-        {
-            remove_font(previous);
-        }
-        _data->shared_font = handle;
-    }
-
-    // Load replacement data under a new handle; existing styles opt in explicitly.
-    void remove_font(font_handle handle)
-    {
-        (void)find(handle, false);
         auto revision = std::make_shared<const int>(0);
-        clear_cache();
-        _data->fonts.erase(handle.value);
-        if(_data->default_font == handle)
-        {
-            _data->default_font = {};
-            _data->system_default = false;
-        }
-        if(_data->shared_font == handle)
-        {
-            _data->shared_font = {};
-        }
+        _data->default_font = face;
         _data->revision = std::move(revision);
     }
 
@@ -447,17 +335,14 @@ public:
         return _data->revision;
     }
 
-    [[nodiscard]] std::shared_ptr<const void> font_identity(font_handle handle = {}) const
+    [[nodiscard]] std::shared_ptr<const void> font_identity(const std::optional<centui::font>& face = std::nullopt) const
     {
-        return find(handle).face.identity();
+        return resolve(face).identity();
     }
 
     void clear_cache()
     {
-        for(auto& [id, entry]: _data->fonts)
-        {
-            entry.images.clear();
-        }
+        _data->images.clear();
         _data->cache_bytes = 0;
     }
 
@@ -471,9 +356,9 @@ public:
     // Shape selected lines again, preserving contextual shaping at line edges.
     [[nodiscard]] text_layout layout_text(std::string_view value, float size,
                                           float width = std::numeric_limits<float>::infinity(),
-                                          font_handle handle = {}) const
+                                          const std::optional<centui::font>& face = std::nullopt) const
     {
-        auto& entry = find(handle);
+        auto selected = resolve(face);
         if(std::isnan(width) || width < 0)
         {
             throw std::invalid_argument("Text width must be nonnegative");
@@ -485,13 +370,13 @@ public:
 
         text_layout result;
         result.raster_scale = _scale;
-        const auto metrics = entry.face.layout_text({}, size);
+        const auto metrics = selected.layout_text({}, size);
         result.ascender = metrics.ascender;
         result.line_height = metrics.bounds.height;
         float y = 0;
         const auto append_line = [&](std::string_view line, std::size_t offset)
         {
-            auto shaped = entry.face.layout_text(line, size);
+            auto shaped = selected.layout_text(line, size);
             const auto first = result.glyphs.size();
             result.bounds.width = std::max(result.bounds.width, shaped.bounds.width);
             const bool rtl = shaped.glyphs.size() > 1 && shaped.glyphs.front().cluster > shaped.glyphs.back().cluster;
@@ -515,7 +400,7 @@ public:
             {
                 glyph.cluster += static_cast<std::uint32_t>(offset);
                 glyph.y -= y;
-                glyph.image = image(entry, glyph.id, size * _scale);
+                glyph.image = image(selected, glyph.id, size * _scale);
                 result.glyphs.push_back(std::move(glyph));
             }
             result.lines.push_back({first, result.glyphs.size(), shaped.bounds.width, offset, offset + line.size()});
@@ -537,7 +422,7 @@ public:
             }
 
             std::size_t begin = 0;
-            if(!paragraph.empty() && (!std::isfinite(width) || entry.face.measure(paragraph, size).width <= width))
+            if(!paragraph.empty() && (!std::isfinite(width) || selected.measure(paragraph, size).width <= width))
             {
                 append_line(paragraph, paragraph_begin);
                 begin = paragraph.size();
@@ -550,7 +435,7 @@ public:
                 {
                     const auto space = paragraph.find(' ', cursor);
                     const auto candidate = space == std::string_view::npos ? paragraph.size() : space;
-                    const auto bounds = entry.face.measure(paragraph.substr(begin, candidate - begin), size);
+                    const auto bounds = selected.measure(paragraph.substr(begin, candidate - begin), size);
                     if(bounds.width > width && best > begin)
                     {
                         break;
@@ -590,10 +475,10 @@ public:
 
     // The caller may retain this layout across preparations and cache eviction.
     [[nodiscard]] std::shared_ptr<const text_layout> prepare(
-        std::string_view value, font_handle handle, float size,
+        std::string_view value, const std::optional<centui::font>& face, float size,
         float width = std::numeric_limits<float>::infinity()) const
     {
-        return std::make_shared<const text_layout>(layout_text(value, size, width, handle));
+        return std::make_shared<const text_layout>(layout_text(value, size, width, face));
     }
 
     [[nodiscard]] rect measure(std::string_view value, float size) const
@@ -602,33 +487,29 @@ public:
     }
 
 private:
-    font_entry& find(font_handle handle, bool use_default = true) const
+    const centui::font& resolve(const std::optional<centui::font>& face) const
     {
-        if(use_default && handle.value == 0)
+        const auto& selected = face ? face : _data->default_font;
+        if(!selected)
         {
-            if(_data->default_font.value == 0 && _data->system_default)
-            {
-                auto shared = *this;
-                shared.set_default_font(centui::font{});
-            }
-            handle = _data->default_font;
+            throw std::logic_error("Text requires a font; set the document font or style.font");
         }
-        const auto found = _data->fonts.find(handle.value);
-        if(found == _data->fonts.end())
-        {
-            throw std::invalid_argument("Font is unavailable in this text service");
-        }
-        return found->second;
+        (void)selected->identity();
+        return *selected;
     }
 
-    std::shared_ptr<const glyph_bitmap> image(font_entry& entry, std::uint32_t glyph, float size) const
+    std::shared_ptr<const glyph_bitmap> image(centui::font& face, std::uint32_t glyph, float size) const
     {
+        const auto identity = face.identity();
         const auto key = std::pair{size, glyph};
-        if(const auto found = entry.images.find(key); found != entry.images.end())
+        if(const auto images = _data->images.find(identity); images != _data->images.end())
         {
-            return found->second;
+            if(const auto found = images->second.find(key); found != images->second.end())
+            {
+                return found->second;
+            }
         }
-        auto output = std::make_shared<const glyph_bitmap>(entry.face.rasterize(glyph, size));
+        auto output = std::make_shared<const glyph_bitmap>(face.rasterize(glyph, size));
         constexpr auto overhead = sizeof(glyph_bitmap) + 128;
         if(_data->cache_budget < overhead || output->pixels.size() > _data->cache_budget - overhead)
         {
@@ -638,13 +519,10 @@ private:
         if(_data->cache_bytes > _data->cache_budget - bytes)
         {
             // Cached ownership is bounded; live draw lists retain their immutable images.
-            for(auto& [id, current]: _data->fonts)
-            {
-                current.images.clear();
-            }
+            _data->images.clear();
             _data->cache_bytes = 0;
         }
-        entry.images.emplace(key, output);
+        _data->images[identity].emplace(key, output);
         _data->cache_bytes += bytes;
         return output;
     }

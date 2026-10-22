@@ -1,3 +1,4 @@
+#include <filesystem>
 #include <chrono>
 #include <cstddef>
 #include <format>
@@ -122,6 +123,7 @@ int main()
     root->append(popup);
 
     centui::document document{root};
+    document.set_font(centui::font{CENTUI_FONT_PATH});
     centui::animation<float> reveal{0, 100, std::chrono::duration<float>{1.2f}, centui::easing::curve::out_cubic};
     auto previous = std::chrono::steady_clock::now();
     while(platform.poll_events())

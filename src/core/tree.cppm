@@ -197,6 +197,17 @@ public:
     {
         return _style;
     }
+
+    [[nodiscard]] centui::style resolved_style() const
+    {
+        auto result = _style;
+        for(auto ancestor = _parent.lock(); !result.font && ancestor; ancestor = ancestor->_parent.lock())
+        {
+            result.font = ancestor->_style.font;
+        }
+        return result;
+    }
+
     [[nodiscard]] rect content_bounds() const noexcept
     {
         return _content;
@@ -635,6 +646,17 @@ public:
     [[nodiscard]] text_service& fonts() noexcept
     {
         return _fonts;
+    }
+
+    void set_font(const centui::font& face)
+    {
+        _context->check_mutation();
+        const auto revision = _fonts.identity();
+        _fonts.set_font(face);
+        if(revision != _fonts.identity())
+        {
+            dirty_tree();
+        }
     }
 
     void set_host_services(std::shared_ptr<const host_services> services)
@@ -1162,7 +1184,8 @@ private:
                                                                     : value._hovered   ? details::visual_state::hovered
                                                                     : value._focused   ? details::visual_state::focused
                                                                                        : details::visual_state::normal;
-        painter    background{output, _fonts, value._bounds, clip, value._style, state};
+        const auto appearance = value.resolved_style();
+        painter background{output, _fonts, value._bounds, clip, appearance, state};
         background.rectangle(value._bounds, details::state_color(value._style.background_color, state));
         const auto border = details::state_color(value._style.border_color, state);
         const auto width = std::min(value._style.border_width, std::min(value._bounds.width, value._bounds.height) / 2);
@@ -1174,7 +1197,7 @@ private:
             background.rectangle({box.x, box.y + width, width, box.height - 2 * width}, border);
             background.rectangle({box.x + box.width - width, box.y + width, width, box.height - 2 * width}, border);
         }
-        painter content{output, _fonts, value._content, intersection(clip, value._content), value._style, state};
+        painter content{output, _fonts, value._content, intersection(clip, value._content), appearance, state};
         value.paint(content);
         const auto child_clip = value._clip_children || value._style.overflow != overflow::visible ? intersection(clip, value._content) : clip;
         for(const auto& child: value._children)

@@ -24,7 +24,7 @@ struct my_second_style
 
 TEST_CASE("Resolve style from struct", "[style]")
 {
-    constexpr auto style = centui::style::resolve<my_style>();
+    const auto style = centui::style::resolve<my_style>();
 
     REQUIRE(style.gap == centui::length{20, centui::unit::px});
     REQUIRE(style.padding == centui::edges::all(centui::px(20)));
@@ -32,7 +32,7 @@ TEST_CASE("Resolve style from struct", "[style]")
 
 TEST_CASE("Resolve multiple styles", "[style]")
 {
-    constexpr auto style = centui::style::resolve<my_style, my_second_style>();
+    const auto style = centui::style::resolve<my_style, my_second_style>();
 
     REQUIRE(style.gap == centui::length{30, centui::unit::px});
     REQUIRE(style.position == centui::position::absolute);
@@ -52,9 +52,9 @@ TEST_CASE("Partial state overrides retain unspecified colors", "[style]")
             centui::color hover = centui::color::from_hex(0x123456);
         } background_color;
     };
-    constexpr auto appearance = centui::style::resolve<partial>();
-    STATIC_REQUIRE(appearance.background_color.hover == centui::color::from_hex(0x123456));
-    STATIC_REQUIRE(appearance.background_color.normal.a == 0);
+    const auto appearance = centui::style::resolve<partial>();
+    REQUIRE(appearance.background_color.hover == centui::color::from_hex(0x123456));
+    REQUIRE(appearance.background_color.normal.a == 0);
 }
 
 TEST_CASE("Style patches validate atomically and classify changes", "[style]")

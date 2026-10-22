@@ -2,16 +2,21 @@
 #include <filesystem>
 #include <initializer_list>
 #include <limits>
+#include <memory>
+#include <optional>
 #include <stdexcept>
 #include <utility>
 
 #include <catch2/catch_test_macros.hpp>
 
-import centui.font;
+#include "test_font.hpp"
 
-TEST_CASE("Measure system font", "[font]")
+import centui.font;
+import centui.widgets;
+
+TEST_CASE("Measure bundled font", "[font]")
 {
-    centui::font font;
+    centui::font font{test_font_path()};
 
     const auto short_text = font.measure("Hello", 16);
     const auto long_text = font.measure("Hello world", 16);
@@ -23,7 +28,7 @@ TEST_CASE("Measure system font", "[font]")
 
 TEST_CASE("Measure text at different sizes", "[font]")
 {
-    centui::font font;
+    centui::font font{test_font_path()};
 
     const auto small = font.measure("Hello", 12);
     const auto large = font.measure("Hello", 24);
@@ -34,7 +39,7 @@ TEST_CASE("Measure text at different sizes", "[font]")
 
 TEST_CASE("Text layout supplies measurement and glyph positions", "[font]")
 {
-    centui::font face;
+    centui::font face{test_font_path()};
 
     for(const auto text: {"", "Hello", "office", "\xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7"})
     {
@@ -58,7 +63,7 @@ TEST_CASE("Text layout supplies measurement and glyph positions", "[font]")
 
 TEST_CASE("Font operations reject invalid sizes", "[font]")
 {
-    centui::font face;
+    centui::font face{test_font_path()};
 
     for(const auto size: {0.0f, -1.0f, std::numeric_limits<float>::infinity(),
                          std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::max()})
@@ -73,12 +78,69 @@ TEST_CASE("Font operations reject invalid sizes", "[font]")
 
 TEST_CASE("Font resources remain usable after ownership transfer", "[font]")
 {
-    centui::font original;
+    centui::font original{test_font_path()};
     const auto expected = original.measure("Hello", 16);
     auto moved = std::move(original);
     REQUIRE(moved.measure("Hello", 16).width == expected.width);
-    centui::font replacement;
+    centui::font replacement{test_font_path()};
     replacement = std::move(moved);
     REQUIRE(replacement.measure("Hello", 16).width == expected.width);
     REQUIRE_THROWS_AS(centui::font(std::filesystem::path{"centui-missing-font-for-test.ttf"}), std::runtime_error);
+}
+
+TEST_CASE("Font copies share resources and styles retain ownership", "[font]")
+{
+    auto appearance = []
+    {
+        centui::font original{test_font_path()};
+        const auto copy = original;
+        REQUIRE(copy == original);
+        REQUIRE(copy.identity() == original.identity());
+        return centui::style{.font = copy};
+    }();
+
+    REQUIRE(appearance.font->measure("Retained", 16).width > 0);
+}
+
+TEST_CASE("Fonts inherit through containers and explicit styles override them", "[font]")
+{
+    const centui::font parent_font{test_font_path()};
+    const centui::font override_font{test_font_path()};
+    auto label = centui::text{"Inherited"};
+    auto parent = centui::container{label};
+    parent->patch_style({.font = parent_font});
+    centui::document document{parent};
+
+    REQUIRE(label->resolved_style().font == parent_font);
+    REQUIRE_NOTHROW(document.prepare({200, 100}));
+
+    label->patch_style({.font = override_font});
+    REQUIRE(label->resolved_style().font == override_font);
+    REQUIRE_NOTHROW(document.prepare({200, 100}));
+
+    label->patch_style({.font = std::optional<centui::font>{}});
+    REQUIRE(label->resolved_style().font == parent_font);
+    parent->patch_style({.font = override_font});
+    REQUIRE(document.pending_changes().layout);
+    REQUIRE(label->resolved_style().font == override_font);
+    REQUIRE_NOTHROW(document.prepare({200, 100}));
+}
+
+TEST_CASE("Only text requires a font and document font changes invalidate layout", "[font]")
+{
+    centui::document empty;
+    REQUIRE_NOTHROW(empty.prepare({200, 100}));
+
+    centui::document document{centui::text{"Explicit font"}};
+    REQUIRE_THROWS_AS(document.prepare({200, 100}), std::logic_error);
+
+    const centui::font face{test_font_path()};
+    document.set_font(face);
+    REQUIRE_NOTHROW(document.prepare({200, 100}));
+    document.set_font(face);
+    REQUIRE_FALSE(document.pending_changes().layout);
+
+    document.set_font(centui::font{test_font_path()});
+    REQUIRE(document.pending_changes().layout);
+    REQUIRE_NOTHROW(document.prepare({200, 100}));
 }

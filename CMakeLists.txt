@@ -69,6 +69,19 @@ endif()
 # ------------------------
 # Examples
 # ------------------------
+function(centui_font_asset target)
+    # Font and license from https://github.com/rsms/inter/releases/tag/v4.1.
+    set(font_directory "$<TARGET_FILE_DIR:${target}>/assets/fonts")
+    target_compile_definitions(${target} PRIVATE CENTUI_FONT_PATH="${font_directory}/Inter-Regular.ttf")
+    add_custom_command(TARGET ${target} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${font_directory}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${PROJECT_SOURCE_DIR}/assets/fonts/Inter-Regular.ttf"
+            "${PROJECT_SOURCE_DIR}/assets/fonts/LICENSE.txt"
+            "${font_directory}"
+        VERBATIM)
+endfunction()
+
 if(BUILD_EXAMPLES)
     file(GLOB example_sources CONFIGURE_DEPENDS "${PROJECT_SOURCE_DIR}/examples/*.cpp")
     foreach(example_source IN LISTS example_sources)
@@ -82,6 +95,7 @@ if(BUILD_EXAMPLES)
         endif()
         set(example_target "${PROJECT_NAME}_example_${example_name}")
         add_executable(${example_target} "${example_source}")
+        centui_font_asset(${example_target})
         target_link_libraries(${example_target} PRIVATE ${PROJECT_NAME}::${PROJECT_NAME} ${PROJECT_NAME}_config)
         if(example_name STREQUAL "main" OR example_name STREQUAL "widgets" OR example_name STREQUAL "widgets_static")
             target_link_libraries(${example_target} PRIVATE centui::sdl centui::bgfx)
@@ -99,6 +113,7 @@ if(BUILD_TESTS)
     if(test_sources)
         set(test_target "${PROJECT_NAME}_tests")
         add_executable(${test_target} ${test_sources})
+        centui_font_asset(${test_target})
         target_link_libraries(${test_target} PRIVATE ${PROJECT_NAME}::${PROJECT_NAME} ${PROJECT_NAME}_config Catch2::Catch2WithMain)
         include(${catch2_SOURCE_DIR}/extras/Catch.cmake)
         catch_discover_tests(${test_target})

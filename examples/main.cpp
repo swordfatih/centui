@@ -1,3 +1,4 @@
+#include <filesystem>
 #include <format>
 #include <functional>
 #include <initializer_list>
@@ -80,5 +81,6 @@ int main()
     // clang-format on
 
     centui::document document{root};
+    document.set_font(centui::font{CENTUI_FONT_PATH});
     centui::run(platform, renderer, document);
 }

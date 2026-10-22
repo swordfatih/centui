@@ -458,7 +458,8 @@ private:
 
     void prepare_text(text_service& service, float width) const
     {
-        const auto identity = service.font_identity(style().font);
+        const auto appearance = resolved_style();
+        const auto identity = service.font_identity(appearance.font);
         if(_layout && _font_identity == identity && _font_size == style().font_size && _width == width &&
            _layout->raster_scale == service.scale())
         {
@@ -472,7 +473,7 @@ private:
             text.replace(begin, end - begin, _preedit);
         }
 
-        _layout = service.prepare(text, style().font, style().font_size, width);
+        _layout = service.prepare(text, appearance.font, appearance.font_size, width);
         _font_identity = identity;
         _font_size = style().font_size;
         _width = width;

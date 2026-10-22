@@ -187,11 +187,11 @@ public:
 protected:
     size measure(const measure_context& context) override
     {
-        return _text.measure(context, style());
+        return _text.measure(context, resolved_style());
     }
     void paint(painter& output) const override
     {
-        _text.paint(output, style());
+        _text.paint(output, resolved_style());
     }
 
 private:
@@ -330,11 +330,11 @@ public:
 protected:
     size measure(const measure_context& context) override
     {
-        return _text.measure(context, style());
+        return _text.measure(context, resolved_style());
     }
     void paint(painter& output) const override
     {
-        _text.paint(output, style());
+        _text.paint(output, resolved_style());
     }
 
 private:

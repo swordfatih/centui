@@ -40,7 +40,7 @@ TEST_CASE("Documents refresh text caches and hit test in logical coordinates", "
     auto root = centui::container{action};
     root->patch_style({.width = centui::percent(100), .height = centui::percent(100)});
     centui::document document{root};
-    document.fonts().set_default_font(centui::font{test_font_path()});
+    document.set_font(centui::font{test_font_path()});
 
     (void)document.prepare({200, 100, 1});
     const auto& dense = document.prepare({400, 200, 2});

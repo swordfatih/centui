@@ -355,10 +355,11 @@ public:
 protected:
     size measure(const measure_context& context) override
     {
+        const auto appearance = resolved_style();
         float width = 0;
         for(const auto& item: _items)
         {
-            width = std::max(width, context.text.prepare(item, style().font, style().font_size)->bounds.width);
+            width = std::max(width, context.text.prepare(item, appearance.font, appearance.font_size)->bounds.width);
         }
 
         return {width, row_height() * _items.size()};
@@ -366,6 +367,7 @@ protected:
 
     void paint(painter& output) const override
     {
+        const auto appearance = resolved_style();
         auto row = output.bounds();
         row.height = row_height();
         for(std::size_t index = 0; index < _items.size(); ++index)
@@ -377,7 +379,7 @@ protected:
                 output.rectangle(row, tint);
             }
 
-            output.text(output.fonts().prepare(_items[index], style().font, style().font_size, row.width), row, output.foreground());
+            output.text(output.fonts().prepare(_items[index], appearance.font, appearance.font_size, row.width), row, output.foreground());
             row.y += row.height;
         }
     }

@@ -278,14 +278,3 @@ enum class text_alignment
 };
 
 } // namespace centui
-
-export namespace centui
-{
-// Zero selects the application's default font. Other IDs belong to a text service.
-struct font_handle
-{
-    std::uint64_t value = 0;
-    constexpr bool operator==(const font_handle&) const = default;
-};
-
-}

@@ -1,3 +1,4 @@
+#include <filesystem>
 #include <initializer_list>
 #include <algorithm>
 #include <memory>
@@ -46,6 +47,7 @@ int main()
     auto progress = centui::make_widget<meter>(0.25f);
     centui::container<> root{progress};
     centui::document document{root};
+    document.set_font(centui::font{CENTUI_FONT_PATH});
     progress->set_value(0.75f);
     const auto& list = document.prepare({320, 200});
     return list.commands.empty() ? 1 : 0;

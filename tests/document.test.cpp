@@ -8,6 +8,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "test_font.hpp"
+
 import centui;
 
 namespace
@@ -137,6 +139,7 @@ TEST_CASE("Mutable callback state survives events and registration replacement",
         observed = ++count;
     }}};
     centui::document document{button};
+    document.set_font(centui::font{test_font_path()});
     click(document);
     click(document);
     REQUIRE(observed == 2);
@@ -161,6 +164,7 @@ TEST_CASE("Release outside, focus loss and disabled controls cancel activation",
     int calls = 0;
     auto button = centui::button<button_style>{"Click", {.on_click = [&calls]() { ++calls; }}};
     centui::document document{button};
+    document.set_font(centui::font{test_font_path()});
     document.process_event({centui::input_event_type::pointer_pressed, 5, 5}, {200, 100});
     document.process_event({centui::input_event_type::pointer_released, 150, 90}, {200, 100});
     REQUIRE(calls == 0);
@@ -183,6 +187,7 @@ TEST_CASE("Callback topology edits become visible before the next event", "[docu
     auto button = centui::button<button_style>{"Remove"};
     auto root = centui::container<panel_style>{button};
     centui::document document{root};
+    document.set_font(centui::font{test_font_path()});
     const auto weak = button.weak();
     button.set_on_click([&document, &calls, weak]()
     {
@@ -205,6 +210,7 @@ TEST_CASE("Callback exceptions release dispatch guards and preserve edits", "[do
     auto button = centui::button<button_style>{"Throw"};
     auto root = centui::container<panel_style>{button};
     centui::document document{root};
+    document.set_font(centui::font{test_font_path()});
     const auto weak = button.weak();
     button.set_on_click([&document, weak]()
     {
@@ -222,6 +228,7 @@ TEST_CASE("Root replacement reaches the next event in a batch", "[document][inpu
     auto first = centui::button<button_style>{"First"};
     auto second = centui::button<button_style>{"Second", {.on_click = [&calls]() { ++calls; }}};
     centui::document document{first};
+    document.set_font(centui::font{test_font_path()});
     first.set_on_click([&document, second]() { document.replace_root(second); });
     click(document);
     click(document);
@@ -247,6 +254,7 @@ TEST_CASE("Recursive dispatch is rejected without poisoning later input", "[docu
 {
     auto button = centui::button<button_style>{"Recursive"};
     centui::document document{button};
+    document.set_font(centui::font{test_font_path()});
     button.set_on_click([&document]() { click(document); });
     REQUIRE_THROWS_AS(click(document), std::logic_error);
     int calls = 0;
@@ -387,6 +395,7 @@ TEST_CASE("Buttons activate only for a primary gesture ending inside", "[documen
     int calls = 0;
     auto button = centui::button<button_style>{"Click", {.on_click = [&calls]() { ++calls; }}};
     centui::document document{button};
+    document.set_font(centui::font{test_font_path()});
     document.process_event({centui::input_event_type::pointer_released, 5, 5}, {200, 100});
     document.process_event({centui::input_event_type::pointer_pressed, 5, 5, centui::mouse_button::secondary}, {200, 100});
     document.process_event({centui::input_event_type::pointer_released, 5, 5, centui::mouse_button::secondary}, {200, 100});

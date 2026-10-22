@@ -64,27 +64,27 @@ TEST_CASE("Clipped or transparent glyph runs produce no drawing", "[render]")
     REQUIRE(count == 0);
 }
 
-TEST_CASE("Draw resources survive CPU cache eviction and font removal", "[font][render]")
+TEST_CASE("Draw resources survive CPU cache eviction and service destruction", "[font][render]")
 {
     centui::text_service fonts;
-    const auto handle = fonts.load_font(test_font_path());
-    auto prepared = fonts.prepare("A", handle, 20);
+    const centui::font face{test_font_path()};
+    auto prepared = fonts.prepare("A", face, 20);
     REQUIRE_FALSE(prepared->glyphs.empty());
     auto image = prepared->glyphs.front().image;
     REQUIRE(image);
     REQUIRE_FALSE(image->pixels.empty());
     const std::weak_ptr<const centui::glyph_bitmap> retained_image = image;
     const auto pixels = image->pixels;
-    auto cached = fonts.prepare("A", handle, 20);
+    auto cached = fonts.prepare("A", face, 20);
     REQUIRE(cached->glyphs.front().image == image);
 
     centui::draw_list output{{100, 100}, {}};
     output.commands.emplace_back(centui::text_command{{0, 0, 100, 100}, {255, 255, 255, 255},
         std::move(prepared), centui::text_alignment::left, {0, 0, 100, 100}});
     fonts.set_cache_budget(0);
-    const auto uncached = fonts.prepare("A", handle, 20);
+    const auto uncached = fonts.prepare("A", face, 20);
     REQUIRE(uncached->glyphs.front().image != image);
-    fonts.remove_font(handle);
+    fonts = centui::text_service{};
     image.reset();
     cached.reset();
     REQUIRE_FALSE(retained_image.expired());
@@ -103,9 +103,9 @@ TEST_CASE("Draw resources survive CPU cache eviction and font removal", "[font][
 TEST_CASE("Wrapping and CRLF retain original UTF-8 byte clusters", "[font][render]")
 {
     centui::text_service fonts;
-    const auto handle = fonts.load_font(test_font_path());
-    const auto word = fonts.prepare("\xC3\xA9", handle, 20);
-    const auto layout = fonts.prepare("\xC3\xA9 \xC3\xA9\r\nZ", handle, 20, word->bounds.width);
+    const centui::font face{test_font_path()};
+    const auto word = fonts.prepare("\xC3\xA9", face, 20);
+    const auto layout = fonts.prepare("\xC3\xA9 \xC3\xA9\r\nZ", face, 20, word->bounds.width);
     REQUIRE(layout->lines.size() == 3);
     REQUIRE(layout->bounds.x == 0);
     REQUIRE(layout->bounds.y == 0);
@@ -120,10 +120,10 @@ TEST_CASE("Wrapping and CRLF retain original UTF-8 byte clusters", "[font][rende
             REQUIRE(layout->glyphs[glyph].cluster == starts[i]);
         }
     }
-    const auto long_word = fonts.prepare("overflow", handle, 20, 1);
+    const auto long_word = fonts.prepare("overflow", face, 20, 1);
     REQUIRE(long_word->lines.size() == 1);
     REQUIRE(long_word->bounds.width > 1);
-    const auto empty_lines = fonts.prepare("\r\n\n", handle, 20);
+    const auto empty_lines = fonts.prepare("\r\n\n", face, 20);
     REQUIRE(empty_lines->lines.size() == 3);
     REQUIRE(empty_lines->glyphs.empty());
 }

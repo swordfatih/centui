@@ -1,3 +1,4 @@
+#include <filesystem>
 #include <initializer_list>
 #include <iostream>
 #include <span>
@@ -60,6 +61,7 @@ int main()
     centui::ui ui{backend};
     centui::container<panel_style> root{};
     centui::document document{root};
+    document.set_font(centui::font{CENTUI_FONT_PATH});
 
     ui.render(document);
 }

@@ -1,3 +1,4 @@
+#include <filesystem>
 #include <initializer_list>
 #include <memory>
 #include <string>
@@ -71,6 +72,7 @@ int main()
     // clang-format on
 
     centui::document document{root};
+    document.set_font(centui::font{CENTUI_FONT_PATH});
 
     while(window.isOpen())
     {

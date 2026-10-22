@@ -13,6 +13,7 @@ module;
 export module centui.style;
 
 export import centui.types;
+export import centui.font;
 
 export namespace centui
 {
@@ -53,7 +54,7 @@ class style
 {
 public:
     template <typename... types>
-    static consteval style resolve(style output = {})
+    static style resolve(style output = {})
     {
         (merge(output, types{}), ...);
         output.validate();
@@ -73,16 +74,16 @@ public:
     states_color   background_color = states_color::all({0, 0, 0, 0});
     states_color   text_color = states_color::all({255, 255, 255, 255});
     float          font_size = 16.0f;
-    font_handle    font;
+    std::optional<centui::font> font = std::nullopt;
     text_alignment text_align = text_alignment::left;
     centui::visibility visibility = centui::visibility::visible;
     centui::overflow overflow = centui::overflow::visible;
     float border_width = 0;
     states_color border_color = states_color::all({0, 0, 0, 0});
 
-    constexpr bool operator==(const style&) const = default;
+    bool operator==(const style&) const = default;
 
-    // Shared by compile-time construction, full replacement, and runtime patches.
+    // Shared by style construction, full replacement, and patches.
     constexpr void validate() const
     {
         const auto check_length = [](length value, bool nonnegative)
@@ -156,7 +157,7 @@ public:
         }
     }
 
-    [[nodiscard]] constexpr invalidation changes_from(const style& previous) const noexcept
+    [[nodiscard]] invalidation changes_from(const style& previous) const noexcept
     {
         const bool text_changed = font_size != previous.font_size || font != previous.font;
         const bool layout_changed = text_changed || padding != previous.padding || margin != previous.margin ||
@@ -183,7 +184,7 @@ private:
     }
 
     template <typename target_type, typename source_type>
-    static consteval void merge(target_type& target, const source_type& source)
+    static void merge(target_type& target, const source_type& source)
     {
         constexpr auto context = std::meta::access_context::current();
         static constexpr auto fields = std::define_static_array(std::meta::nonstatic_data_members_of(^^source_type, context));
@@ -224,7 +225,7 @@ struct style_patch
     std::optional<states_color> background_color = std::nullopt;
     std::optional<states_color> text_color = std::nullopt;
     std::optional<float> font_size = std::nullopt;
-    std::optional<font_handle> font = std::nullopt;
+    std::optional<std::optional<centui::font>> font = std::nullopt;
     std::optional<text_alignment> text_align = std::nullopt;
     std::optional<centui::visibility> visibility = std::nullopt;
     std::optional<centui::overflow> overflow = std::nullopt;
