@@ -5,7 +5,6 @@ endif()
 add_executable(centui_example_getting_started main.cpp)
 target_link_libraries(centui_example_getting_started PRIVATE
     centui::centui
-    centui_config
     centui::sdl
     centui::bgfx
 )

@@ -28,19 +28,12 @@ if(BUILD_TESTS)
 endif()
 
 # ------------------------
-# Configuration
-# ------------------------
-add_library(${PROJECT_NAME}_config INTERFACE)
-target_compile_options(${PROJECT_NAME}_config INTERFACE -Wall -Wextra -Wpedantic -Wno-unused-but-set-variable -Wno-unused-parameter)
-
-# ------------------------
 # Library
 # ------------------------
 add_library(${PROJECT_NAME} STATIC)
 add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
-target_link_libraries(${PROJECT_NAME} PRIVATE ${PROJECT_NAME}_config)
 
 function(centui_sources target directory header_pattern)
     file(GLOB_RECURSE cpp_sources CONFIGURE_DEPENDS "${directory}/*.cpp")
@@ -99,7 +92,7 @@ if(BUILD_TESTS)
         set(test_target "${PROJECT_NAME}_tests")
         add_executable(${test_target} ${test_sources})
         centui_font_asset(${test_target})
-        target_link_libraries(${test_target} PRIVATE ${PROJECT_NAME}::${PROJECT_NAME} ${PROJECT_NAME}_config Catch2::Catch2WithMain)
+        target_link_libraries(${test_target} PRIVATE ${PROJECT_NAME}::${PROJECT_NAME} Catch2::Catch2WithMain)
         include(${catch2_SOURCE_DIR}/extras/Catch.cmake)
         catch_discover_tests(${test_target})
     endif()

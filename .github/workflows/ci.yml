@@ -1,4 +1,4 @@
-name: CI
+﻿name: CI
 
 on:
     push:
@@ -16,116 +16,72 @@ concurrency:
 
 jobs:
     core-tests:
-        name: Core tests / GCC 16.2 / C++23
-        runs-on: ubuntu-latest
-        container: gcc:16.2.0
+        name: Core tests / ${{ matrix.name }} / C++20
+        runs-on: ${{ matrix.os }}
         timeout-minutes: 45
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - name: Linux GCC
+                      os: ubuntu-24.04
+                      cc: gcc-14
+                      cxx: g++-14
+                      cxxflags: -Wall -Wextra -Wpedantic
+                      configure: -G Ninja
+                      packages: g++-14
+                    - name: Linux Clang
+                      os: ubuntu-24.04
+                      cc: clang-18
+                      cxx: clang++-18
+                      cxxflags: -Wall -Wextra -Wpedantic -stdlib=libc++
+                      configure: -G Ninja
+                      packages: clang-18 libc++-18-dev libc++abi-18-dev
+                    - name: macOS Apple Clang
+                      os: macos-15
+                      cc: clang
+                      cxx: clang++
+                      cxxflags: -Wall -Wextra -Wpedantic
+                      configure: -G Ninja
+                    - name: Windows MSVC
+                      os: windows-2022
+                      cc: cl
+                      cxx: cl
+                      cxxflags: /W4 /Zc:__cplusplus /utf-8
+                      configure: -G "Visual Studio 17 2022" -A x64
 
         steps:
-            - name: Install checkout dependencies
-              run: |
-                  apt-get update
-                  apt-get install --no-install-recommends -y \
-                    ca-certificates git
-
             - name: Checkout
               uses: actions/checkout@v6
 
-            - name: Install build tools
+            - name: Install Linux build tools
+              if: runner.os == 'Linux'
               run: |
-                  apt-get update
-                  apt-get install --no-install-recommends -y \
-                    ninja-build pkg-config \
-                    python3 python3-pip python3-venv
-
-                  python3 -m venv /opt/centui-cmake
-                  /opt/centui-cmake/bin/pip install 'cmake>=4.3,<5'
-                  echo /opt/centui-cmake/bin >> "$GITHUB_PATH"
-
-                  gcc --version
-                  g++ --version
+                  sudo apt-get update
+                  sudo apt-get install --no-install-recommends -y \
+                    ninja-build pkg-config ${{ matrix.packages }}
 
             - name: Configure
+              shell: bash
               env:
-                  CC: gcc
-                  CXX: g++
-              run: |
-                  cmake -S . -B build -G Ninja \
-                    -DCMAKE_BUILD_TYPE=Release \
-                    -DCMAKE_CXX_STANDARD=23 \
-                    -DCMAKE_CXX_STANDARD_REQUIRED=ON \
-                    -DCMAKE_CXX_EXTENSIONS=OFF \
-                    -DCENTUI_BUILD_SDL=OFF \
-                    -DCENTUI_BUILD_SFML=OFF \
-                    -DCENTUI_BUILD_GLFW=OFF \
-                    -DCENTUI_BUILD_BGFX=OFF \
-                    -DCENTUI_BUILD_EXAMPLES=OFF \
-                    -DCENTUI_BUILD_TESTS=ON
+                  CC: ${{ matrix.cc }}
+                  CXX: ${{ matrix.cxx }}
+                  CXXFLAGS: ${{ matrix.cxxflags }}
+              run: >-
+                  cmake -S . -B build ${{ matrix.configure }}
+                  -DCMAKE_BUILD_TYPE=Release
+                  -DCMAKE_CXX_STANDARD=20
+                  -DCMAKE_CXX_STANDARD_REQUIRED=ON
+                  -DCMAKE_CXX_EXTENSIONS=OFF
+                  -DCENTUI_BUILD_SDL=OFF
+                  -DCENTUI_BUILD_SFML=OFF
+                  -DCENTUI_BUILD_GLFW=OFF
+                  -DCENTUI_BUILD_BGFX=OFF
+                  -DCENTUI_BUILD_EXAMPLES=OFF
+                  -DCENTUI_BUILD_TESTS=ON
 
             - name: Build
-              run: cmake --build build --parallel 4
+              run: cmake --build build --config Release --parallel 4
 
             - name: Test
-              run: |
-                  ctest --test-dir build \
-                    --parallel 4 \
-                    --output-on-failure
-
-    clang-core-tests:
-        name: Core tests / Clang 23 / C++23
-        runs-on: ubuntu-latest
-        container: teeks99/clang-ubuntu:23
-        timeout-minutes: 45
-
-        steps:
-            - name: Install checkout dependencies
-              run: |
-                  apt-get update
-                  apt-get install --no-install-recommends -y \
-                    ca-certificates git
-
-            - name: Checkout
-              uses: actions/checkout@v6
-
-            - name: Install build tools
-              run: |
-                  apt-get update
-                  apt-get install --no-install-recommends -y \
-                    ninja-build pkg-config \
-                    python3 python3-pip python3-venv \
-                    clang-tools-23 lld-23 \
-                    libc++-23-dev libc++abi-23-dev
-
-                  python3 -m venv /opt/centui-cmake
-                  /opt/centui-cmake/bin/pip install 'cmake>=4.3,<5'
-                  echo /opt/centui-cmake/bin >> "$GITHUB_PATH"
-
-                  clang-23 --version
-                  clang++-23 --version
-
-            - name: Configure
-              env:
-                  CC: clang-23
-                  CXX: clang++-23
-              run: |
-                  cmake -S . -B build -G Ninja \
-                    -DCMAKE_BUILD_TYPE=Release \
-                    -DCMAKE_CXX_STANDARD=23 \
-                    -DCMAKE_CXX_STANDARD_REQUIRED=ON \
-                    -DCMAKE_CXX_EXTENSIONS=OFF \
-                    -DCMAKE_CXX_FLAGS=-stdlib=libc++ \
-                    -DCENTUI_BUILD_SDL=OFF \
-                    -DCENTUI_BUILD_SFML=OFF \
-                    -DCENTUI_BUILD_GLFW=OFF \
-                    -DCENTUI_BUILD_BGFX=OFF \
-                    -DCENTUI_BUILD_EXAMPLES=OFF \
-                    -DCENTUI_BUILD_TESTS=ON
-
-            - name: Build
-              run: cmake --build build --parallel 4
-
-            - name: Test
-              run: |
-                  ctest --test-dir build \
-                    --parallel 4 \
-                    --output-on-failure
+              run: ctest --test-dir build --build-config Release --parallel 4 --output-on-failure --no-tests=error

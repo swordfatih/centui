@@ -1,3 +1,3 @@
 add_executable(centui_example_custom_backend main.cpp)
-target_link_libraries(centui_example_custom_backend PRIVATE centui::centui centui_config)
+target_link_libraries(centui_example_custom_backend PRIVATE centui::centui)
 centui_font_asset(centui_example_custom_backend)
