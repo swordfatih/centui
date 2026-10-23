@@ -6,14 +6,14 @@ nav_order: 2
 
 # Getting Started
 
-CentUI is a C++20 library with public `.hpp` headers and compiled `.cpp` implementations. You need CMake 4.3 or newer, Ninja, and a compiler and standard library with C++20 support. The build downloads Yoga, FreeType, HarfBuzz, and the enabled window and rendering libraries.
+CentUI is a C++20 library with public `.hpp` headers and compiled `.cpp` implementations. You need CMake 3.28 or newer, Ninja, and a compiler and standard library with C++20 support. The build downloads Yoga, FreeType, HarfBuzz, and the enabled window and rendering libraries.
 
 ## Use CentUI in your own project
 
 Create a `CMakeLists.txt` next to your application's `main.cpp`:
 
 ```cmake
-cmake_minimum_required(VERSION 4.3)
+cmake_minimum_required(VERSION 3.28)
 project(my_app LANGUAGES C CXX)
 
 include(FetchContent)

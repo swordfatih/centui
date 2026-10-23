@@ -42,12 +42,12 @@ int main()
 
 Run this from the repository root so the font path resolves. For a styled counter you can build immediately, see [getting_started](examples/getting_started/main.cpp).
 
-## Use in your project
+## Installation
 
-Add CentUI with CMake FetchContent:
+Requires CMake 3.28+ and a compiler and standard library with C++20 support. Add CentUI with CMake FetchContent and enable the integrations your application needs:
 
 ```cmake
-cmake_minimum_required(VERSION 4.3)
+cmake_minimum_required(VERSION 3.28)
 project(my_app LANGUAGES C CXX)
 
 include(FetchContent)
@@ -64,11 +64,11 @@ add_executable(my_app main.cpp)
 target_link_libraries(my_app PRIVATE centui::centui centui::sdl centui::bgfx)
 ```
 
-Save the Hello world code above as `main.cpp` and provide a font at `assets/fonts/Inter-Regular.ttf` relative to your working directory. Pin `GIT_TAG` to a commit for reproducible builds. The linked targets propagate the C++20 requirement and public include directory. See the [getting started guide](docs/getting-started.md#use-centui-in-your-own-project) for build commands and optional integrations.
+Link `centui::centui` for the core library and the targets for your chosen integrations. CMake fetches the dependencies and propagates the required include paths and C++20 support. Pin `GIT_TAG` to a commit for reproducible builds. See [window and renderer integration](docs/backends.md) for the available backends.
 
-## Try it
+## Build the examples
 
-You need CMake 4.3+, Ninja, and a compiler and standard library with C++20 support. Include `<centui/centui.hpp>` and link `centui::centui`; optional integrations provide their own headers and targets. CMake fetches the native dependencies during configuration.
+From a checkout of this repository, build the SDL/bgfx example with Ninja:
 
 ```sh
 cmake -S . -B build -G Ninja -DCENTUI_BUILD_EXAMPLES=ON -DCENTUI_BUILD_SDL=ON -DCENTUI_BUILD_BGFX=ON
