@@ -1,19 +1,21 @@
+#include "test_font.hpp"
+
 #include <array>
 #include <functional>
 #include <initializer_list>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <variant>
 #include <vector>
 
+#include <centui/centui.hpp>
+
 #include <catch2/catch_test_macros.hpp>
-
-#include "test_font.hpp"
-
-import centui;
 
 namespace
 {
+
 struct panel_style
 {
     centui::length width = centui::px(200);
@@ -29,7 +31,8 @@ struct button_style
 class counted_widget final : public centui::widget
 {
 public:
-    explicit counted_widget(int& paints) : _paints(paints)
+    explicit counted_widget(int& paints)
+        : m_paints(paints)
     {
         patch_style({.width = centui::px(20), .height = centui::px(20)});
     }
@@ -37,12 +40,12 @@ public:
 protected:
     void paint(centui::painter& output) const override
     {
-        ++_paints;
+        ++m_paints;
         output.rectangle(output.bounds(), {255, 0, 0, 255});
     }
 
 private:
-    int& _paints;
+    int& m_paints;
 };
 
 class guarded_measurement final : public centui::widget
@@ -57,6 +60,7 @@ protected:
         {
             patch_style({.width = centui::px(10)});
         }
+
         return {10, 10};
     }
 };
@@ -77,10 +81,12 @@ protected:
     bool on_event(const centui::input_event& event) override
     {
         events.push_back(event);
+
         if(event.type == centui::input_event_type::pointer_cancelled && on_cancel)
         {
             on_cancel();
         }
+
         return true;
     }
 };
@@ -89,10 +95,12 @@ void click(centui::document& document, float x = 5, float y = 5)
 {
     const std::array events{
         centui::input_event{centui::input_event_type::pointer_pressed, x, y, centui::mouse_button::primary},
-        centui::input_event{centui::input_event_type::pointer_released, x, y, centui::mouse_button::primary}};
+        centui::input_event{centui::input_event_type::pointer_released, x, y, centui::mouse_button::primary}
+    };
     document.process_events(events, {200, 100});
 }
-}
+
+} // namespace
 
 TEST_CASE("Document removal and destruction detach surviving handles", "[document]")
 {
@@ -107,6 +115,7 @@ TEST_CASE("Document removal and destruction detach surviving handles", "[documen
         document.append(root, child);
         REQUIRE(document.parent(child) == centui::handle<>{root});
     }
+
     REQUIRE(child.valid());
     centui::document next{child};
     REQUIRE(next.root() == centui::handle<>{child});
@@ -117,9 +126,9 @@ TEST_CASE("Idle preparation reuses paint and equal patches do no work", "[docume
     int paints = 0;
     auto child = centui::make_widget<counted_widget>(paints);
     centui::document document{child};
-    const auto* first = document.prepare({200, 100}).commands.data();
+    const auto first = std::span{document.prepare({200, 100}).commands};
     REQUIRE(paints == 1);
-    REQUIRE(document.prepare({200, 100}).commands.data() == first);
+    REQUIRE(document.prepare({200, 100}).commands.data() == first.data());
     REQUIRE(paints == 1);
     child.patch_style({.width = centui::px(20)});
     (void)document.prepare({200, 100});
@@ -134,10 +143,15 @@ TEST_CASE("Idle preparation reuses paint and equal patches do no work", "[docume
 TEST_CASE("Mutable callback state survives events and registration replacement", "[document][input]")
 {
     int observed = 0;
-    auto button = centui::button<button_style>{"Count", {.on_click = [count = 0, &observed]() mutable
-    {
-        observed = ++count;
-    }}};
+    auto button = centui::button<button_style>{
+        "Count",
+        {
+            .on_click = [count = 0, &observed]() mutable
+            {
+                observed = ++count;
+            },
+        }
+    };
     centui::document document{button};
     document.set_font(centui::font{test_font_path()});
     click(document);
@@ -145,14 +159,22 @@ TEST_CASE("Mutable callback state survives events and registration replacement",
     REQUIRE(observed == 2);
 
     const auto weak = button.weak();
-    button.set_on_click([weak, &observed]()
-    {
-        if(auto self = weak.lock(); self.valid())
+    button.set_on_click(
+        [weak, &observed]()
         {
-            self->set_on_click([&observed]() { observed = 10; });
+            if(auto self = weak.lock(); self.valid())
+            {
+                self->set_on_click(
+                    [&observed]()
+                    {
+                        observed = 10;
+                    }
+                );
+            }
+
+            observed = 3;
         }
-        observed = 3;
-    });
+    );
     click(document);
     REQUIRE(observed == 3);
     click(document);
@@ -162,7 +184,15 @@ TEST_CASE("Mutable callback state survives events and registration replacement",
 TEST_CASE("Release outside, focus loss and disabled controls cancel activation", "[document][input]")
 {
     int calls = 0;
-    auto button = centui::button<button_style>{"Click", {.on_click = [&calls]() { ++calls; }}};
+    auto button = centui::button<button_style>{
+        "Click",
+        {
+            .on_click = [&calls]()
+            {
+                ++calls;
+            },
+        }
+    };
     centui::document document{button};
     document.set_font(centui::font{test_font_path()});
     document.process_event({centui::input_event_type::pointer_pressed, 5, 5}, {200, 100});
@@ -189,16 +219,19 @@ TEST_CASE("Callback topology edits become visible before the next event", "[docu
     centui::document document{root};
     document.set_font(centui::font{test_font_path()});
     const auto weak = button.weak();
-    button.set_on_click([&document, &calls, weak]()
-    {
-        ++calls;
-        document.remove(weak.lock());
-    });
+    button.set_on_click(
+        [&document, &calls, weak]()
+        {
+            ++calls;
+            document.remove(weak.lock());
+        }
+    );
     const std::array events{
         centui::input_event{centui::input_event_type::pointer_pressed, 5, 5},
         centui::input_event{centui::input_event_type::pointer_released, 5, 5},
         centui::input_event{centui::input_event_type::pointer_pressed, 5, 5},
-        centui::input_event{centui::input_event_type::pointer_released, 5, 5}};
+        centui::input_event{centui::input_event_type::pointer_released, 5, 5}
+    };
     document.process_events(events, {200, 100});
     REQUIRE(calls == 1);
     REQUIRE(document.children(root).empty());
@@ -212,11 +245,14 @@ TEST_CASE("Callback exceptions release dispatch guards and preserve edits", "[do
     centui::document document{root};
     document.set_font(centui::font{test_font_path()});
     const auto weak = button.weak();
-    button.set_on_click([&document, weak]()
-    {
-        document.remove(weak.lock());
-        throw std::runtime_error("callback");
-    });
+    button.set_on_click(
+        [&document, weak]()
+        {
+            document.remove(weak.lock());
+
+            throw std::runtime_error("callback");
+        }
+    );
     REQUIRE_THROWS_AS(click(document), std::runtime_error);
     REQUIRE(document.children(root).empty());
     REQUIRE_NOTHROW(click(document));
@@ -226,10 +262,23 @@ TEST_CASE("Root replacement reaches the next event in a batch", "[document][inpu
 {
     int calls = 0;
     auto first = centui::button<button_style>{"First"};
-    auto second = centui::button<button_style>{"Second", {.on_click = [&calls]() { ++calls; }}};
+    auto second = centui::button<button_style>{
+        "Second",
+        {
+            .on_click = [&calls]()
+            {
+                ++calls;
+            },
+        }
+    };
     centui::document document{first};
     document.set_font(centui::font{test_font_path()});
-    first.set_on_click([&document, second]() { document.replace_root(second); });
+    first.set_on_click(
+        [&document, second]()
+        {
+            document.replace_root(second);
+        }
+    );
     click(document);
     click(document);
     REQUIRE(calls == 1);
@@ -255,17 +304,28 @@ TEST_CASE("Recursive dispatch is rejected without poisoning later input", "[docu
     auto button = centui::button<button_style>{"Recursive"};
     centui::document document{button};
     document.set_font(centui::font{test_font_path()});
-    button.set_on_click([&document]() { click(document); });
+    button.set_on_click(
+        [&document]()
+        {
+            click(document);
+        }
+    );
     REQUIRE_THROWS_AS(click(document), std::logic_error);
     int calls = 0;
-    button.set_on_click([&calls]() { ++calls; });
+    button.set_on_click(
+        [&calls]()
+        {
+            ++calls;
+        }
+    );
     REQUIRE_NOTHROW(click(document));
     REQUIRE(calls == 1);
 }
 
 TEST_CASE("Captured widgets receive outside movement and release for each mouse button", "[document][capture]")
 {
-    for(const auto button: {centui::mouse_button::primary, centui::mouse_button::secondary, centui::mouse_button::middle})
+    for(const auto button:
+        {centui::mouse_button::primary, centui::mouse_button::secondary, centui::mouse_button::middle})
     {
         auto probe = centui::make_widget<pointer_probe>();
         centui::document document{probe};
@@ -291,20 +351,31 @@ TEST_CASE("External capture cancellation guards callbacks and settles their edit
     auto root = centui::container<panel_style>{probe};
     centui::document document{root};
     bool throw_callback = false;
-    SECTION("Successful cancellation") {}
-    SECTION("Throwing cancellation") { throw_callback = true; }
+    SECTION("Successful cancellation")
+    {
+    }
+
+    SECTION("Throwing cancellation")
+    {
+        throw_callback = true;
+    }
+
     probe->on_cancel = [&]
     {
         REQUIRE_THROWS_AS(click(document), std::logic_error);
         document.remove(probe);
         REQUIRE(document.children(root).size() == 1);
+
         if(throw_callback)
         {
             throw std::runtime_error("cancel");
         }
     };
-    document.process_event({centui::input_event_type::pointer_pressed, 5, 5,
-                            centui::mouse_button::secondary}, {200, 100});
+    document.process_event(
+        {centui::input_event_type::pointer_pressed, 5, 5, centui::mouse_button::secondary},
+        {200, 100}
+    );
+
     if(throw_callback)
     {
         REQUIRE_THROWS_AS(probe->set_enabled(false), std::runtime_error);
@@ -313,6 +384,7 @@ TEST_CASE("External capture cancellation guards callbacks and settles their edit
     {
         REQUIRE_NOTHROW(probe->set_enabled(false));
     }
+
     REQUIRE(document.children(root).empty());
     REQUIRE(probe->events.size() == 2);
     REQUIRE(probe->events.back().type == centui::input_event_type::pointer_cancelled);
@@ -365,12 +437,24 @@ TEST_CASE("Another mouse button cannot steal or end an active capture", "[docume
 {
     auto probe = centui::make_widget<pointer_probe>();
     centui::document document{probe};
-    document.process_event({centui::input_event_type::pointer_pressed, 5, 5, centui::mouse_button::secondary}, {200, 100});
-    document.process_event({centui::input_event_type::pointer_pressed, 5, 5, centui::mouse_button::primary}, {200, 100});
-    document.process_event({centui::input_event_type::pointer_released, 5, 5, centui::mouse_button::primary}, {200, 100});
+    document.process_event(
+        {centui::input_event_type::pointer_pressed, 5, 5, centui::mouse_button::secondary},
+        {200, 100}
+    );
+    document.process_event(
+        {centui::input_event_type::pointer_pressed, 5, 5, centui::mouse_button::primary},
+        {200, 100}
+    );
+    document.process_event(
+        {centui::input_event_type::pointer_released, 5, 5, centui::mouse_button::primary},
+        {200, 100}
+    );
     REQUIRE(probe->events.size() == 1);
     document.process_event({centui::input_event_type::pointer_moved, 150, 90}, {200, 100});
-    document.process_event({centui::input_event_type::pointer_released, 150, 90, centui::mouse_button::secondary}, {200, 100});
+    document.process_event(
+        {centui::input_event_type::pointer_released, 150, 90, centui::mouse_button::secondary},
+        {200, 100}
+    );
     REQUIRE(probe->events.size() == 3);
     REQUIRE(probe->events.back().type == centui::input_event_type::pointer_released);
     REQUIRE(probe->events.back().button == centui::mouse_button::secondary);
@@ -380,32 +464,55 @@ TEST_CASE("Focus loss cancels a secondary capture without synthesizing release",
 {
     auto probe = centui::make_widget<pointer_probe>();
     centui::document document{probe};
-    document.process_event({centui::input_event_type::pointer_pressed, 5, 5, centui::mouse_button::secondary}, {200, 100});
+    document.process_event(
+        {centui::input_event_type::pointer_pressed, 5, 5, centui::mouse_button::secondary},
+        {200, 100}
+    );
     document.process_event({centui::input_event_type::focus_lost}, {200, 100});
     REQUIRE(probe->events.size() == 2);
     REQUIRE(probe->events.back().type == centui::input_event_type::pointer_cancelled);
     REQUIRE(probe->events.back().button == centui::mouse_button::secondary);
     document.process_event({centui::input_event_type::focus_gained}, {200, 100});
-    document.process_event({centui::input_event_type::pointer_released, 5, 5, centui::mouse_button::secondary}, {200, 100});
+    document.process_event(
+        {centui::input_event_type::pointer_released, 5, 5, centui::mouse_button::secondary},
+        {200, 100}
+    );
     REQUIRE(probe->events.size() == 2);
 }
 
 TEST_CASE("Buttons activate only for a primary gesture ending inside", "[document][button]")
 {
     int calls = 0;
-    auto button = centui::button<button_style>{"Click", {.on_click = [&calls]() { ++calls; }}};
+    auto button = centui::button<button_style>{
+        "Click",
+        {
+            .on_click = [&calls]()
+            {
+                ++calls;
+            },
+        }
+    };
     centui::document document{button};
     document.set_font(centui::font{test_font_path()});
     document.process_event({centui::input_event_type::pointer_released, 5, 5}, {200, 100});
-    document.process_event({centui::input_event_type::pointer_pressed, 5, 5, centui::mouse_button::secondary}, {200, 100});
-    document.process_event({centui::input_event_type::pointer_released, 5, 5, centui::mouse_button::secondary}, {200, 100});
+    document.process_event(
+        {centui::input_event_type::pointer_pressed, 5, 5, centui::mouse_button::secondary},
+        {200, 100}
+    );
+    document.process_event(
+        {centui::input_event_type::pointer_released, 5, 5, centui::mouse_button::secondary},
+        {200, 100}
+    );
     REQUIRE(calls == 0);
     document.process_event({centui::input_event_type::pointer_pressed, 5, 5}, {200, 100});
     document.process_event({centui::input_event_type::pointer_released, 100, 40}, {200, 100});
     REQUIRE(calls == 0);
     document.process_event({centui::input_event_type::pointer_pressed, 5, 5}, {200, 100});
     document.process_event({centui::input_event_type::pointer_moved, 150, 90}, {200, 100});
-    document.process_event({centui::input_event_type::pointer_released, 5, 5, centui::mouse_button::secondary}, {200, 100});
+    document.process_event(
+        {centui::input_event_type::pointer_released, 5, 5, centui::mouse_button::secondary},
+        {200, 100}
+    );
     REQUIRE(calls == 0);
     document.process_event({centui::input_event_type::pointer_released, 5, 5}, {200, 100});
     REQUIRE(calls == 1);

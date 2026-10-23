@@ -4,24 +4,26 @@
 #include <variant>
 #include <vector>
 
-#include <catch2/catch_test_macros.hpp>
+#include <centui/centui.hpp>
 
-import centui;
+#include <catch2/catch_test_macros.hpp>
 
 namespace
 {
+
 class extension_probe : public centui::widget
 {
 public:
-    explicit extension_probe(centui::style appearance = {}) : widget(appearance)
+    explicit extension_probe(centui::style appearance = {})
+        : widget(appearance)
     {
         set_focusable();
     }
 
-    using widget::set_interactive;
-    using widget::set_focusable;
-    using widget::set_clip_children;
     using widget::set_child_offset;
+    using widget::set_clip_children;
+    using widget::set_focusable;
+    using widget::set_interactive;
 
     std::vector<bool> focus_changes;
     std::vector<centui::input_event_type> events;
@@ -32,12 +34,18 @@ protected:
     bool on_event(const centui::input_event& event) override
     {
         events.push_back(event.type);
+
         return handle_events;
     }
+
     void on_focus_changed(bool value) override
     {
         focus_changes.push_back(value);
-        if(focus_callback) focus_callback(value);
+
+        if(focus_callback)
+        {
+            focus_callback(value);
+        }
     }
 };
 
@@ -60,9 +68,11 @@ centui::style box(float width, float height)
     centui::style result;
     result.width = centui::px(width);
     result.height = centui::px(height);
+
     return result;
 }
-}
+
+} // namespace
 
 TEST_CASE("Widget child operations work detached and mounted", "[widget][extension]")
 {
@@ -99,13 +109,15 @@ TEST_CASE("Composite callbacks edit their children through the widget API", "[wi
     centui::document document{root};
     const auto weak_root = root.weak();
     const auto weak_action = action.weak();
-    action->set_on_click([weak_root, weak_action, replacement]
-    {
-        auto parent = weak_root.lock();
-        parent->remove(weak_action.lock());
-        parent->append(replacement);
-        REQUIRE(parent->children().front() == weak_action.lock());
-    });
+    action->set_on_click(
+        [weak_root, weak_action, replacement]
+        {
+            auto parent = weak_root.lock();
+            parent->remove(weak_action.lock());
+            parent->append(replacement);
+            REQUIRE(parent->children().front() == weak_action.lock());
+        }
+    );
     document.process_event({centui::input_event_type::pointer_pressed, 5, 5}, {200, 100});
     document.process_event({centui::input_event_type::pointer_released, 5, 5}, {200, 100});
     REQUIRE(root->children().size() == 1);
@@ -155,9 +167,14 @@ TEST_CASE("Focus callbacks defer topology edits and recover from exceptions", "[
     const auto weak_root = root.weak();
     child->focus_callback = [weak_child, weak_root](bool focused)
     {
-        if(!focused) return;
+        if(!focused)
+        {
+            return;
+        }
+
         weak_root.lock()->remove(weak_child.lock());
         REQUIRE(weak_child.lock()->parent().valid());
+
         throw std::runtime_error("focus callback");
     };
     REQUIRE_THROWS_AS(child->request_focus(), std::runtime_error);
@@ -207,7 +224,12 @@ TEST_CASE("Content buttons reuse activation without inheriting text", "[widget][
     auto content = centui::make_widget<centui::container_widget>(box(20, 20));
     auto action = centui::make_widget<counting_button>(content, box(80, 30));
     int callbacks = 0;
-    action->set_on_click([&] { ++callbacks; });
+    action->set_on_click(
+        [&]
+        {
+            ++callbacks;
+        }
+    );
     centui::document document{action};
     REQUIRE(content->parent() == centui::handle<>{action});
     document.process_event({centui::input_event_type::pointer_pressed, 5, 5}, {200, 100});

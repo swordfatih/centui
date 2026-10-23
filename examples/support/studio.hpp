@@ -14,10 +14,11 @@
 #include <utility>
 #include <vector>
 
-import centui;
+#include <centui/centui.hpp>
 
 namespace studio
 {
+
 inline centui::states_color solid(std::uint32_t rgb)
 {
     return centui::states_color::all(centui::color::from_hex(rgb));
@@ -25,14 +26,14 @@ inline centui::states_color solid(std::uint32_t rgb)
 
 struct screen
 {
-    centui::length       width = centui::percent(100);
-    centui::length       height = centui::percent(100);
+    centui::length width = centui::percent(100);
+    centui::length height = centui::percent(100);
     centui::states_color background_color = solid(0x101722);
 };
 
 struct page
 {
-    centui::edges  padding = centui::edges::all(centui::px(28));
+    centui::edges padding = centui::edges::all(centui::px(28));
     centui::length gap = centui::px(22);
 };
 
@@ -45,15 +46,15 @@ struct row
 {
     centui::direction flex_direction = centui::direction::row;
     centui::alignment align_items = centui::alignment::start;
-    centui::length    gap = centui::px(16);
+    centui::length gap = centui::px(16);
 };
 
 struct card
 {
-    centui::edges        padding = centui::edges::all(centui::px(20));
-    centui::length       gap = centui::px(16);
+    centui::edges padding = centui::edges::all(centui::px(20));
+    centui::length gap = centui::px(16);
     centui::states_color background_color = solid(0x1B2636);
-    float                border_width = 1;
+    float border_width = 1;
     centui::states_color border_color = solid(0x304156);
 };
 
@@ -84,22 +85,23 @@ struct subheading
 
 struct muted
 {
-    float                font_size = 14;
+    float font_size = 14;
     centui::states_color text_color = solid(0xA4B3C7);
 };
 
 struct accent
 {
-    float                font_size = 13;
+    float font_size = 13;
     centui::states_color text_color = solid(0x7DE2D1);
 };
 
 struct control
 {
-    centui::length       height = centui::px(44);
-    centui::edges        padding = centui::edges::all(centui::px(10));
+    centui::length height = centui::px(44);
+    centui::edges padding = centui::edges::all(centui::px(10));
     centui::states_color background_color = solid(0x26364A);
-    float                border_width = 1;
+    float border_width = 1;
+
     struct
     {
         centui::color normal = centui::color::from_hex(0x40536D);
@@ -121,6 +123,7 @@ struct project_list
 struct selection_style
 {
     float font_size = 17;
+
     struct
     {
         centui::color normal = centui::color::from_hex(0xE2EAF4);
@@ -130,9 +133,10 @@ struct selection_style
 
 struct primary
 {
-    centui::length         height = centui::px(46);
-    centui::edges          padding = centui::edges::all(centui::px(12));
+    centui::length height = centui::px(46);
+    centui::edges padding = centui::edges::all(centui::px(12));
     centui::text_alignment text_align = centui::text_alignment::center;
+
     struct
     {
         centui::color normal = centui::color::from_hex(0x176D68);
@@ -145,6 +149,7 @@ struct primary
 struct preset
 {
     centui::edges padding = centui::edges::all(centui::px(16));
+
     struct
     {
         centui::color normal = centui::color::from_hex(0x22394B);
@@ -156,9 +161,9 @@ struct preset
 
 struct overlay
 {
-    centui::alignment     align_items = centui::alignment::center;
+    centui::alignment align_items = centui::alignment::center;
     centui::justification justify_content = centui::justification::center;
-    centui::states_color  background_color = centui::states_color::all({4, 10, 18, 210});
+    centui::states_color background_color = centui::states_color::all({4, 10, 18, 210});
 };
 
 struct dialog_size
@@ -168,13 +173,23 @@ struct dialog_size
 
 inline std::vector<std::string> projects()
 {
-    return {"Brand refresh", "Website launch", "Summer collection", "Mobile companion",
-            "Photography", "Design system", "Field notes", "Next chapter", "Archive"};
+    return {
+        "Brand refresh",
+        "Website launch",
+        "Summer collection",
+        "Mobile companion",
+        "Photography",
+        "Design system",
+        "Field notes",
+        "Next chapter",
+        "Archive"
+    };
 }
 
 inline centui::handle<centui::image_widget> cover()
 {
     centui::bitmap image{64, 40, std::vector<std::uint8_t>(64 * 40 * 4)};
+
     for(int y = 0; y < image.height; ++y)
     {
         for(int x = 0; x < image.width; ++x)
@@ -188,23 +203,25 @@ inline centui::handle<centui::image_widget> cover()
             image.pixels[offset + 3] = 255;
         }
     }
+
     centui::style appearance;
     appearance.height = centui::px(120);
+
     return centui::make_widget<centui::image_widget>(std::move(image), appearance);
 }
 
 struct settings
 {
-    std::string              name = "Northstar studio";
-    std::string              notes = "Make space for focused work.\nKeep the next step small.";
-    std::size_t              project = 0;
-    float                    minutes = 45;
-    bool                     notifications = true;
+    std::string name = "Northstar studio";
+    std::string notes = "Make space for focused work.\nKeep the next step small.";
+    std::size_t project = 0;
+    float minutes = 45;
+    bool notifications = true;
     centui::text<subheading> preview_name{name};
-    centui::text<muted>      details{""};
-    centui::text<muted>      status{"Ready. Changes stay in this session."};
-    centui::text<muted>      duration{"Focus session / 45 min"};
-    centui::text<>           confirmation{""};
+    centui::text<muted> details{""};
+    centui::text<muted> status{"Ready. Changes stay in this session."};
+    centui::text<muted> duration{"Focus session / 45 min"};
+    centui::text<> confirmation{""};
 
     settings()
     {
@@ -214,8 +231,14 @@ struct settings
     void refresh()
     {
         preview_name.set_text(name.empty() ? "Untitled studio" : name);
-        details.set_text(std::format("{}\n\n{:.0f} minute focus sessions\nNotifications {}",
-                                     projects().at(project), minutes, notifications ? "on" : "off"));
+        details.set_text(
+            std::format(
+                "{}\n\n{:.0f} minute focus sessions\nNotifications {}",
+                projects().at(project),
+                minutes,
+                notifications ? "on" : "off"
+            )
+        );
         duration.set_text(std::format("Focus session / {:.0f} min", minutes));
     }
 
@@ -229,9 +252,17 @@ struct settings
     {
         refresh();
         status.set_text("Applied for this session");
-        confirmation.set_text(std::format("{}\n{}\n\nFocus: {:.0f} minutes\nNotifications: {}\nNotes: {} characters",
-                                          name.empty() ? "Untitled studio" : name, projects().at(project), minutes,
-                                          notifications ? "on" : "off", notes.size()));
+        confirmation.set_text(
+            std::format(
+                "{}\n{}\n\nFocus: {:.0f} minutes\nNotifications: {}\nNotes: {} characters",
+                name.empty() ? "Untitled studio" : name,
+                projects().at(project),
+                minutes,
+                notifications ? "on" : "off",
+                notes.size()
+            )
+        );
     }
 };
+
 } // namespace studio

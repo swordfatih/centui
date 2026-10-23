@@ -6,7 +6,7 @@ nav_order: 2
 
 # Getting Started
 
-CentUI uses C++26 modules and static reflection. You need CMake 4.3 or newer, Ninja, and a compiler and standard library that support the features used by `<meta>` and `-freflection`. GCC builds require 16.2 or newer to avoid the modules and reflection declaration merging bug [PR124582](https://gcc.gnu.org/bugzilla/show_bug.cgi?id=124582). The build downloads Yoga, FreeType, HarfBuzz, and the enabled window and rendering libraries.
+CentUI is a C++20 library with public `.hpp` headers and compiled `.cpp` implementations. You need CMake 4.3 or newer, Ninja, and a compiler and standard library with C++20 support. The build downloads Yoga, FreeType, HarfBuzz, and the enabled window and rendering libraries.
 
 ## Use CentUI in your own project
 
@@ -39,7 +39,7 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build --target my_app
 ```
 
-Use the same supported compiler for your application and CentUI. The linked targets propagate the C++26 requirement and reflection flags; CMake scans module imports and builds their dependencies. Replace `GIT_TAG main` with a specific commit to pin your dependency.
+Use the same supported compiler for your application and CentUI. The linked targets propagate the C++20 requirement and public include directory. Include `<centui/centui.hpp>` for the core API, or individual headers such as `<centui/widgets/button.hpp>`. Replace `GIT_TAG main` with a specific commit to pin your dependency.
 
 The Hello world program loads `assets/fonts/Inter-Regular.ttf` relative to its working directory. Supply that font (or change the path to your own font) and launch the program from the directory containing `assets/`. FetchContent does not copy font assets into your application.
 

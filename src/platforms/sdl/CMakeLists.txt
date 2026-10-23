@@ -1,5 +1,5 @@
 include(Dependencies.cmake)
 add_library(centui_sdl STATIC)
 add_library(centui::sdl ALIAS centui_sdl)
-centui_sources(centui_sdl "${CMAKE_CURRENT_SOURCE_DIR}")
+centui_sources(centui_sdl "${CMAKE_CURRENT_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/include/centui/platforms/sdl.hpp")
 target_link_libraries(centui_sdl PUBLIC centui::centui SDL3::SDL3 PRIVATE centui_config)

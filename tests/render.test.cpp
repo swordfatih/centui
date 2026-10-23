@@ -1,3 +1,5 @@
+#include "test_font.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -5,29 +7,32 @@
 #include <variant>
 #include <vector>
 
+#include <centui/font.hpp>
+#include <centui/render.hpp>
+
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
-
-#include "test_font.hpp"
-
-import centui.render;
-import centui.font;
 
 TEST_CASE("Glyph clipping preserves placement and texture coordinates", "[render]")
 {
     const auto image = std::make_shared<const centui::glyph_bitmap>(
-        centui::glyph_bitmap{10, 8, -2, 6, std::vector<std::uint8_t>(80, 255)});
+        centui::glyph_bitmap{10, 8, -2, 6, std::vector<std::uint8_t>(80, 255)}
+    );
     auto layout = std::make_shared<centui::text_layout>();
     layout->ascender = 6;
     layout->glyphs.push_back({1, 0, 0, 0, image});
     layout->lines.push_back({0, 1, 10});
-    const centui::text_command command{{10, 20, 20, 10}, {10, 20, 30, 128}, layout,
-                                       centui::text_alignment::center, {15, 22, 10, 6}};
+    const centui::text_command
+        command{{10, 20, 20, 10}, {10, 20, 30, 128}, layout, centui::text_alignment::center, {15, 22, 10, 6}};
     std::vector<centui::glyph_quad> quads;
-    centui::details::for_each_glyph(command, {0, 0, 21, 26}, [&](auto quad)
-    {
-        quads.push_back(std::move(quad));
-    });
+    centui::details::for_each_glyph(
+        command,
+        {0, 0, 21, 26},
+        [&](auto quad)
+        {
+            quads.push_back(std::move(quad));
+        }
+    );
 
     REQUIRE(quads.size() == 1);
     const auto& quad = quads.front();
@@ -47,11 +52,23 @@ TEST_CASE("Clipped or transparent glyph runs produce no drawing", "[render]")
 {
     auto layout = std::make_shared<centui::text_layout>();
     layout->ascender = 2;
-    layout->glyphs.push_back({1, 0, 0, 0, std::make_shared<const centui::glyph_bitmap>(
-        centui::glyph_bitmap{2, 2, 0, 2, std::vector<std::uint8_t>(4, 255)})});
+    layout->glyphs.push_back(
+        {1,
+         0,
+         0,
+         0,
+         std::make_shared<const centui::glyph_bitmap>(
+             centui::glyph_bitmap{2, 2, 0, 2, std::vector<std::uint8_t>(4, 255)}
+         )}
+    );
     layout->lines.push_back({0, 1, 2});
-    centui::text_command command{{0, 0, 10, 10}, {255, 255, 255, 255}, layout,
-                                 centui::text_alignment::left, {20, 20, 10, 10}};
+    centui::text_command command{
+        {0, 0, 10, 10},
+        {255, 255, 255, 255},
+        layout,
+        centui::text_alignment::left,
+        {20, 20, 10, 10},
+    };
     std::size_t count = 0;
     const auto draw = [&](const auto&)
     {
@@ -79,8 +96,15 @@ TEST_CASE("Draw resources survive CPU cache eviction and service destruction", "
     REQUIRE(cached->glyphs.front().image == image);
 
     centui::draw_list output{{100, 100}, {}};
-    output.commands.emplace_back(centui::text_command{{0, 0, 100, 100}, {255, 255, 255, 255},
-        std::move(prepared), centui::text_alignment::left, {0, 0, 100, 100}});
+    output.commands.emplace_back(
+        centui::text_command{
+            {0, 0, 100, 100},
+            {255, 255, 255, 255},
+            std::move(prepared),
+            centui::text_alignment::left,
+            {0, 0, 100, 100}
+        }
+    );
     fonts.set_cache_budget(0);
     const auto uncached = fonts.prepare("A", face, 20);
     REQUIRE(uncached->glyphs.front().image != image);
@@ -90,13 +114,16 @@ TEST_CASE("Draw resources survive CPU cache eviction and service destruction", "
     REQUIRE_FALSE(retained_image.expired());
 
     std::size_t count = 0;
-    centui::details::for_each_glyph(std::get<centui::text_command>(output.commands.front()),
-                                   {0, 0, 100, 100}, [&](const auto& quad)
-    {
-        REQUIRE(quad.image == retained_image.lock());
-        REQUIRE(quad.image->pixels == pixels);
-        ++count;
-    });
+    centui::details::for_each_glyph(
+        std::get<centui::text_command>(output.commands.front()),
+        {0, 0, 100, 100},
+        [&](const auto& quad)
+        {
+            REQUIRE(quad.image == retained_image.lock());
+            REQUIRE(quad.image->pixels == pixels);
+            ++count;
+        }
+    );
     REQUIRE(count > 0);
 }
 
@@ -111,15 +138,18 @@ TEST_CASE("Wrapping and CRLF retain original UTF-8 byte clusters", "[font][rende
     REQUIRE(layout->bounds.y == 0);
     REQUIRE(layout->bounds.height == Catch::Approx(word->bounds.height * 3));
     const std::vector<std::uint32_t> starts{0, 3, 7};
+
     for(std::size_t i = 0; i < starts.size(); ++i)
     {
         const auto& line = layout->lines[i];
         REQUIRE(line.begin < line.end);
+
         for(auto glyph = line.begin; glyph < line.end; ++glyph)
         {
             REQUIRE(layout->glyphs[glyph].cluster == starts[i]);
         }
     }
+
     const auto long_word = fonts.prepare("overflow", face, 20, 1);
     REQUIRE(long_word->lines.size() == 1);
     REQUIRE(long_word->bounds.width > 1);

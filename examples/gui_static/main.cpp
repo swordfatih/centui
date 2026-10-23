@@ -1,24 +1,25 @@
 #include "../support/studio.hpp"
 
-import centui.sdl;
-import centui.bgfx;
+#include <centui/backends/bgfx.hpp>
+#include <centui/platforms/sdl.hpp>
 
 int main()
 {
     using namespace studio;
     centui::sdl::platform platform{{.title = "CentUI / Studio / Static tree", .width = 1160, .height = 820}};
     centui::bgfx::backend renderer{platform};
-    auto                  state = std::make_shared<settings>();
-
-    // clang-format off
-    auto notifications = centui::toggle<control>{"Notifications", {
-        .checked = state->notifications,
-        .on_change = [state](bool checked)
+    auto state = std::make_shared<settings>();
+    auto notifications = centui::toggle<control>{
+        "Notifications",
         {
-            state->notifications = checked;
-            state->changed();
-        },
-    }};
+            .checked = state->notifications,
+            .on_change = [state](bool checked)
+            {
+                state->notifications = checked;
+                state->changed();
+            },
+        }
+    };
     auto duration = centui::range<control>{{
         .minimum = 15,
         .maximum = 90,
@@ -30,9 +31,7 @@ int main()
             state->changed();
         },
     }};
-    // clang-format on
     auto dismiss = centui::button<primary>{"Back to studio"};
-    // clang-format off
     auto dialog = centui::popup<overlay>{
         centui::container<card, dialog_size>{
             centui::text<accent>{"ALL SET"},
@@ -42,16 +41,15 @@ int main()
             dismiss,
         },
     };
-    dismiss.set_on_click([weak = dialog.weak()]
-    {
-        if(auto popup = weak.lock(); popup.valid())
+    dismiss.set_on_click(
+        [weak = dialog.weak()]
         {
-            popup->close();
+            if(auto popup = weak.lock(); popup.valid())
+            {
+                popup->close();
+            }
         }
-    });
-    // clang-format on
-
-    // clang-format off
+    );
     auto root = centui::container<screen>{
         centui::scroll<screen>{
             centui::container<page>{
@@ -140,7 +138,6 @@ int main()
         },
         dialog,
     };
-    // clang-format on
 
     centui::document document{root};
     document.set_font(centui::font{CENTUI_FONT_PATH});

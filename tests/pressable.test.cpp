@@ -1,12 +1,13 @@
 #include <initializer_list>
 #include <variant>
 
-#include <catch2/catch_test_macros.hpp>
+#include <centui/widgets/pressable.hpp>
 
-import centui.widgets.pressable;
+#include <catch2/catch_test_macros.hpp>
 
 namespace
 {
+
 struct action_style
 {
     centui::length width = centui::px(100);
@@ -18,7 +19,8 @@ void click(centui::document& document, float y)
     document.process_event({centui::input_event_type::pointer_pressed, 5, y}, {200, 100});
     document.process_event({centui::input_event_type::pointer_released, 5, y}, {200, 100});
 }
-}
+
+} // namespace
 
 TEST_CASE("Pressables activate through nested content and multiple children", "[widget][pressable]")
 {
@@ -30,14 +32,30 @@ TEST_CASE("Pressables activate through nested content and multiple children", "[
     centui::handle<centui::pressable_widget> action;
     SECTION("Single nested content argument")
     {
-        action = centui::pressable<action_style>{centui::container{first, second},
-                                                {.on_click = [&] { ++calls; }}};
+        action = centui::pressable<action_style>{
+            centui::container{first, second},
+            {
+                .on_click = [&]
+                {
+                    ++calls;
+                },
+            }
+        };
     }
+
     SECTION("Child list argument")
     {
-        action = centui::pressable<action_style>{{first, second},
-                                                {.on_click = [&] { ++calls; }}};
+        action = centui::pressable<action_style>{
+            {first, second},
+            {
+                .on_click = [&]
+                {
+                    ++calls;
+                },
+            }
+        };
     }
+
     centui::document document{action};
     click(document, 5);
     click(document, 25);
@@ -53,20 +71,32 @@ TEST_CASE("Pressables activate through nested content and multiple children", "[
 TEST_CASE("Pressable keyboard activation ignores repeats and disabled state", "[widget][pressable]")
 {
     int calls = 0;
-    auto action = centui::pressable<action_style>{centui::container<>{},
-                                                {.on_click = [&] { ++calls; }}};
+    auto action = centui::pressable<action_style>{
+        centui::container<>{},
+        {
+            .on_click = [&]
+            {
+                ++calls;
+            },
+        }
+    };
     centui::document document{action};
     (void)document.prepare({200, 100});
     REQUIRE(action->request_focus());
+
     for(const auto key: {centui::key::enter, centui::key::space})
     {
         const auto previous = calls;
         document.process_event({.type = centui::input_event_type::key_pressed, .code = key}, {200, 100});
         REQUIRE(calls == previous + 1);
-        document.process_event({.type = centui::input_event_type::key_pressed, .code = key, .repeat = true}, {200, 100});
+        document.process_event(
+            {.type = centui::input_event_type::key_pressed, .code = key, .repeat = true},
+            {200, 100}
+        );
         document.process_event({.type = centui::input_event_type::key_released, .code = key}, {200, 100});
         REQUIRE(calls == previous + 1);
     }
+
     action.set_enabled(false);
     document.process_event({.type = centui::input_event_type::key_pressed, .code = centui::key::enter}, {200, 100});
     REQUIRE(calls == 2);
@@ -87,6 +117,7 @@ TEST_CASE("Noninteractive descendants inherit pressable visual states", "[widget
     {
         const auto& commands = document.prepare({200, 100}).commands;
         REQUIRE(commands.size() == 1);
+
         return std::get<centui::rectangle_command>(commands.front()).color;
     };
     REQUIRE(color() == colors.normal);

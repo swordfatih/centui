@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 4.3)
 
 project(centui LANGUAGES C CXX)
 
-set(CMAKE_CXX_SCAN_FOR_MODULES ON)
+set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
 # ------------------------
 # Options
@@ -39,20 +39,20 @@ target_compile_options(${PROJECT_NAME}_config INTERFACE -Wall -Wextra -Wpedantic
 add_library(${PROJECT_NAME} STATIC)
 add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
-target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_23)
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
 target_link_libraries(${PROJECT_NAME} PRIVATE ${PROJECT_NAME}_config)
 
-function(centui_sources target directory)
+function(centui_sources target directory header_pattern)
     file(GLOB_RECURSE cpp_sources CONFIGURE_DEPENDS "${directory}/*.cpp")
-    file(GLOB_RECURSE module_sources CONFIGURE_DEPENDS "${directory}/*.cppm")
-    target_sources(${target}
-        PRIVATE ${cpp_sources}
-        PUBLIC FILE_SET CXX_MODULES
-            BASE_DIRS "${PROJECT_SOURCE_DIR}/src" FILES ${module_sources})
+    file(GLOB_RECURSE hpp_sources CONFIGURE_DEPENDS "${header_pattern}")
+    target_sources(${target} PRIVATE ${cpp_sources} ${hpp_sources})
+    target_include_directories(${target} PUBLIC
+        $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>)
 endfunction()
 
 include(src/core/Dependencies.cmake)
-centui_sources(centui "${PROJECT_SOURCE_DIR}/src/core")
+centui_sources(centui "${PROJECT_SOURCE_DIR}/src/core" "${PROJECT_SOURCE_DIR}/include/centui/*.hpp")
 target_link_libraries(${PROJECT_NAME} PRIVATE yogacore freetype harfbuzz)
 
 if(CENTUI_BUILD_BGFX)

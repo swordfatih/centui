@@ -1,3 +1,5 @@
+#include "test_font.hpp"
+
 #include <cmath>
 #include <cstdint>
 #include <initializer_list>
@@ -7,12 +9,10 @@
 #include <variant>
 #include <vector>
 
+#include <centui/centui.hpp>
+
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
-
-#include "test_font.hpp"
-
-import centui;
 
 TEST_CASE("Display scale changes bitmap resolution without changing text metrics", "[dpi][font]")
 {
@@ -35,7 +35,15 @@ TEST_CASE("Display scale changes bitmap resolution without changing text metrics
 TEST_CASE("Documents refresh text caches and hit test in logical coordinates", "[dpi][document]")
 {
     int clicks = 0;
-    auto action = centui::button{"Hello", {.on_click = [&clicks] { ++clicks; }}};
+    auto action = centui::button{
+        "Hello",
+        {
+            .on_click = [&clicks]
+            {
+                ++clicks;
+            },
+        }
+    };
     action->patch_style({.width = centui::px(80), .height = centui::px(30)});
     auto root = centui::container{action};
     root->patch_style({.width = centui::percent(100), .height = centui::percent(100)});
@@ -48,6 +56,7 @@ TEST_CASE("Documents refresh text caches and hit test in logical coordinates", "
     REQUIRE(action->bounds().width == 80);
 
     bool found_text = false;
+
     for(const auto& command: dense.commands)
     {
         if(std::holds_alternative<centui::text_command>(command))
@@ -56,6 +65,7 @@ TEST_CASE("Documents refresh text caches and hit test in logical coordinates", "
             REQUIRE(std::get<centui::text_command>(command).shaped->raster_scale == 2);
         }
     }
+
     REQUIRE(found_text);
 
     document.process_event({centui::input_event_type::pointer_pressed, 60, 15}, {400, 200, 2});
@@ -73,13 +83,17 @@ TEST_CASE("Dense glyph clipping uses logical bounds and physical pixel alignment
     auto image = std::make_shared<const centui::glyph_bitmap>(10, 8, 0, 8, std::vector<std::uint8_t>(80, 255));
     layout->glyphs.push_back({1, 0, 0, 0, image});
     layout->lines.push_back({0, 1, 5});
-    const centui::text_command command{{0.3f, 0, 20, 20}, {255, 255, 255, 255}, layout,
-                                      centui::text_alignment::left, {1, 0, 20, 20}};
+    const centui::text_command
+        command{{0.3f, 0, 20, 20}, {255, 255, 255, 255}, layout, centui::text_alignment::left, {1, 0, 20, 20}};
     std::vector<centui::glyph_quad> quads;
-    centui::details::for_each_glyph(command, {0, 0, 100, 100}, [&](const auto& quad)
-    {
-        quads.push_back(quad);
-    });
+    centui::details::for_each_glyph(
+        command,
+        {0, 0, 100, 100},
+        [&](const auto& quad)
+        {
+            quads.push_back(quad);
+        }
+    );
     REQUIRE(quads.size() == 1);
     REQUIRE(quads.front().bounds.x == 1);
     REQUIRE(quads.front().bounds.width == Catch::Approx(4.5f));

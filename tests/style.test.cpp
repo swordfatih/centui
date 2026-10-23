@@ -1,19 +1,20 @@
-#include <catch2/catch_test_macros.hpp>
 #include <limits>
 #include <stdexcept>
 
-import centui.style;
-import centui.types;
+#include <centui/style.hpp>
+#include <centui/types.hpp>
+
+#include <catch2/catch_test_macros.hpp>
 
 struct my_style
 {
     centui::length gap = centui::px(20);
-    centui::edges  padding = centui::edges::all(centui::px(20));
+    centui::edges padding = centui::edges::all(centui::px(20));
 };
 
 struct my_second_style
 {
-    centui::length   gap = centui::px(30);
+    centui::length gap = centui::px(30);
     centui::position position = centui::position::absolute;
 
     struct
@@ -52,6 +53,7 @@ TEST_CASE("Partial state overrides retain unspecified colors", "[style]")
             centui::color hover = centui::color::from_hex(0x123456);
         } background_color;
     };
+
     const auto appearance = centui::style::resolve<partial>();
     REQUIRE(appearance.background_color.hover == centui::color::from_hex(0x123456));
     REQUIRE(appearance.background_color.normal.a == 0);
@@ -67,6 +69,9 @@ TEST_CASE("Style patches validate atomically and classify changes", "[style]")
     const auto resized = centui::style_patch{.width = centui::px(200)}.apply(original);
     REQUIRE(resized.changes_from(original).layout);
     REQUIRE_THROWS_AS((centui::style_patch{.font_size = -1}.apply(original)), std::invalid_argument);
-    REQUIRE_THROWS_AS((centui::style_patch{.width = centui::px(std::numeric_limits<float>::infinity())}.apply(original)), std::invalid_argument);
+    REQUIRE_THROWS_AS(
+        (centui::style_patch{.width = centui::px(std::numeric_limits<float>::infinity())}.apply(original)),
+        std::invalid_argument
+    );
     REQUIRE(original.font_size == 16);
 }

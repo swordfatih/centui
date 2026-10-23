@@ -3,13 +3,14 @@
 #include <initializer_list>
 #include <memory>
 
-import centui.tree;
-import centui.widgets;
+#include <centui/tree.hpp>
+#include <centui/widgets.hpp>
 
 class meter final : public centui::widget
 {
 public:
-    explicit meter(float value = 0) : _value(std::clamp(value, 0.0f, 1.0f))
+    explicit meter(float value = 0)
+        : m_value(std::clamp(value, 0.0f, 1.0f))
     {
     }
 
@@ -17,9 +18,10 @@ public:
     {
         check_mutation();
         value = std::clamp(value, 0.0f, 1.0f);
-        if(value != _value)
+
+        if(value != m_value)
         {
-            _value = value;
+            m_value = value;
             invalidate_paint();
         }
     }
@@ -34,12 +36,12 @@ protected:
     {
         auto fill = output.bounds();
         output.rectangle(fill, centui::color::from_hex(0x334155));
-        fill.width *= _value;
+        fill.width *= m_value;
         output.rectangle(fill, centui::color::from_hex(0x38BDF8));
     }
 
 private:
-    float _value;
+    float m_value;
 };
 
 int main()
@@ -50,5 +52,6 @@ int main()
     document.set_font(centui::font{CENTUI_FONT_PATH});
     progress->set_value(0.75f);
     const auto& list = document.prepare({320, 200});
+
     return list.commands.empty() ? 1 : 0;
 }

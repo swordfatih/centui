@@ -1,16 +1,17 @@
-#include <memory>
 #include <initializer_list>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
 #include <vector>
 
-#include <catch2/catch_test_macros.hpp>
+#include <centui/centui.hpp>
 
-import centui;
+#include <catch2/catch_test_macros.hpp>
 
 namespace
 {
+
 struct native_event
 {
     centui::input_event value;
@@ -42,6 +43,7 @@ public:
     std::optional<centui::input_event> translate(const native_event& event)
     {
         ++translations;
+
         return event.value;
     }
 
@@ -68,6 +70,7 @@ public:
     bool begin_frame()
     {
         ++begins;
+
         return true;
     }
 
@@ -90,12 +93,16 @@ public:
         return host().read_clipboard ? host().read_clipboard() : std::string{};
     }
 };
-}
+
+} // namespace
 
 TEST_CASE("Native forwarding borrows host state without taking over its event loop", "[platform]")
 {
     test_platform host;
-    host.host->read_clipboard = [] { return std::string{"attached"}; };
+    host.host->read_clipboard = []
+    {
+        return std::string{"attached"};
+    };
     test_renderer renderer;
     centui::ui ui{host, renderer};
     auto probe = centui::make_widget<service_probe>();

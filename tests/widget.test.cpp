@@ -1,14 +1,16 @@
 #include <array>
+#include <functional>
 #include <initializer_list>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
 #include <utility>
 
-#include <catch2/catch_test_macros.hpp>
+#include <centui/tree.hpp>
+#include <centui/widgets.hpp>
 
-import centui.tree;
-import centui.widgets;
+#include <catch2/catch_test_macros.hpp>
 
 namespace
 {
@@ -16,37 +18,38 @@ namespace
 class custom_leaf final : public centui::widget
 {
 public:
-    explicit custom_leaf(int value = 0, int* destroyed = nullptr)
-        : _value(value), _destroyed(destroyed)
+    explicit custom_leaf(int value = 0, std::optional<std::reference_wrapper<int>> destroyed = std::nullopt)
+        : m_value(value),
+          m_destroyed(destroyed)
     {
     }
 
     ~custom_leaf() override
     {
-        if(_destroyed)
+        if(m_destroyed)
         {
-            ++*_destroyed;
+            ++m_destroyed->get();
         }
     }
 
     [[nodiscard]] int value() const noexcept
     {
-        return _value;
+        return m_value;
     }
 
     void set_value(int value)
     {
-        if(value != _value)
+        if(value != m_value)
         {
             invalidate_layout();
-            _value = value;
+            m_value = value;
         }
     }
 
 protected:
     centui::size measure(const centui::measure_context&) override
     {
-        return {static_cast<float>(_value), 12};
+        return {static_cast<float>(m_value), 12};
     }
 
     void paint(centui::painter& output) const override
@@ -55,8 +58,8 @@ protected:
     }
 
 private:
-    int _value;
-    int* _destroyed;
+    int m_value;
+    std::optional<std::reference_wrapper<int>> m_destroyed;
 };
 
 class custom_composite final : public centui::widget
@@ -73,7 +76,7 @@ public:
     }
 };
 
-}
+} // namespace
 
 TEST_CASE("Typed handles share identity and expose derived setters", "[widget][handles]")
 {
@@ -126,7 +129,7 @@ TEST_CASE("Weak handles expire after the last shared owner", "[widget][lifetime]
     int destroyed = 0;
     centui::weak_handle<custom_leaf> weak;
     {
-        auto leaf = centui::make_widget<custom_leaf>(3, &destroyed);
+        auto leaf = centui::make_widget<custom_leaf>(3, std::ref(destroyed));
         weak = leaf.weak();
         auto locked = weak.lock();
         leaf = {};
@@ -134,6 +137,7 @@ TEST_CASE("Weak handles expire after the last shared owner", "[widget][lifetime]
         REQUIRE(weak.lock().valid());
         REQUIRE(destroyed == 0);
     }
+
     REQUIRE_FALSE(weak.lock().valid());
     REQUIRE(destroyed == 1);
 }
@@ -141,7 +145,7 @@ TEST_CASE("Weak handles expire after the last shared owner", "[widget][lifetime]
 TEST_CASE("Parent destruction releases children without invalidating surviving handles", "[widget][lifetime]")
 {
     int destroyed = 0;
-    auto child = centui::make_widget<custom_leaf>(5, &destroyed);
+    auto child = centui::make_widget<custom_leaf>(5, std::ref(destroyed));
     auto weak_child = child.weak();
     centui::weak_handle<custom_composite> weak_parent;
     {
@@ -152,6 +156,7 @@ TEST_CASE("Parent destruction releases children without invalidating surviving h
         REQUIRE(weak_child.lock().valid());
         child = weak_child.lock();
     }
+
     REQUIRE_FALSE(weak_parent.lock().valid());
     REQUIRE(child.valid());
     REQUIRE(destroyed == 0);
@@ -160,6 +165,7 @@ TEST_CASE("Parent destruction releases children without invalidating surviving h
         auto replacement = centui::make_widget<custom_composite>(std::span{children});
         REQUIRE(replacement.valid());
     }
+
     child = {};
     REQUIRE_FALSE(weak_child.lock().valid());
     REQUIRE(destroyed == 1);
@@ -221,6 +227,7 @@ TEST_CASE("Nested temporary containers preserve every level and typed leaf", "[w
     auto root = centui::container<>{centui::container<>{centui::container<>{leaf}}};
     centui::document document{root};
     auto current = document.root();
+
     for(int depth = 0; depth < 2; ++depth)
     {
         auto children = document.children(current);
@@ -229,6 +236,7 @@ TEST_CASE("Nested temporary containers preserve every level and typed leaf", "[w
         REQUIRE(document.parent(children.front()) == current);
         current = children.front();
     }
+
     REQUIRE(document.children(current).size() == 1);
     REQUIRE(document.children(current).front() == centui::handle<>{leaf});
     leaf->set_value(31);
@@ -244,6 +252,7 @@ TEST_CASE("Document destruction detaches a surviving custom subtree", "[widget][
         centui::document document{root};
         REQUIRE(document.children(root).front() == centui::handle<>{leaf});
     }
+
     REQUIRE(root.valid());
     REQUIRE(leaf.valid());
     leaf->set_value(17);

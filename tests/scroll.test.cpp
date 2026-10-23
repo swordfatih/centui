@@ -1,10 +1,10 @@
 #include <initializer_list>
 
+#include <centui/widgets/scroll.hpp>
+
 #include <catch2/catch_test_macros.hpp>
 
-import centui.widgets.scroll;
-
-TEST_CASE("Standalone scroll import retains children and clamps offsets", "[widget][scroll][module]")
+TEST_CASE("Standalone scroll header retains children and clamps offsets", "[widget][scroll][header]")
 {
     auto content = centui::container<>();
     content.patch_style({.height = centui::px(200)});

@@ -12,14 +12,14 @@ You can make a widget by deriving from `centui::widget`. A leaf reports its natu
 class meter final : public centui::widget
 {
 public:
-    explicit meter(float value = 0) : _value(value)
+    explicit meter(float value = 0) : m_value(value)
     {
     }
 
     void set_value(float value)
     {
         check_mutation();
-        _value = value;
+        m_value = value;
         invalidate_paint();
     }
 
@@ -32,12 +32,12 @@ protected:
     void paint(centui::painter& output) const override
     {
         auto bar = output.bounds();
-        bar.width *= _value;
+        bar.width *= m_value;
         output.rectangle(bar, centui::color::from_hex(0x38BDF8));
     }
 
 private:
-    float _value;
+    float m_value;
 };
 
 auto progress = centui::make_widget<meter>(0.25f);
@@ -51,4 +51,4 @@ Call `set_interactive()` if the widget should receive pointer events, and `set_f
 
 `pressable_widget` already implements ordinary button activation. Derive from it and override `activate()` for a specialized action; call the base method if you also want the registered `on_click` callback. Build composite controls from children when their content should stay reusable.
 
-Containers can call `set_clip_children(true)` or `set_child_offset({x, y})` when they need clipping or scrolling. The [scroll widget](https://github.com/swordfatih/centui/blob/main/src/core/widgets/scroll.cppm) shows how to clamp an offset and handle wheel and page keys.
+Containers can call `set_clip_children(true)` or `set_child_offset({x, y})` when they need clipping or scrolling. The [scroll widget](https://github.com/swordfatih/centui/blob/main/src/core/widgets/scroll.cpp) shows how to clamp an offset and handle wheel and page keys.

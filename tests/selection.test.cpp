@@ -1,18 +1,27 @@
+#include "test_font.hpp"
+
 #include <cstddef>
 #include <optional>
 #include <string>
 #include <vector>
 
+#include <centui/widgets/selection.hpp>
+
 #include <catch2/catch_test_macros.hpp>
-#include "test_font.hpp"
 
-import centui.widgets.selection;
-
-TEST_CASE("Standalone selection import exposes items options and callbacks", "[widget][selection][module]")
+TEST_CASE("Standalone selection header exposes items options and callbacks", "[widget][selection][header]")
 {
     std::size_t observed = 0;
-    auto control = centui::selection{{"First", "Second"},
-                                     {.selected = 0, .on_change = [&](std::size_t value) { observed = value; }}};
+    auto control = centui::selection{
+        {"First", "Second"},
+        {
+            .selected = 0,
+            .on_change = [&](std::size_t value)
+            {
+                observed = value;
+            },
+        }
+    };
     centui::document document{control};
     document.set_font(centui::font{test_font_path()});
     (void)document.prepare({200, 100});

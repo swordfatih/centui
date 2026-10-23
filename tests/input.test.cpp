@@ -1,17 +1,27 @@
+#include "test_font.hpp"
+
 #include <string>
 #include <string_view>
 
+#include <centui/widgets/input.hpp>
+
 #include <catch2/catch_test_macros.hpp>
-#include "test_font.hpp"
 
-import centui.widgets.input;
-
-TEST_CASE("Standalone input import exposes edit and submit callbacks", "[widget][input][module]")
+TEST_CASE("Standalone input header exposes edit and submit callbacks", "[widget][input][header]")
 {
     std::string observed;
     int submits = 0;
-    auto control = centui::input{"A", {.on_change = [&](std::string_view value) { observed = value; },
-                                        .on_submit = [&] { ++submits; }}};
+    const auto observe = [&](std::string_view value)
+    {
+        observed = value;
+    };
+
+    const auto submit = [&]
+    {
+        ++submits;
+    };
+
+    auto control = centui::input{"A", {.on_change = observe, .on_submit = submit}};
     centui::document document{control};
     document.set_font(centui::font{test_font_path()});
     (void)document.prepare({200, 100});

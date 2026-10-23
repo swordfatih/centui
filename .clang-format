@@ -3,14 +3,14 @@
 
 # Project
 BasedOnStyle: LLVM
-ColumnLimit: 0
+ColumnLimit: 120
 
 # Tabs & Indentation
 UseTab: Never
 IndentWidth: 4
 TabWidth: 4
 IndentCaseLabels: false
-LambdaBodyIndentation: OuterScope
+LambdaBodyIndentation: Signature
 
 # Braces
 BreakBeforeBraces: Allman
@@ -34,7 +34,7 @@ IncludeCategories:
       Priority: 1
     - Regex: "^<([a-z0-9_]+|__[^>]+)>$"
       Priority: 2
-    - Regex: "^<(starter)/"
+    - Regex: "^<(centui)/"
       Priority: 3
     - Regex: "^<(SFML|spdlog|tao|cpr|uuid.h|sodium.h)/"
       Priority: 4
@@ -48,22 +48,28 @@ AccessModifierOffset: -4
 AlignTrailingComments:
     Kind: Always
     OverEmptyLines: 1
-MaxEmptyLinesToKeep: 2
+MaxEmptyLinesToKeep: 1
+SeparateDefinitionBlocks: Always
+WrapNamespaceBodyWithEmptyLines: Always
+AlignAfterOpenBracket: BlockIndent
+AlignEscapedNewlines: Left
+BinPackArguments: false
+BinPackParameters: OnePerLine
+BreakTemplateDeclarations: Yes
+PenaltyReturnTypeOnItsOwnLine: 100000
+AllowAllArgumentsOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: false
+PackConstructorInitializers: Never
+BreakConstructorInitializers: BeforeColon
 AlignConsecutiveDeclarations:
-    Enabled: true
+    Enabled: false
     AcrossEmptyLines: false
     AcrossComments: false
+    AlignFunctionDeclarations: false
 PointerAlignment: Left
 
 # Qualifiers
-QualifierAlignment: Custom
-QualifierOrder:
-    - static
-    - inline
-    - constexpr
-    - const
-    - volatile
-    - type
+QualifierAlignment: Leave
 
 # Namespaces
 NamespaceIndentation: None

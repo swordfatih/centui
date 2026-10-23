@@ -3,26 +3,27 @@
 #include <memory>
 #include <stdexcept>
 
-#include <SDL3/SDL.h>
+#include <centui/backends/sdl.hpp>
+#include <centui/centui.hpp>
 
-import centui;
-import centui.sdl_renderer;
+#include <SDL3/SDL.h>
 
 namespace
 {
+
 struct screen
 {
-    centui::length        width = centui::percent(100);
-    centui::length        height = centui::percent(100);
-    centui::alignment     align_items = centui::alignment::center;
+    centui::length width = centui::percent(100);
+    centui::length height = centui::percent(100);
+    centui::alignment align_items = centui::alignment::center;
     centui::justification justify_content = centui::justification::center;
 };
 
 struct card
 {
-    centui::length       width = centui::px(320);
-    centui::edges        padding = centui::edges::all(centui::px(24));
-    centui::length       gap = centui::px(16);
+    centui::length width = centui::px(320);
+    centui::edges padding = centui::edges::all(centui::px(24));
+    centui::length gap = centui::px(16);
     centui::states_color background_color = centui::states_color::all({30, 41, 59, 240});
 };
 
@@ -34,7 +35,8 @@ struct title
 struct action
 {
     centui::length height = centui::px(44);
-    centui::edges  padding = centui::edges::all(centui::px(12));
+    centui::edges padding = centui::edges::all(centui::px(12));
+
     struct
     {
         centui::color normal{37, 99, 235, 255};
@@ -42,13 +44,17 @@ struct action
         centui::color pressed{29, 78, 216, 255};
     } background_color;
 };
+
 } // namespace
 
 int main()
 {
     centui::sdl::platform platform{{.title = "CentUI + SDL renderer", .width = 720, .height = 480}};
     std::unique_ptr<SDL_Renderer, decltype(&SDL_DestroyRenderer)> native_renderer{
-        SDL_CreateRenderer(&platform.native_window(), nullptr), SDL_DestroyRenderer};
+        SDL_CreateRenderer(&platform.native_window(), nullptr),
+        SDL_DestroyRenderer
+    };
+
     if(!native_renderer)
     {
         throw std::runtime_error(SDL_GetError());
@@ -58,22 +64,22 @@ int main()
     centui::ui ui{platform, renderer};
     auto count = std::make_shared<int>(0);
     auto label = centui::text{"0 clicks"};
-
-    // clang-format off
     auto root = centui::container<screen>{
         centui::container<card>{
             centui::text<title>{"Hello, SDL."},
             centui::text{"The blue strip is drawn by your SDL renderer."},
             label,
-            centui::button<action>{"Count a click", {
-                .on_click = [count, label]() mutable
+            centui::button<action>{
+                "Count a click",
                 {
-                    label.set_text(std::format("{} clicks", ++*count));
-                },
-            }},
+                    .on_click = [count, label]() mutable
+                    {
+                        label.set_text(std::format("{} clicks", ++*count));
+                    },
+                }
+            },
         },
     };
-    // clang-format on
 
     centui::document document{root};
     document.set_font(centui::font{CENTUI_FONT_PATH});
@@ -81,6 +87,7 @@ int main()
     while(platform.poll_events())
     {
         ui.process_events(document, platform.events());
+
         if(!renderer.begin_frame({15, 23, 42, 255}))
         {
             continue;
@@ -90,7 +97,9 @@ int main()
         {
             throw std::runtime_error(SDL_GetError());
         }
+
         const SDL_FRect strip{0, 0, static_cast<float>(platform.viewport().width), 90};
+
         if(!SDL_RenderFillRect(native_renderer.get(), &strip))
         {
             throw std::runtime_error(SDL_GetError());

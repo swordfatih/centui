@@ -102,7 +102,6 @@ jobs:
 
                   clang-23 --version
                   clang++-23 --version
-                  clang-scan-deps-23 --version
 
             - name: Configure
               env:
@@ -115,7 +114,6 @@ jobs:
                     -DCMAKE_CXX_STANDARD_REQUIRED=ON \
                     -DCMAKE_CXX_EXTENSIONS=OFF \
                     -DCMAKE_CXX_FLAGS=-stdlib=libc++ \
-                    -DCMAKE_CXX_COMPILER_CLANG_SCAN_DEPS="$(command -v clang-scan-deps-23)" \
                     -DCENTUI_BUILD_SDL=OFF \
                     -DCENTUI_BUILD_SFML=OFF \
                     -DCENTUI_BUILD_GLFW=OFF \

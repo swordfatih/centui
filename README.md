@@ -1,6 +1,6 @@
 # CentUI
 
-CentUI is a small C++26 library for building interfaces from ordinary widgets. Compose a tree, give it a style, and connect callbacks to your application state. SDL/bgfx and SFML integrations let you draw in a CentUI window or over one you already own.
+CentUI is a small C++20 library for building interfaces from ordinary widgets. Compose a tree, give it a style, and connect callbacks to your application state. SDL/bgfx and SFML integrations let you draw in a CentUI window or over one you already own.
 
 ## Showcase
 
@@ -16,9 +16,9 @@ CentUI is a small C++26 library for building interfaces from ordinary widgets. C
 #include <filesystem>
 #include <initializer_list>
 
-import centui;
-import centui.sdl;
-import centui.bgfx;
+#include <centui/centui.hpp>
+#include <centui/platforms/sdl.hpp>
+#include <centui/backends/bgfx.hpp>
 
 int main()
 {
@@ -64,11 +64,11 @@ add_executable(my_app main.cpp)
 target_link_libraries(my_app PRIVATE centui::centui centui::sdl centui::bgfx)
 ```
 
-Save the Hello world code above as `main.cpp` and provide a font at `assets/fonts/Inter-Regular.ttf` relative to your working directory. Pin `GIT_TAG` to a commit for reproducible builds. C++26 and reflection flags propagate through the linked targets. See the [getting started guide](docs/getting-started.md#use-centui-in-your-own-project) for build commands and optional integrations.
+Save the Hello world code above as `main.cpp` and provide a font at `assets/fonts/Inter-Regular.ttf` relative to your working directory. Pin `GIT_TAG` to a commit for reproducible builds. The linked targets propagate the C++20 requirement and public include directory. See the [getting started guide](docs/getting-started.md#use-centui-in-your-own-project) for build commands and optional integrations.
 
 ## Try it
 
-You need CMake 4.3+, Ninja, and a C++26 compiler and standard library with static reflection support (`-freflection`). For GCC, use 16.2 or newer: earlier versions have a modules and reflection declaration merging bug ([PR124582](https://gcc.gnu.org/bugzilla/show_bug.cgi?id=124582)). CI uses the `gcc:16.2.0` container. CMake fetches the native dependencies during configuration.
+You need CMake 4.3+, Ninja, and a compiler and standard library with C++20 support. Include `<centui/centui.hpp>` and link `centui::centui`; optional integrations provide their own headers and targets. CMake fetches the native dependencies during configuration.
 
 ```sh
 cmake -S . -B build -G Ninja -DCENTUI_BUILD_EXAMPLES=ON -DCENTUI_BUILD_SDL=ON -DCENTUI_BUILD_BGFX=ON

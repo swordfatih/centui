@@ -6,15 +6,16 @@
 #include <type_traits>
 #include <variant>
 
-import centui.widgets;
-import centui.types;
-import centui.render;
-import centui.tree;
+#include <centui/render.hpp>
+#include <centui/tree.hpp>
+#include <centui/types.hpp>
+#include <centui/widgets.hpp>
 
 struct panel_style
 {
     centui::length width = centui::px(320);
     centui::length height = centui::px(120);
+
     struct
     {
         centui::color normal = centui::color::from_hex(0x243447);
@@ -33,25 +34,27 @@ public:
     {
         for(const auto& command: list.commands)
         {
-            // clang-format off
-            std::visit([](const auto& item)
-            {
-                using type = std::decay_t<decltype(item)>;
-                if constexpr(std::is_same_v<type, centui::rectangle_command>)
+            std::visit(
+                [](const auto& item)
                 {
-                    std::cout << "rectangle at (" << item.bounds.x << ", " << item.bounds.y << "), size "
-                              << item.bounds.width << 'x' << item.bounds.height << '\n';
-                }
-                else if constexpr(std::is_same_v<type, centui::text_command>)
-                {
-                    std::cout << "glyphs: " << item.shaped->glyphs.size() << '\n';
-                }
-                else
-                {
-                    std::cout << "image: " << item.image->width << 'x' << item.image->height << '\n';
-                }
-            }, command);
-            // clang-format on
+                    using type = std::decay_t<decltype(item)>;
+
+                    if constexpr(std::is_same_v<type, centui::rectangle_command>)
+                    {
+                        std::cout << "rectangle at (" << item.bounds.x << ", " << item.bounds.y << "), size "
+                                  << item.bounds.width << 'x' << item.bounds.height << '\n';
+                    }
+                    else if constexpr(std::is_same_v<type, centui::text_command>)
+                    {
+                        std::cout << "glyphs: " << item.shaped->glyphs.size() << '\n';
+                    }
+                    else
+                    {
+                        std::cout << "image: " << item.image->width << 'x' << item.image->height << '\n';
+                    }
+                },
+                command
+            );
         }
     }
 };

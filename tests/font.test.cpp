@@ -1,3 +1,5 @@
+#include "test_font.hpp"
+
 #include <cstddef>
 #include <filesystem>
 #include <initializer_list>
@@ -7,12 +9,10 @@
 #include <stdexcept>
 #include <utility>
 
+#include <centui/font.hpp>
+#include <centui/widgets.hpp>
+
 #include <catch2/catch_test_macros.hpp>
-
-#include "test_font.hpp"
-
-import centui.font;
-import centui.widgets;
 
 TEST_CASE("Measure bundled font", "[font]")
 {
@@ -65,8 +65,12 @@ TEST_CASE("Font operations reject invalid sizes", "[font]")
 {
     centui::font face{test_font_path()};
 
-    for(const auto size: {0.0f, -1.0f, std::numeric_limits<float>::infinity(),
-                         std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::max()})
+    for(const auto size:
+        {0.0f,
+         -1.0f,
+         std::numeric_limits<float>::infinity(),
+         std::numeric_limits<float>::quiet_NaN(),
+         std::numeric_limits<float>::max()})
     {
         REQUIRE_THROWS_AS(face.layout_text("Hello", size), std::invalid_argument);
         REQUIRE_THROWS_AS(face.measure("Hello", size), std::invalid_argument);
@@ -96,6 +100,7 @@ TEST_CASE("Font copies share resources and styles retain ownership", "[font]")
         const auto copy = original;
         REQUIRE(copy == original);
         REQUIRE(copy.identity() == original.identity());
+
         return centui::style{.font = copy};
     }();
 

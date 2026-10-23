@@ -1,28 +1,34 @@
+#include "test_font.hpp"
+
 #include <string>
 #include <variant>
 #include <vector>
 
-#include <catch2/catch_test_macros.hpp>
-#include "test_font.hpp"
+#include <centui/widgets/button.hpp>
 
-import centui.widgets.button;
+#include <catch2/catch_test_macros.hpp>
 
 namespace
 {
+
 centui::text_command label_command(centui::document& document)
 {
     std::vector<centui::text_command> labels;
+
     for(const auto& command: document.prepare({400, 200}).commands)
     {
-        if(const auto* text = std::get_if<centui::text_command>(&command))
+        if(std::holds_alternative<centui::text_command>(command))
         {
-            labels.push_back(*text);
+            labels.push_back(std::get<centui::text_command>(command));
         }
     }
+
     REQUIRE(labels.size() == 1);
+
     return labels.front();
 }
-}
+
+} // namespace
 
 TEST_CASE("Button labels retain their child and invalidate layout when edited", "[widget][button]")
 {
@@ -55,9 +61,13 @@ TEST_CASE("Button labels retain their child and invalidate layout when edited", 
 TEST_CASE("Button labels follow parent typography and padding changes", "[widget][button][style]")
 {
     auto button = centui::button{"Label"};
-    button.patch_style({.padding = centui::edges::all(centui::px(8)),
-                        .width = centui::px(180), .height = centui::px(80),
-                        .font_size = 12, .text_align = centui::text_alignment::right});
+    button.patch_style({
+        .padding = centui::edges::all(centui::px(8)),
+        .width = centui::px(180),
+        .height = centui::px(80),
+        .font_size = 12,
+        .text_align = centui::text_alignment::right,
+    });
     centui::document document{button};
     document.set_font(centui::font{test_font_path()});
     const auto small = label_command(document);

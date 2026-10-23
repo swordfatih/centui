@@ -1,0 +1,75 @@
+#pragma once
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <limits>
+#include <map>
+#include <memory>
+#include <optional>
+#include <stdexcept>
+#include <type_traits>
+#include <utility>
+#include <variant>
+#include <vector>
+
+#include <centui/platforms/sfml.hpp>
+#include <centui/render.hpp>
+
+#include <SFML/Graphics.hpp>
+
+namespace centui::sfml
+{
+
+/// \brief Draws into a borrowed SFML render target and owns cached textures.
+/// Borrowed targets and platform adapters must outlive the backend.
+class backend final : public centui::renderer
+{
+public:
+    explicit backend(::sf::RenderWindow& window);
+
+    explicit backend(platform& host);
+
+    explicit backend(::sf::RenderTarget& target, float scale);
+
+    void set_scale(float value);
+
+    ~backend() override = default;
+
+    backend(const backend&) = delete;
+
+    backend& operator=(const backend&) = delete;
+
+    backend(backend&&) = delete;
+
+    backend& operator=(backend&&) = delete;
+
+    [[nodiscard]] centui::viewport viewport() const override;
+
+    [[nodiscard]] bool begin_frame(color clear = {18, 24, 32, 255});
+
+    void end_frame();
+
+    void clear_cache();
+
+    void set_cache_limit(std::size_t images);
+
+    void draw(const draw_list& list) override;
+
+private:
+    const ::sf::Texture& texture(const std::shared_ptr<const bitmap>& bitmap);
+
+    void quad(rect bounds, color tint, rect uv, std::optional<std::reference_wrapper<const ::sf::Texture>> texture);
+
+    ::sf::RenderTarget& m_target;
+    std::optional<std::reference_wrapper<::sf::RenderWindow>> m_window;
+    std::optional<std::reference_wrapper<platform>> m_platform;
+    float m_scale = 1;
+    std::size_t m_cache_limit = 1024;
+    std::map<std::weak_ptr<const bitmap>, ::sf::Texture, std::owner_less<>> m_images;
+};
+
+} // namespace centui::sfml

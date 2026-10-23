@@ -1,14 +1,23 @@
-#include <string>
-
-#include <catch2/catch_test_macros.hpp>
 #include "test_font.hpp"
 
-import centui.widgets.toggle;
+#include <string>
 
-TEST_CASE("Standalone toggle import preserves composed label and activation", "[widget][toggle][module]")
+#include <centui/widgets/toggle.hpp>
+
+#include <catch2/catch_test_macros.hpp>
+
+TEST_CASE("Standalone toggle header preserves composed label and activation", "[widget][toggle][header]")
 {
     bool observed = false;
-    auto control = centui::toggle{"Toggle", {.on_change = [&](bool value) { observed = value; }}};
+    auto control = centui::toggle{
+        "Toggle",
+        {
+            .on_change = [&](bool value)
+            {
+                observed = value;
+            },
+        }
+    };
     centui::document document{control};
     document.set_font(centui::font{test_font_path()});
     (void)document.prepare({200, 100});
