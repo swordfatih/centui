@@ -7,6 +7,23 @@
 // clang-format on
 #include <bx/math.h>
 
+namespace
+{
+
+static const ::bgfx::EmbeddedShader color_shaders[] = {
+    BGFX_EMBEDDED_SHADER(vs_color),
+    BGFX_EMBEDDED_SHADER(fs_color),
+    BGFX_EMBEDDED_SHADER_END(),
+};
+
+static const ::bgfx::EmbeddedShader text_shaders[] = {
+    BGFX_EMBEDDED_SHADER(vs_text),
+    BGFX_EMBEDDED_SHADER(fs_text),
+    BGFX_EMBEDDED_SHADER_END(),
+};
+
+} // namespace
+
 namespace centui::details
 {
 
@@ -27,12 +44,6 @@ struct text_vertex
     float v;
     std::uint32_t rgba;
 };
-
-static const ::bgfx::EmbeddedShader color_shaders[] =
-    {BGFX_EMBEDDED_SHADER(vs_color), BGFX_EMBEDDED_SHADER(fs_color), BGFX_EMBEDDED_SHADER_END()};
-
-static const ::bgfx::EmbeddedShader text_shaders[] =
-    {BGFX_EMBEDDED_SHADER(vs_text), BGFX_EMBEDDED_SHADER(fs_text), BGFX_EMBEDDED_SHADER_END()};
 
 ::bgfx::ProgramHandle create_program(const ::bgfx::EmbeddedShader* shaders, const char* vertex, const char* fragment)
 {
@@ -127,8 +138,8 @@ backend::backend(std::function<centui::viewport()> surface, std::unique_ptr<cont
         .add(::bgfx::Attrib::Color0, 4, ::bgfx::AttribType::Uint8, true)
         .end();
 
-    m_program = details::owned_handle{details::create_program(details::color_shaders, "vs_color", "fs_color")};
-    m_text_program = details::owned_handle{details::create_program(details::text_shaders, "vs_text", "fs_text")};
+    m_program = details::owned_handle{details::create_program(color_shaders, "vs_color", "fs_color")};
+    m_text_program = details::owned_handle{details::create_program(text_shaders, "vs_text", "fs_text")};
     m_sampler = details::owned_handle{::bgfx::createUniform("s_texColor", ::bgfx::UniformType::Sampler)};
 
     if(!::bgfx::isValid(m_sampler.get()))
