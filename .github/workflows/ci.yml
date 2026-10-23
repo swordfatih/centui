@@ -30,6 +30,8 @@ jobs:
                       cxxflags: -Wall -Wextra -Wpedantic
                       configure: -G Ninja
                       packages: g++-14
+                      build_type: Release
+
                     - name: Linux Clang
                       os: ubuntu-24.04
                       cc: clang-18
@@ -37,19 +39,31 @@ jobs:
                       cxxflags: -Wall -Wextra -Wpedantic -stdlib=libc++
                       configure: -G Ninja
                       packages: clang-18 libc++-18-dev libc++abi-18-dev
+                      build_type: Release
+
                     - name: macOS Apple Clang
                       os: macos-15
                       cc: clang
                       cxx: clang++
                       cxxflags: -Wall -Wextra -Wpedantic
                       configure: -G Ninja
+                      build_type: Release
+
                     - name: Windows MSVC
                       os: windows-2022
                       cc: cl
                       cxx: cl
                       cxxflags: /W4 /Zc:__cplusplus /utf-8
                       configure: -G "Visual Studio 17 2022" -A x64
+                      build_type: Release
 
+                    - name: Windows ClangCL Debug
+                      os: windows-2022
+                      cc: clang-cl
+                      cxx: clang-cl
+                      cxxflags: /W4 /Zc:__cplusplus /utf-8
+                      configure: -G "Visual Studio 17 2022" -A x64 -T ClangCL
+                      build_type: Debug
         steps:
             - name: Checkout
               uses: actions/checkout@v6
@@ -69,7 +83,7 @@ jobs:
                   CXXFLAGS: ${{ matrix.cxxflags }}
               run: >-
                   cmake -S . -B build ${{ matrix.configure }}
-                  -DCMAKE_BUILD_TYPE=Release
+                  -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
                   -DCMAKE_CXX_STANDARD=20
                   -DCMAKE_CXX_STANDARD_REQUIRED=ON
                   -DCMAKE_CXX_EXTENSIONS=OFF
@@ -81,7 +95,7 @@ jobs:
                   -DCENTUI_BUILD_TESTS=ON
 
             - name: Build
-              run: cmake --build build --config Release --parallel 4
+              run: cmake --build build --config ${{ matrix.build_type }} --parallel 4
 
             - name: Test
-              run: ctest --test-dir build --build-config Release --parallel 4 --output-on-failure --no-tests=error
+              run: ctest --test-dir build --build-config ${{ matrix.build_type }} --parallel 4 --output-on-failure --no-tests=error
