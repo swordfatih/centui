@@ -34,15 +34,15 @@ jobs:
 
                     - name: Linux Clang
                       os: ubuntu-24.04
-                      cc: clang-18
-                      cxx: clang++-18
+                      cc: clang-20
+                      cxx: clang++-20
                       cxxflags: -Wall -Wextra -Wpedantic -stdlib=libc++
                       configure: -G Ninja
-                      packages: clang-18 libc++-18-dev libc++abi-18-dev
+                      packages: clang-20 libc++-20-dev libc++abi-20-dev
                       build_type: Release
 
                     - name: macOS Apple Clang
-                      os: macos-15
+                      os: macos-26
                       cc: clang
                       cxx: clang++
                       cxxflags: -Wall -Wextra -Wpedantic
@@ -50,20 +50,21 @@ jobs:
                       build_type: Release
 
                     - name: Windows MSVC
-                      os: windows-2022
+                      os: windows-2025
                       cc: cl
                       cxx: cl
                       cxxflags: /W4 /Zc:__cplusplus /utf-8
-                      configure: -G "Visual Studio 17 2022" -A x64
+                      configure: -G "Visual Studio 18 2026" -A x64
                       build_type: Release
 
                     - name: Windows ClangCL Debug
-                      os: windows-2022
+                      os: windows-2025
                       cc: clang-cl
                       cxx: clang-cl
                       cxxflags: /W4 /Zc:__cplusplus /utf-8
-                      configure: -G "Visual Studio 17 2022" -A x64 -T ClangCL
+                      configure: -G "Visual Studio 18 2026" -A x64 -T ClangCL
                       build_type: Debug
+
         steps:
             - name: Checkout
               uses: actions/checkout@v6
