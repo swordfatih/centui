@@ -1,5 +1,4 @@
 #include <format>
-#include <initializer_list>
 #include <memory>
 #include <stdexcept>
 

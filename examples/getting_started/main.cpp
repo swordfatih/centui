@@ -1,8 +1,5 @@
-#include <filesystem>
 #include <format>
-#include <initializer_list>
 #include <memory>
-#include <string>
 
 #include <centui/backends/bgfx.hpp>
 #include <centui/centui.hpp>

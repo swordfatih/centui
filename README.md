@@ -13,9 +13,6 @@ CentUI is a small C++20 library for building interfaces from ordinary widgets. C
 ## Hello world
 
 ```cpp
-#include <filesystem>
-#include <initializer_list>
-
 #include <centui/centui.hpp>
 #include <centui/platforms/sdl.hpp>
 #include <centui/backends/bgfx.hpp>

@@ -1,3 +1,13 @@
+#include <cstddef>
+#include <functional>
+#include <memory>
+#include <span>
+#include <string>
+#include <string_view>
+#include <utility>
+
+#include <initializer_list>
+
 #include "../support/studio.hpp"
 
 #include <centui/backends/bgfx.hpp>

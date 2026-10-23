@@ -1,3 +1,7 @@
+#include <cstddef>
+#include <memory>
+#include <string_view>
+
 #include "../support/studio.hpp"
 
 #include <centui/backends/bgfx.hpp>
