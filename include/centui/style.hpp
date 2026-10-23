@@ -181,7 +181,7 @@ public:
 
     // Shared by style construction, full replacement, and patches.
     /// \brief Throws std::invalid_argument when a property cannot be represented or laid out.
-    constexpr void validate() const
+    void validate() const
     {
         const auto check_length = [](length value, bool nonnegative)
         {
