@@ -393,7 +393,10 @@ TEST_CASE("Relative static and absolute positioning honor logical and percentage
     REQUIRE(child.bounds().x == Catch::Approx(0));
     REQUIRE(child.bounds().y == Catch::Approx(0));
     inner.position = centui::position::absolute;
-    inner.layout_direction = centui::layout_direction::rtl;
+    // Yoga resolves absolute logical insets using the parent's direction.
+    auto outer = row(200, 100);
+    outer.layout_direction = centui::layout_direction::rtl;
+    parent.update(outer);
     child.update(inner);
     parent.calculate(200, 100);
     REQUIRE(child.bounds().x == Catch::Approx(130));
