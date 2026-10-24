@@ -60,7 +60,10 @@ public:
     void draw(const draw_list& list) override;
 
 private:
-    const ::sf::Texture& texture(const std::shared_ptr<const bitmap>& bitmap);
+    const ::sf::Texture& texture(
+        const std::shared_ptr<const bitmap>& bitmap,
+        image_sampling sampling = image_sampling::nearest
+    );
 
     void quad(rect bounds, color tint, rect uv, std::optional<std::reference_wrapper<const ::sf::Texture>> texture);
 

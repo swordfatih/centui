@@ -142,7 +142,13 @@ private:
 
     const texture_handle& get_glyph(const std::shared_ptr<const bitmap>& bitmap);
 
-    void glyph(const rect& bounds, color value, rect uv, ::bgfx::TextureHandle texture);
+    void glyph(
+        const rect& bounds,
+        color value,
+        rect uv,
+        ::bgfx::TextureHandle texture,
+        image_sampling sampling = image_sampling::nearest
+    );
 
     // Declared first so bgfx outlives every resource destroyed below.
     std::unique_ptr<context> m_context;

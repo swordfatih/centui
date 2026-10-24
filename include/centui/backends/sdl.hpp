@@ -77,7 +77,7 @@ private:
 
     static renderer_ptr create_renderer(platform& host);
 
-    SDL_Texture& texture(const std::shared_ptr<const bitmap>& image);
+    SDL_Texture& texture(const std::shared_ptr<const bitmap>& image, image_sampling sampling = image_sampling::nearest);
 
     void quad(rect bounds, color tint, rect uv, std::optional<std::reference_wrapper<SDL_Texture>> image, float scale);
 

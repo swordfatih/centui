@@ -5,6 +5,7 @@
 
 #include <centui/controls.hpp>
 #include <centui/font.hpp>
+#include <centui/image.hpp>
 #include <centui/input.hpp>
 #include <centui/platform.hpp>
 #include <centui/render.hpp>

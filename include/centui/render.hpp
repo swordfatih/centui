@@ -108,12 +108,19 @@ struct text_command
     rect clip{};
 };
 
+enum class image_sampling
+{
+    linear,
+    nearest
+};
+
 struct image_command
 {
     rect bounds;
     rect clip;
     std::shared_ptr<const bitmap> image;
     centui::color color = {255, 255, 255, 255};
+    image_sampling sampling = image_sampling::linear;
 };
 
 using draw_command = std::variant<rectangle_command, text_command, image_command>;

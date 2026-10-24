@@ -61,6 +61,11 @@ rect painter::bounds() const noexcept
     return m_bounds;
 }
 
+float painter::scale() const noexcept
+{
+    return m_output.viewport.scale;
+}
+
 text_service& painter::fonts() const noexcept
 {
     return m_fonts;
@@ -86,12 +91,12 @@ void painter::text(std::shared_ptr<const text_layout> layout)
     text(std::move(layout), m_bounds, details::state_color(m_style.text_color, m_state), m_style.text_align);
 }
 
-void painter::image(std::shared_ptr<const bitmap> value, rect bounds, centui::color tint)
+void painter::image(std::shared_ptr<const bitmap> value, rect bounds, centui::color tint, image_sampling sampling)
 {
     if(value)
     {
         validate_bitmap(*value);
-        m_output.commands.emplace_back(image_command{bounds, m_clip, std::move(value), tint});
+        m_output.commands.emplace_back(image_command{bounds, m_clip, std::move(value), tint, sampling});
     }
 }
 

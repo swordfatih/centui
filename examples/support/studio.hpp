@@ -181,26 +181,23 @@ inline std::vector<std::string> projects()
 
 inline centui::handle<centui::image_widget> cover()
 {
-    centui::bitmap image{64, 40, std::vector<std::uint8_t>(64 * 40 * 4)};
-
-    for(int y = 0; y < image.height; ++y)
-    {
-        for(int x = 0; x < image.width; ++x)
-        {
-            const auto shade = (x + y * 2) % 40 < 18 ? 0x52C7B8u : 0x24485Du;
-            const auto color = centui::color::from_hex(shade);
-            const auto offset = static_cast<std::size_t>((y * image.width + x) * 4);
-            image.pixels[offset] = color.r;
-            image.pixels[offset + 1] = color.g;
-            image.pixels[offset + 2] = color.b;
-            image.pixels[offset + 3] = 255;
-        }
-    }
+    static const auto source = centui::image_source::from_svg(R"svg(
+        <svg xmlns="http://www.w3.org/2000/svg" width="64" height="40" viewBox="0 0 64 40">
+            <defs>
+                <pattern id="stripes" width="40" height="40" patternUnits="userSpaceOnUse"
+                         patternTransform="skewX(-26.565)">
+                    <rect width="40" height="40" fill="#24485D"/>
+                    <rect width="18" height="40" fill="#52C7B8"/>
+                </pattern>
+            </defs>
+            <rect width="64" height="40" fill="url(#stripes)"/>
+        </svg>
+    )svg");
 
     centui::style appearance;
     appearance.height = centui::px(120);
 
-    return centui::make_widget<centui::image_widget>(std::move(image), appearance);
+    return centui::image<>{source, {}, appearance};
 }
 
 struct settings

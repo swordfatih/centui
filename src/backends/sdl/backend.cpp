@@ -190,7 +190,7 @@ void backend::draw(const draw_list& list)
                         clip,
                         [&](rect bounds, rect uv)
                         {
-                            quad(bounds, item.color, uv, texture(item.image), size.scale);
+                            quad(bounds, item.color, uv, texture(item.image, item.sampling), size.scale);
                         }
                     );
                 }
@@ -200,12 +200,19 @@ void backend::draw(const draw_list& list)
     }
 }
 
-SDL_Texture& backend::texture(const std::shared_ptr<const bitmap>& image)
+SDL_Texture& backend::texture(const std::shared_ptr<const bitmap>& image, image_sampling sampling)
 {
     const std::weak_ptr<const bitmap> key{image};
 
     if(const auto found = m_images.find(key); found != m_images.end())
     {
+        if(!SDL_SetTextureScaleMode(
+               found->second.get(),
+               sampling == image_sampling::linear ? SDL_SCALEMODE_LINEAR : SDL_SCALEMODE_NEAREST
+           ))
+        {
+            throw std::runtime_error(SDL_GetError());
+        }
         return *found->second;
     }
 
@@ -227,7 +234,10 @@ SDL_Texture& backend::texture(const std::shared_ptr<const bitmap>& image)
 
     if(!result || !SDL_UpdateTexture(result.get(), nullptr, pixels.data(), image->width * 4) ||
        !SDL_SetTextureBlendMode(result.get(), SDL_BLENDMODE_BLEND) ||
-       !SDL_SetTextureScaleMode(result.get(), SDL_SCALEMODE_NEAREST))
+       !SDL_SetTextureScaleMode(
+           result.get(),
+           sampling == image_sampling::linear ? SDL_SCALEMODE_LINEAR : SDL_SCALEMODE_NEAREST
+       ))
     {
         throw std::runtime_error(SDL_GetError());
     }

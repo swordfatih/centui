@@ -48,6 +48,8 @@ public:
 
     [[nodiscard]] rect bounds() const noexcept;
 
+    [[nodiscard]] float scale() const noexcept;
+
     [[nodiscard]] text_service& fonts() const noexcept;
 
     [[nodiscard]] centui::color foreground() const noexcept;
@@ -56,7 +58,12 @@ public:
 
     void text(std::shared_ptr<const text_layout> layout);
 
-    void image(std::shared_ptr<const bitmap> value, rect bounds, centui::color tint = {255, 255, 255, 255});
+    void image(
+        std::shared_ptr<const bitmap> value,
+        rect bounds,
+        centui::color tint = {255, 255, 255, 255},
+        image_sampling sampling = image_sampling::linear
+    );
 
     void text(std::string_view value);
 

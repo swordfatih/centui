@@ -342,7 +342,7 @@ void backend::draw(const draw_list& list)
                         clip,
                         [&](rect bounds, rect uv)
                         {
-                            glyph(bounds, item.color, uv, get_glyph(item.image).get());
+                            glyph(bounds, item.color, uv, get_glyph(item.image).get(), item.sampling);
                         }
                     );
                 }
@@ -399,7 +399,7 @@ const backend::texture_handle& backend::get_glyph(const std::shared_ptr<const bi
     return m_glyphs.emplace(key, std::move(texture)).first->second;
 }
 
-void backend::glyph(const rect& bounds, color value, rect uv, ::bgfx::TextureHandle texture)
+void backend::glyph(const rect& bounds, color value, rect uv, ::bgfx::TextureHandle texture, image_sampling sampling)
 {
     if(!::bgfx::isValid(texture) || bounds.width <= 0 || bounds.height <= 0 || value.a == 0)
     {
@@ -436,7 +436,9 @@ void backend::glyph(const rect& bounds, color value, rect uv, ::bgfx::TextureHan
 
     ::bgfx::setVertexBuffer(0, &vertices);
     ::bgfx::setIndexBuffer(&indices);
-    ::bgfx::setTexture(0, m_sampler.get(), texture);
+    const auto flags = BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP |
+                       (sampling == image_sampling::nearest ? BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT : 0);
+    ::bgfx::setTexture(0, m_sampler.get(), texture, flags);
     ::bgfx::setState(
         BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A |
         BGFX_STATE_BLEND_FUNC_SEPARATE(

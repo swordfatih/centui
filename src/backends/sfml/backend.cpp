@@ -149,7 +149,7 @@ void backend::draw(const draw_list& list)
                         clip,
                         [&](rect bounds, rect uv)
                         {
-                            quad(bounds, item.color, uv, std::cref(texture(item.image)));
+                            quad(bounds, item.color, uv, std::cref(texture(item.image, item.sampling)));
                         }
                     );
                 }
@@ -159,12 +159,13 @@ void backend::draw(const draw_list& list)
     }
 }
 
-const ::sf::Texture& backend::texture(const std::shared_ptr<const bitmap>& bitmap)
+const ::sf::Texture& backend::texture(const std::shared_ptr<const bitmap>& bitmap, image_sampling sampling)
 {
     const std::weak_ptr<const centui::bitmap> key{bitmap};
 
     if(const auto found = m_images.find(key); found != m_images.end())
     {
+        found->second.setSmooth(sampling == image_sampling::linear);
         return found->second;
     }
 
@@ -185,7 +186,7 @@ const ::sf::Texture& backend::texture(const std::shared_ptr<const bitmap>& bitma
         throw std::runtime_error("Failed to create SFML glyph texture");
     }
 
-    texture.setSmooth(false);
+    texture.setSmooth(sampling == image_sampling::linear);
 
     return m_images.emplace(key, std::move(texture)).first->second;
 }
