@@ -1,4 +1,4 @@
-
+#include <centui/document.hpp>
 #include <centui/widgets/range.hpp>
 
 #include <catch2/catch_test_macros.hpp>

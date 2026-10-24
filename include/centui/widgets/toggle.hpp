@@ -12,11 +12,18 @@
 namespace centui
 {
 
+/// \brief Initial checked state and change callback.
+struct toggle_options
+{
+    bool checked = false;
+    std::function<void(bool)> on_change{};
+};
+
 /// \brief A labeled control that toggles its checked state on activation.
 class toggle_widget : public button_widget
 {
 public:
-    explicit toggle_widget(std::string label, centui::style appearance = {}, bool checked = false);
+    explicit toggle_widget(std::string label, toggle_options options = {}, centui::style appearance = {});
 
     [[nodiscard]] bool checked() const noexcept;
 
@@ -34,13 +41,6 @@ private:
     details::callback<bool> m_on_change;
 };
 
-/// \brief Initial checked state and change callback.
-struct toggle_options
-{
-    bool checked = false;
-    std::function<void(bool)> on_change{};
-};
-
 /// \brief A toggle handle with compile-time style composition.
 template <typename... Styles>
 class toggle : public handle<toggle_widget>
@@ -51,9 +51,8 @@ public:
         toggle_options options = {},
         centui::style appearance = centui::style::resolve<Styles...>()
     )
-        : handle<toggle_widget>(make_widget<toggle_widget>(std::move(label), std::move(appearance), options.checked))
+        : handle<toggle_widget>(make_widget<toggle_widget>(std::move(label), std::move(options), std::move(appearance)))
     {
-        this->get().set_on_change(std::move(options.on_change));
     }
 };
 

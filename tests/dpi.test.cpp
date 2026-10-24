@@ -59,10 +59,10 @@ TEST_CASE("Documents refresh text caches and hit test in logical coordinates", "
 
     for(const auto& command: dense.commands)
     {
-        if(std::holds_alternative<centui::text_command>(command))
+        if(command.image)
         {
             found_text = true;
-            REQUIRE(std::get<centui::text_command>(command).shaped->raster_scale == 2);
+            REQUIRE(command.image->height * command.uv.height == Catch::Approx(command.bounds.height * 2));
         }
     }
 

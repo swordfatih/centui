@@ -113,48 +113,13 @@ void backend::draw(const draw_list& list)
 
     m_target.pushGLStates();
     m_target.setView(::sf::View{::sf::FloatRect{{0, 0}, {size.logical_width(), size.logical_height()}}});
-    const rect clip{0, 0, size.logical_width(), size.logical_height()};
-
-    for(const auto& command: list.commands)
+    for(const auto& item: list.commands)
     {
-        std::visit(
-            [&](const auto& item)
-            {
-                using type = std::decay_t<decltype(item)>;
-
-                if constexpr(std::is_same_v<type, rectangle_command>)
-                {
-                    quad(
-                        intersection(intersection(item.bounds, item.clip), clip),
-                        item.color,
-                        {0, 0, 1, 1},
-                        std::nullopt
-                    );
-                }
-                else if constexpr(std::is_same_v<type, text_command>)
-                {
-                    details::for_each_glyph(
-                        item,
-                        clip,
-                        [&](const glyph_quad& glyph)
-                        {
-                            quad(glyph.bounds, glyph.color, glyph.uv, std::cref(texture(glyph.image)));
-                        }
-                    );
-                }
-                else
-                {
-                    details::draw_image(
-                        item,
-                        clip,
-                        [&](rect bounds, rect uv)
-                        {
-                            quad(bounds, item.color, uv, std::cref(texture(item.image, item.sampling)));
-                        }
-                    );
-                }
-            },
-            command
+        quad(
+            item.bounds,
+            item.color,
+            item.uv,
+            item.image ? std::optional{std::cref(texture(item.image, item.sampling))} : std::nullopt
         );
     }
 }

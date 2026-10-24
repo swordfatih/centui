@@ -103,7 +103,7 @@ TEST_CASE("Widget child operations work detached and mounted", "[widget][extensi
 TEST_CASE("Composite callbacks edit their children through the widget API", "[widget][extension]")
 {
     auto root = centui::make_widget<centui::container_widget>(box(200, 100));
-    auto action = centui::make_widget<centui::pressable_widget>(box(80, 30));
+    auto action = centui::make_widget<centui::pressable_widget>(centui::pressable_options{}, box(80, 30));
     auto replacement = centui::make_widget<centui::container_widget>(box(80, 30));
     root->append(action);
     centui::document document{root};
@@ -194,7 +194,7 @@ TEST_CASE("Child clipping and offsets agree for drawing and pointer targeting", 
     appearance.inset.left = centui::px(20);
     appearance.inset.top = centui::px(0);
     appearance.background_color = centui::states_color::all({255, 0, 0, 255});
-    auto child = centui::make_widget<counting_button>(appearance);
+    auto child = centui::make_widget<counting_button>(centui::pressable_options{}, appearance);
     root->append(child);
     centui::document document{root};
     document.process_event({centui::input_event_type::pointer_moved, 50, 5}, {200, 100});
@@ -206,9 +206,9 @@ TEST_CASE("Child clipping and offsets agree for drawing and pointer targeting", 
     REQUIRE(child->bounds().x == 0);
     REQUIRE(child->content_bounds().x == 0);
     REQUIRE(commands.size() == 1);
-    const auto& rectangle = std::get<centui::rectangle_command>(commands.front());
+    const auto& rectangle = commands.front();
     REQUIRE(rectangle.bounds.x == 0);
-    REQUIRE(rectangle.clip.width == 40);
+    REQUIRE(rectangle.bounds.width == 40);
     document.process_event({centui::input_event_type::pointer_pressed, 5, 5}, {200, 100});
     REQUIRE(child->pressed());
     document.process_event({centui::input_event_type::pointer_released, 50, 5}, {200, 100});
@@ -222,7 +222,7 @@ TEST_CASE("Child clipping and offsets agree for drawing and pointer targeting", 
 TEST_CASE("Content buttons reuse activation without inheriting text", "[widget][button]")
 {
     auto content = centui::make_widget<centui::container_widget>(box(20, 20));
-    auto action = centui::make_widget<counting_button>(content, box(80, 30));
+    auto action = centui::make_widget<counting_button>(content, centui::pressable_options{}, box(80, 30));
     int callbacks = 0;
     action->set_on_click(
         [&]

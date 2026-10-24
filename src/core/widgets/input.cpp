@@ -3,13 +3,15 @@
 namespace centui
 {
 
-input_widget::input_widget(std::string value, centui::style appearance, bool multiline)
+input_widget::input_widget(std::string value, input_options options, centui::style appearance)
     : widget(std::move(appearance)),
-      m_multiline(multiline)
+      m_multiline(options.multiline)
 {
     set_text(std::move(value));
     set_interactive();
     set_focusable();
+    set_on_change(std::move(options.on_change));
+    set_on_submit(std::move(options.on_submit));
 }
 
 std::string_view input_widget::value() const noexcept
@@ -133,7 +135,7 @@ void input_widget::paint(painter& output) const
         }
     }
 
-    output.text(m_layout, area, output.foreground());
+    output.text(m_cache.rasterize(output.fonts()), area, output.foreground());
 
     if(focused())
     {
@@ -495,14 +497,6 @@ std::size_t input_widget::display_caret() const noexcept
 void input_widget::prepare_text(text_service& service, float width) const
 {
     const auto appearance = resolved_style();
-    const auto identity = service.font_identity(appearance.font);
-
-    if(m_layout && m_font_identity == identity && m_font_size == style().font_size && m_width == width &&
-       m_layout->raster_scale == service.scale())
-    {
-        return;
-    }
-
     auto text = m_value;
 
     if(!m_preedit.empty())
@@ -511,10 +505,7 @@ void input_widget::prepare_text(text_service& service, float width) const
         text.replace(begin, end - begin, m_preedit);
     }
 
-    m_layout = service.prepare(text, appearance.font, appearance.font_size, width);
-    m_font_identity = identity;
-    m_font_size = style().font_size;
-    m_width = width;
+    m_layout = m_cache.layout(service, text, appearance.font, appearance.font_size, width);
 }
 
 void input_widget::changed_layout()

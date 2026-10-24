@@ -14,17 +14,26 @@
 #include <utility>
 #include <vector>
 
-#include <centui/tree.hpp>
+#include <centui/widget.hpp>
 #include <centui/widgets/callback.hpp>
 
 namespace centui
 {
 
+/// \brief Initial editing mode and text callbacks.
+struct input_options
+{
+    bool multiline = false;
+    std::function<void(std::string_view)> on_change{};
+
+    std::function<void()> on_submit{};
+};
+
 /// \brief Editable UTF-8 text with selection, composition, and undo history.
 class input_widget : public widget
 {
 public:
-    explicit input_widget(std::string value = {}, centui::style appearance = {}, bool multiline = false);
+    explicit input_widget(std::string value = {}, input_options options = {}, centui::style appearance = {});
 
     [[nodiscard]] std::string_view value() const noexcept;
 
@@ -103,17 +112,7 @@ private:
     details::callback<> m_on_submit;
 
     mutable std::shared_ptr<const text_layout> m_layout;
-    mutable std::shared_ptr<const void> m_font_identity;
-    mutable float m_font_size = 0;
-    mutable float m_width = 0;
-};
-
-/// \brief Initial editing mode and text callbacks.
-struct input_options
-{
-    bool multiline = false;
-    std::function<void(std::string_view)> on_change{};
-    std::function<void()> on_submit{};
+    mutable text_cache m_cache;
 };
 
 /// \brief A text input handle with compile-time style composition.
@@ -126,10 +125,8 @@ public:
         input_options options = {},
         centui::style appearance = centui::style::resolve<Styles...>()
     )
-        : handle<input_widget>(make_widget<input_widget>(std::move(value), std::move(appearance), options.multiline))
+        : handle<input_widget>(make_widget<input_widget>(std::move(value), std::move(options), std::move(appearance)))
     {
-        this->get().set_on_change(std::move(options.on_change));
-        this->get().set_on_submit(std::move(options.on_submit));
     }
 };
 

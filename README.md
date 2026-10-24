@@ -74,4 +74,11 @@ cmake --build build --target centui_example_getting_started
 
 The executable is in `build/examples/getting_started/`. Other examples include a [complete interface built as a nested tree](examples/gui_static/main.cpp), [the same interface built with helpers](examples/gui_dynamic/main.cpp), and SDL, SFML, and GLFW overlays in [hud_sdl](examples/hud_sdl/main.cpp), [hud_sfml](examples/hud_sfml/main.cpp), and [hud_glfw](examples/hud_glfw/main.cpp).
 
+The [custom primitive example](examples/custom_primitive/main.cpp) demonstrates
+an animated gradient widget controlled by a slider, with retained vector paths,
+and rounded corners. Build `centui_example_custom_primitive` with SDL
+and bgfx enabled.
+The [Pulse dashboard](examples/pulse/main.cpp) demonstrates a vector chart with
+a gradient area fill and proportional traffic bars.
+
 CentUI is still evolving. Start with the [getting started guide](docs/getting-started.md), then explore [widgets and styles](docs/widgets-and-styles.md), [custom widgets](docs/extending.md), or [window and renderer integration](docs/backends.md).

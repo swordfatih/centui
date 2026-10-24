@@ -19,6 +19,7 @@ struct screen
 
 struct card
 {
+    float corner_radius = 18;
     centui::length width = centui::percent(90);
     centui::length max_width = centui::px(380);
     centui::edges padding = centui::edges::all(centui::px(28));
@@ -45,6 +46,7 @@ struct counter
 
 struct action
 {
+    float corner_radius = 8;
     centui::flex flex = centui::flex::all(1, 1, centui::px(0));
     centui::length height = centui::px(46);
     centui::edges padding = centui::edges::all(centui::px(12));

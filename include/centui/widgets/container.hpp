@@ -4,7 +4,7 @@
 #include <span>
 #include <utility>
 
-#include <centui/tree.hpp>
+#include <centui/widget.hpp>
 
 namespace centui
 {

@@ -17,7 +17,7 @@ void text_widget::set_text(std::string value)
     if(m_value != value)
     {
         m_value.swap(value);
-        m_cached.reset();
+        m_cache.reset();
         invalidate_layout();
     }
 }
@@ -48,22 +48,12 @@ void text_widget::paint(painter& output) const
 {
     const auto appearance = text_style();
     (void)prepared(output.fonts(), appearance, output.bounds().width);
-    auto color = output.foreground();
-
-    if(m_inherit_text_style)
-    {
-        if(auto owner = parent(); owner.valid())
-        {
-            const auto state = !owner->effectively_enabled() ? details::visual_state::disabled
-                               : owner->pressed()            ? details::visual_state::pressed
-                               : owner->hovered()            ? details::visual_state::hovered
-                               : owner->focused()            ? details::visual_state::focused
-                                                             : details::visual_state::normal;
-            color = details::state_color(appearance.text_color, state);
-        }
-    }
-
-    output.text(m_cached, output.bounds(), color, appearance.text_align);
+    output.text(
+        m_cache.rasterize(output.fonts()),
+        output.bounds(),
+        output.resolve(appearance.text_color),
+        appearance.text_align
+    );
 }
 
 centui::style text_widget::text_style() const
@@ -81,19 +71,7 @@ centui::style text_widget::text_style() const
 
 const text_layout& text_widget::prepared(text_service& fonts, const centui::style& appearance, float width) const
 {
-    auto identity = fonts.font_identity(appearance.font);
-
-    if(!m_cached || identity != m_font_identity || m_font_size != appearance.font_size || m_width != width ||
-       m_cached->raster_scale != fonts.scale())
-    {
-        auto candidate = fonts.prepare(m_value, appearance.font, appearance.font_size, width);
-        m_cached = std::move(candidate);
-        m_font_identity = std::move(identity);
-        m_font_size = appearance.font_size;
-        m_width = width;
-    }
-
-    return *m_cached;
+    return *m_cache.layout(fonts, m_value, appearance.font, appearance.font_size, width);
 }
 
 } // namespace centui

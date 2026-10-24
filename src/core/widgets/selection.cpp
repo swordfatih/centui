@@ -3,12 +3,14 @@
 namespace centui
 {
 
-selection_widget::selection_widget(std::vector<std::string> items, centui::style appearance)
+selection_widget::selection_widget(std::vector<std::string> items, selection_options options, centui::style appearance)
     : widget(std::move(appearance)),
       m_items(std::move(items))
 {
     set_interactive();
     set_focusable();
+    set_selected(options.selected);
+    set_on_change(std::move(options.on_change));
 }
 
 void selection_widget::set_items(std::vector<std::string> items)

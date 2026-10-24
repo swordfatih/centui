@@ -1,14 +1,13 @@
+#include "../support/studio.hpp"
+
 #include <cstddef>
 #include <functional>
+#include <initializer_list>
 #include <memory>
 #include <span>
 #include <string>
 #include <string_view>
 #include <utility>
-
-#include <initializer_list>
-
-#include "../support/studio.hpp"
 
 #include <centui/backends/bgfx.hpp>
 #include <centui/platforms/sdl.hpp>
@@ -39,8 +38,8 @@ handle<centui::button_widget> action(std::string title, std::function<void()> ca
 {
     return make_widget<centui::button_widget>(
         std::move(title),
-        centui::style::resolve<primary>(),
-        centui::button_options{.on_click = std::move(callback)}
+        centui::button_options{.on_click = std::move(callback)},
+        centui::style::resolve<primary>()
     );
 }
 
@@ -93,7 +92,11 @@ private:
 
     handle<> project_panel()
     {
-        auto list = make_widget<centui::selection_widget>(projects(), centui::style::resolve<selection_style>());
+        auto list = make_widget<centui::selection_widget>(
+            projects(),
+            centui::selection_options{},
+            centui::style::resolve<selection_style>()
+        );
         list->set_selected(m_state->project);
         list->set_on_change(
             [state = m_state](std::size_t index)
@@ -119,7 +122,11 @@ private:
 
     handle<> editor_panel()
     {
-        auto name = make_widget<centui::input_widget>(m_state->name, centui::style::resolve<control>());
+        auto name = make_widget<centui::input_widget>(
+            m_state->name,
+            centui::input_options{},
+            centui::style::resolve<control>()
+        );
         name->set_on_change(
             [state = m_state](std::string_view value)
             {
@@ -127,8 +134,11 @@ private:
                 state->changed();
             }
         );
-        auto notes =
-            make_widget<centui::input_widget>(m_state->notes, centui::style::resolve<control, multiline>(), true);
+        auto notes = make_widget<centui::input_widget>(
+            m_state->notes,
+            centui::input_options{.multiline = true},
+            centui::style::resolve<control, multiline>()
+        );
         notes->set_on_change(
             [state = m_state](std::string_view value)
             {
@@ -136,7 +146,10 @@ private:
                 state->changed();
             }
         );
-        m_duration = make_widget<centui::range_widget>(centui::style::resolve<control>(), 15.f, 90.f, 5.f);
+        m_duration = make_widget<centui::range_widget>(
+            centui::range_options{.minimum = 15, .maximum = 90, .step = 5},
+            centui::style::resolve<control>()
+        );
         m_duration->set_value(m_state->minutes);
         m_duration->set_on_change(
             [state = m_state](float value)
@@ -147,8 +160,8 @@ private:
         );
         m_notifications = make_widget<centui::toggle_widget>(
             "Notifications",
-            centui::style::resolve<control>(),
-            m_state->notifications
+            centui::toggle_options{.checked = m_state->notifications},
+            centui::style::resolve<control>()
         );
         m_notifications->set_on_change(
             [state = m_state](bool value)
@@ -182,7 +195,11 @@ private:
                 label("Quiet preset\nClick to switch off distractions."),
             }
         );
-        auto quiet = make_widget<centui::pressable_widget>(preset_content, centui::style::resolve<preset>());
+        auto quiet = make_widget<centui::pressable_widget>(
+            preset_content,
+            centui::pressable_options{},
+            centui::style::resolve<preset>()
+        );
         quiet->set_on_click(
             [state = m_state, notifications = m_notifications, duration = m_duration]
             {

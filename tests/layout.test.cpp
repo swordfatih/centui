@@ -610,10 +610,10 @@ TEST_CASE("Border painting uses each resolved physical width", "[yoga][render]")
     centui::document document{root};
     const auto& draw = document.prepare({100, 100});
     REQUIRE(draw.commands.size() == 4);
-    REQUIRE(std::get<centui::rectangle_command>(draw.commands[0]).bounds.height == 1);
-    REQUIRE(std::get<centui::rectangle_command>(draw.commands[1]).bounds.height == 3);
-    REQUIRE(std::get<centui::rectangle_command>(draw.commands[2]).bounds.width == 4);
-    REQUIRE(std::get<centui::rectangle_command>(draw.commands[3]).bounds.width == 2);
+    REQUIRE(draw.commands[0].bounds.height == 1);
+    REQUIRE(draw.commands[1].bounds.height == 3);
+    REQUIRE(draw.commands[2].bounds.width == 4);
+    REQUIRE(draw.commands[3].bounds.width == 2);
 }
 
 TEST_CASE("Document layout options invalidate only when changed and validate atomically", "[yoga][config]")
@@ -819,8 +819,8 @@ TEST_CASE("Overflow modes control clipping and pointer targets", "[yoga][overflo
         const auto& draw = document.prepare({100, 100});
         REQUIRE(root->metrics().had_overflow);
         REQUIRE(draw.commands.size() == 1);
-        const auto clip = std::get<centui::rectangle_command>(draw.commands.front()).clip;
-        REQUIRE(clip.width == Catch::Approx(mode == centui::overflow::visible ? 100 : 40));
+        const auto clip = draw.commands.front().bounds;
+        REQUIRE(clip.width == Catch::Approx(mode == centui::overflow::visible ? 80 : 40));
         document.process_event(
             {centui::input_event_type::pointer_pressed, 60, 10, centui::mouse_button::primary},
             {100, 100}

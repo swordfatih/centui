@@ -121,6 +121,37 @@ TEST_CASE("Document removal and destruction detach surviving handles", "[documen
     REQUIRE(next.root() == centui::handle<>{child});
 }
 
+TEST_CASE("Committed removals release widgets with a zero-sized viewport", "[document][lifetime]")
+{
+    centui::handle<> root = centui::container<panel_style>{};
+    centui::handle<> child = centui::container<button_style>{};
+    root->append(child);
+    centui::document document{root};
+    (void)document.prepare({200, 100});
+    (void)document.prepare({0, 0});
+
+    SECTION("Child removal")
+    {
+        auto weak = child.weak();
+        document.remove(child);
+        child = {};
+        REQUIRE_FALSE(weak.lock().valid());
+        REQUIRE(root->children().empty());
+        REQUIRE_NOTHROW(document.prepare({200, 100}));
+    }
+
+    SECTION("Root removal")
+    {
+        auto weak = child.weak();
+        document.remove(root);
+        child = {};
+        root = {};
+        REQUIRE_FALSE(weak.lock().valid());
+        REQUIRE(document.empty());
+        REQUIRE(document.prepare({200, 100}).commands.empty());
+    }
+}
+
 TEST_CASE("Idle preparation reuses paint and equal patches do no work", "[document][dirty]")
 {
     int paints = 0;
@@ -276,7 +307,7 @@ TEST_CASE("Root replacement reaches the next event in a batch", "[document][inpu
     first.set_on_click(
         [&document, second]()
         {
-            document.replace_root(second);
+            document.set_root(second);
         }
     );
     click(document);
@@ -407,7 +438,7 @@ TEST_CASE("Stationary pointer hover follows layout and topology changes", "[docu
     centui::document document{root};
     const auto color_at = [&](std::size_t index)
     {
-        return std::get<centui::rectangle_command>(document.prepare({200, 100}).commands.at(index)).color;
+        return document.prepare({200, 100}).commands.at(index).color;
     };
     document.process_event({centui::input_event_type::pointer_moved, 5, 35}, {200, 100});
     REQUIRE(color_at(0) == normal);

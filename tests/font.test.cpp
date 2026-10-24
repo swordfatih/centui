@@ -9,6 +9,7 @@
 #include <stdexcept>
 #include <utility>
 
+#include <centui/document.hpp>
 #include <centui/font.hpp>
 #include <centui/widgets.hpp>
 

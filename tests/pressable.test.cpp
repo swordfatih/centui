@@ -1,6 +1,7 @@
 #include <initializer_list>
 #include <variant>
 
+#include <centui/document.hpp>
 #include <centui/widgets/pressable.hpp>
 
 #include <catch2/catch_test_macros.hpp>
@@ -118,7 +119,7 @@ TEST_CASE("Noninteractive descendants inherit pressable visual states", "[widget
         const auto& commands = document.prepare({200, 100}).commands;
         REQUIRE(commands.size() == 1);
 
-        return std::get<centui::rectangle_command>(commands.front()).color;
+        return commands.front().color;
     };
     REQUIRE(color() == colors.normal);
     document.process_event({centui::input_event_type::pointer_moved, 5, 5}, {200, 100});

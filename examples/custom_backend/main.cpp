@@ -1,10 +1,8 @@
 #include <iostream>
-#include <type_traits>
-#include <variant>
 
 #include <centui/render.hpp>
-#include <centui/tree.hpp>
 #include <centui/types.hpp>
+#include <centui/ui.hpp>
 #include <centui/widgets.hpp>
 
 struct panel_style
@@ -30,27 +28,8 @@ public:
     {
         for(const auto& command: list.commands)
         {
-            std::visit(
-                [](const auto& item)
-                {
-                    using type = std::decay_t<decltype(item)>;
-
-                    if constexpr(std::is_same_v<type, centui::rectangle_command>)
-                    {
-                        std::cout << "rectangle at (" << item.bounds.x << ", " << item.bounds.y << "), size "
-                                  << item.bounds.width << 'x' << item.bounds.height << '\n';
-                    }
-                    else if constexpr(std::is_same_v<type, centui::text_command>)
-                    {
-                        std::cout << "glyphs: " << item.shaped->glyphs.size() << '\n';
-                    }
-                    else
-                    {
-                        std::cout << "image: " << item.image->width << 'x' << item.image->height << '\n';
-                    }
-                },
-                command
-            );
+            std::cout << (command.image ? "textured quad" : "solid quad") << " at (" << command.bounds.x << ", "
+                      << command.bounds.y << "), size " << command.bounds.width << 'x' << command.bounds.height << '\n';
         }
     }
 };

@@ -311,44 +311,16 @@ void backend::draw(const draw_list& list)
         }
     );
     begin(static_cast<std::uint16_t>(size.width), static_cast<std::uint16_t>(size.height), size.scale);
-    const rect clip{0, 0, size.logical_width(), size.logical_height()};
-
-    for(const auto& command: list.commands)
+    for(const auto& item: list.commands)
     {
-        std::visit(
-            [&](const auto& item)
-            {
-                using type = std::decay_t<decltype(item)>;
-
-                if constexpr(std::is_same_v<type, rectangle_command>)
-                {
-                    rectangle(intersection(intersection(item.bounds, item.clip), clip), item.color);
-                }
-                else if constexpr(std::is_same_v<type, text_command>)
-                {
-                    details::for_each_glyph(
-                        item,
-                        clip,
-                        [&](const glyph_quad& quad)
-                        {
-                            glyph(quad.bounds, quad.color, quad.uv, get_glyph(quad.image).get());
-                        }
-                    );
-                }
-                else
-                {
-                    details::draw_image(
-                        item,
-                        clip,
-                        [&](rect bounds, rect uv)
-                        {
-                            glyph(bounds, item.color, uv, get_glyph(item.image).get(), item.sampling);
-                        }
-                    );
-                }
-            },
-            command
-        );
+        if(item.image)
+        {
+            glyph(item.bounds, item.color, item.uv, get_glyph(item.image).get(), item.sampling);
+        }
+        else
+        {
+            rectangle(item.bounds, item.color);
+        }
     }
 }
 

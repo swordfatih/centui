@@ -41,7 +41,7 @@ void scroll_widget::on_layout()
 
     for(const auto& child: children())
     {
-        if(child->appearance().visibility == visibility::collapsed)
+        if(child->style().visibility == visibility::collapsed)
         {
             continue;
         }

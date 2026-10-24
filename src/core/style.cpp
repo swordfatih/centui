@@ -55,6 +55,10 @@ void style::validate() const
         check_length(value.vertical, nonnegative);
     };
 
+    if(!std::isfinite(corner_radius) || corner_radius < 0)
+    {
+        throw std::invalid_argument("Corner radius must be finite and nonnegative");
+    }
     check_length(width, true);
     check_length(height, true);
     check_length(gap, true);
@@ -154,7 +158,8 @@ invalidation style::changes_from(const style& previous) const noexcept
     return {
         .layout = layout_changed,
         .paint = layout_changed || background_color != previous.background_color || text_color != previous.text_color ||
-                 text_align != previous.text_align || border_color != previous.border_color,
+                 text_align != previous.text_align || border_color != previous.border_color ||
+                 corner_radius != previous.corner_radius,
     };
 }
 
@@ -201,6 +206,7 @@ style style_patch::apply(style candidate) const
     CENTUI_APPLY_PATCH(display)
     CENTUI_APPLY_PATCH(reference_baseline)
     CENTUI_APPLY_PATCH(forms_containing_block)
+    CENTUI_APPLY_PATCH(corner_radius)
 #undef CENTUI_APPLY_PATCH
     candidate.validate();
 

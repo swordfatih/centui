@@ -153,49 +153,14 @@ void backend::draw(const draw_list& list)
         }
     } restore{m_renderer, previous_blend};
 
-    const rect clip{0, 0, size.logical_width(), size.logical_height()};
-
-    for(const auto& command: list.commands)
+    for(const auto& item: list.commands)
     {
-        std::visit(
-            [&](const auto& item)
-            {
-                using type = std::decay_t<decltype(item)>;
-
-                if constexpr(std::is_same_v<type, rectangle_command>)
-                {
-                    quad(
-                        intersection(intersection(item.bounds, item.clip), clip),
-                        item.color,
-                        {0, 0, 1, 1},
-                        std::nullopt,
-                        size.scale
-                    );
-                }
-                else if constexpr(std::is_same_v<type, text_command>)
-                {
-                    details::for_each_glyph(
-                        item,
-                        clip,
-                        [&](const glyph_quad& glyph)
-                        {
-                            quad(glyph.bounds, glyph.color, glyph.uv, texture(glyph.image), size.scale);
-                        }
-                    );
-                }
-                else
-                {
-                    details::draw_image(
-                        item,
-                        clip,
-                        [&](rect bounds, rect uv)
-                        {
-                            quad(bounds, item.color, uv, texture(item.image, item.sampling), size.scale);
-                        }
-                    );
-                }
-            },
-            command
+        quad(
+            item.bounds,
+            item.color,
+            item.uv,
+            item.image ? std::optional{std::ref(texture(item.image, item.sampling))} : std::nullopt,
+            size.scale
         );
     }
 }

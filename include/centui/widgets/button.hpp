@@ -18,7 +18,7 @@ using button_options = pressable_options;
 class button_widget : public pressable_widget
 {
 public:
-    explicit button_widget(std::string value, centui::style appearance = {}, button_options options = {});
+    explicit button_widget(std::string value, button_options options = {}, centui::style appearance = {});
 
     void set_text(std::string value);
 
@@ -38,7 +38,7 @@ public:
         button_options options = {},
         centui::style appearance = centui::style::resolve<Styles...>()
     )
-        : handle<button_widget>(make_widget<button_widget>(std::move(value), std::move(appearance), std::move(options)))
+        : handle<button_widget>(make_widget<button_widget>(std::move(value), std::move(options), std::move(appearance)))
     {
     }
 

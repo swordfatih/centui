@@ -1,5 +1,6 @@
 #include <initializer_list>
 
+#include <centui/document.hpp>
 #include <centui/widgets/scroll.hpp>
 
 #include <catch2/catch_approx.hpp>

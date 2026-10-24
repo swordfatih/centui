@@ -6,7 +6,7 @@
 #include <string_view>
 #include <utility>
 
-#include <centui/tree.hpp>
+#include <centui/widget.hpp>
 
 namespace centui
 {
@@ -35,10 +35,7 @@ private:
 
     std::string m_value;
     bool m_inherit_text_style = false;
-    mutable std::shared_ptr<const text_layout> m_cached;
-    mutable std::shared_ptr<const void> m_font_identity;
-    mutable float m_font_size = 0;
-    mutable float m_width = 0;
+    mutable text_cache m_cache;
 };
 
 /// \brief A text label handle with compile-time style composition.

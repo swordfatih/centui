@@ -303,6 +303,12 @@ struct config_deleter
 
 } // namespace
 
+struct layout_configuration::data
+{
+    std::unique_ptr<YGConfig, config_deleter> config{YGConfigNew()};
+    layout_options options;
+};
+
 struct layout::data
 {
     struct measurement
@@ -313,10 +319,9 @@ struct layout::data
     };
 
     // The node is destroyed before its callback state and configuration.
-    std::unique_ptr<YGConfig, config_deleter> config{YGConfigNew()};
+    std::shared_ptr<layout_configuration::data> configuration;
     std::unique_ptr<measurement> measure;
     std::unique_ptr<YGNode, node_deleter> node;
-    layout_options options;
 };
 
 measure_function::operator bool() const noexcept
@@ -342,8 +347,8 @@ void layout_options::validate() const
     }
 }
 
-layout::layout(layout_options options)
-    : m_data(std::make_unique<data>())
+layout_configuration::layout_configuration(layout_options options)
+    : m_data(std::make_shared<data>())
 {
     options.validate();
     m_data->options = options;
@@ -371,6 +376,18 @@ layout::layout(layout_options options)
     );
 }
 
+layout::layout(layout_options options)
+    : layout(layout_configuration{options})
+{
+}
+
+layout::layout(const layout_configuration& configuration)
+    : m_data(std::make_unique<data>())
+{
+    m_data->configuration = configuration.m_data;
+    m_data->node.reset(YGNodeNewWithConfig(m_data->configuration->config.get()));
+}
+
 layout::~layout() = default;
 
 void layout::update(const style& style)
@@ -379,7 +396,7 @@ void layout::update(const style& style)
 
     if(!m_data->node)
     {
-        m_data->node.reset(YGNodeNewWithConfig(m_data->config.get()));
+        m_data->node.reset(YGNodeNewWithConfig(m_data->configuration->config.get()));
     }
 
     auto* node = m_data->node.get();
@@ -461,9 +478,31 @@ void layout::insert_child(const layout& child)
     YGNodeInsertChild(m_data->node.get(), child.m_data->node.get(), YGNodeGetChildCount(m_data->node.get()));
 }
 
+void layout::remove_children()
+{
+    YGNodeRemoveAllChildren(m_data->node.get());
+}
+
+void layout::invalidate_measure()
+{
+    if(YGNodeHasMeasureFunc(m_data->node.get()))
+    {
+        YGNodeMarkDirty(m_data->node.get());
+    }
+    else
+    {
+        details::invalidate_node(m_data->node.get());
+    }
+}
+
 void layout::calculate(float width, float height)
 {
-    YGNodeCalculateLayout(m_data->node.get(), width, height, details::to_yoga(m_data->options.root_direction));
+    YGNodeCalculateLayout(
+        m_data->node.get(),
+        width,
+        height,
+        details::to_yoga(m_data->configuration->options.root_direction)
+    );
 }
 
 layout_metrics layout::metrics() const
@@ -536,7 +575,7 @@ void layout::set_baseline(baseline_function baseline)
 {
     if(!m_data->node)
     {
-        m_data->node.reset(YGNodeNewWithConfig(m_data->config.get()));
+        m_data->node.reset(YGNodeNewWithConfig(m_data->configuration->config.get()));
     }
     if(!m_data->measure)
     {
@@ -590,12 +629,17 @@ void layout::set_measure(measure_function measure)
 {
     if(!measure)
     {
-        throw std::invalid_argument("A measured widget requires a measurement function");
+        YGNodeSetMeasureFunc(m_data->node.get(), nullptr);
+        if(m_data->measure)
+        {
+            m_data->measure->callback = {};
+        }
+        return;
     }
 
     if(!m_data->node)
     {
-        m_data->node.reset(YGNodeNewWithConfig(m_data->config.get()));
+        m_data->node.reset(YGNodeNewWithConfig(m_data->configuration->config.get()));
     }
 
     if(!m_data->measure)

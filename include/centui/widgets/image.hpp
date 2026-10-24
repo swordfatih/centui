@@ -5,7 +5,7 @@
 #include <utility>
 
 #include <centui/image.hpp>
-#include <centui/tree.hpp>
+#include <centui/widget.hpp>
 
 namespace centui
 {
@@ -14,7 +14,7 @@ namespace centui
 class image_widget : public widget
 {
 public:
-    explicit image_widget(bitmap value, centui::style appearance = {});
+    explicit image_widget(bitmap value, image_options options = {}, centui::style appearance = {});
 
     explicit image_widget(image_source value, image_options options = {}, centui::style appearance = {});
 

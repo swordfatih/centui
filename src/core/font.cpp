@@ -1,3 +1,4 @@
+#include <map>
 #include <span>
 
 #include <centui/font.hpp>
@@ -262,6 +263,17 @@ float font::ascender(float size)
     return m_data->face->size->metrics.ascender / 64.0f;
 }
 
+struct text_service::data
+{
+    using image_cache = std::map<std::pair<float, std::uint32_t>, std::shared_ptr<const glyph_bitmap>>;
+    std::shared_ptr<const void> revision = std::make_shared<const int>(0);
+
+    std::map<std::shared_ptr<const void>, image_cache> images;
+    std::optional<centui::font> default_font;
+    std::size_t cache_budget = 8 * 1024 * 1024;
+    std::size_t cache_bytes = 0;
+};
+
 text_service::text_service()
     : m_data(std::make_shared<data>())
 {
@@ -344,7 +356,6 @@ text_layout text_service::layout_text(
     }
 
     text_layout result;
-    result.raster_scale = m_scale;
     const auto metrics = selected.layout_text({}, size);
     result.ascender = metrics.ascender;
     result.line_height = metrics.bounds.height;
@@ -379,7 +390,6 @@ text_layout text_service::layout_text(
         {
             glyph.cluster += static_cast<std::uint32_t>(offset);
             glyph.y -= y;
-            glyph.image = image(selected, glyph.id, size * m_scale);
             result.glyphs.push_back(std::move(glyph));
         }
 
@@ -478,7 +488,7 @@ std::shared_ptr<const text_layout> text_service::prepare(
     float width
 ) const
 {
-    return std::make_shared<const text_layout>(layout_text(value, size, width, face));
+    return rasterize(layout_text(value, size, width, face), face, size);
 }
 
 rect text_service::measure(std::string_view value, float size) const
@@ -534,6 +544,66 @@ std::shared_ptr<const glyph_bitmap> text_service::image(centui::font& face, std:
     m_data->cache_bytes += bytes;
 
     return output;
+}
+
+std::shared_ptr<const text_layout> text_service::rasterize(
+    const text_layout& layout,
+    const std::optional<centui::font>& face,
+    float size
+) const
+{
+    auto selected = resolve(face);
+    auto result = std::make_shared<text_layout>(layout);
+    result->raster_scale = m_scale;
+    for(auto& glyph: result->glyphs)
+    {
+        glyph.image = image(selected, glyph.id, size * m_scale);
+    }
+    return result;
+}
+
+std::shared_ptr<const text_layout> text_cache::layout(
+    text_service& service,
+    std::string_view value,
+    const std::optional<centui::font>& face,
+    float size,
+    float width
+)
+{
+    const auto identity = service.font_identity(face);
+    if(!m_layout || m_identity != identity || m_value != value || m_size != size || m_width != width)
+    {
+        auto next = std::make_shared<const text_layout>(service.layout_text(value, size, width, face));
+        m_value = value;
+        m_identity = identity;
+        m_size = size;
+        m_width = width;
+        m_layout = std::move(next);
+        m_raster.reset();
+    }
+    // An explicit face and the default can resolve to the same font today.
+    // Preserve the current selection for later DPI rasterization.
+    m_face = face;
+    return m_layout;
+}
+
+std::shared_ptr<const text_layout> text_cache::rasterize(text_service& service)
+{
+    if(!m_layout)
+    {
+        throw std::logic_error("Text must be laid out before painting");
+    }
+    if(!m_raster || m_raster->raster_scale != service.scale())
+    {
+        m_raster = service.rasterize(*m_layout, m_face, m_size);
+    }
+    return m_raster;
+}
+
+void text_cache::reset()
+{
+    m_layout.reset();
+    m_raster.reset();
 }
 
 } // namespace centui

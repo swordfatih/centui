@@ -107,11 +107,25 @@ private:
     std::unique_ptr<callable> m_callable;
 };
 
-/// \brief Owns a Yoga node and its configuration; native resources are released together.
+/// \brief Shared native configuration for nodes in one layout tree.
+class layout_configuration
+{
+public:
+    explicit layout_configuration(layout_options options = {});
+
+private:
+    friend class layout;
+    struct data;
+    std::shared_ptr<data> m_data;
+};
+
+/// \brief Owns a Yoga node and retains its configuration.
 class layout
 {
 public:
     explicit layout(layout_options options = {});
+
+    explicit layout(const layout_configuration& configuration);
 
     ~layout();
 
@@ -122,6 +136,10 @@ public:
     void update(const style& style);
 
     void insert_child(const layout& child);
+
+    void remove_children();
+
+    void invalidate_measure();
 
     void calculate(float width, float height);
 

@@ -18,8 +18,8 @@ void validate(image_options options)
 
 } // namespace
 
-image_widget::image_widget(bitmap value, centui::style appearance)
-    : image_widget(image_source::from_bitmap(std::move(value)), {}, std::move(appearance))
+image_widget::image_widget(bitmap value, image_options options, centui::style appearance)
+    : image_widget(image_source::from_bitmap(std::move(value)), options, std::move(appearance))
 {
 }
 

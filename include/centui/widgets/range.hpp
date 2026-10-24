@@ -7,17 +7,27 @@
 #include <stdexcept>
 #include <utility>
 
-#include <centui/tree.hpp>
+#include <centui/widget.hpp>
 #include <centui/widgets/callback.hpp>
 
 namespace centui
 {
 
+/// \brief Initial value, bounds, step, and change callback.
+struct range_options
+{
+    float minimum = 0;
+    float maximum = 1;
+    float step = 0.01f;
+    float value = 0;
+    std::function<void(float)> on_change{};
+};
+
 /// \brief Selects a stepped numeric value with pointer or keyboard input.
 class range_widget : public widget
 {
 public:
-    explicit range_widget(centui::style appearance = {}, float minimum = 0, float maximum = 1, float step = 0.01f);
+    explicit range_widget(range_options options = {}, centui::style appearance = {});
 
     void set_range(float minimum, float maximum, float step);
 
@@ -45,28 +55,14 @@ private:
     details::callback<float> m_on_change;
 };
 
-/// \brief Initial value, bounds, step, and change callback.
-struct range_options
-{
-    float minimum = 0;
-    float maximum = 1;
-    float step = 0.01f;
-    float value = 0;
-    std::function<void(float)> on_change{};
-};
-
 /// \brief A numeric range handle with compile-time style composition.
 template <typename... Styles>
 class range : public handle<range_widget>
 {
 public:
     explicit range(range_options options = {}, centui::style appearance = centui::style::resolve<Styles...>())
-        : handle<range_widget>(
-              make_widget<range_widget>(std::move(appearance), options.minimum, options.maximum, options.step)
-          )
+        : handle<range_widget>(make_widget<range_widget>(std::move(options), std::move(appearance)))
     {
-        this->get().set_value(options.value);
-        this->get().set_on_change(std::move(options.on_change));
     }
 };
 

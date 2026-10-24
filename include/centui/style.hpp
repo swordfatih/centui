@@ -44,7 +44,8 @@
     X(box_sizing)                  \
     X(display)                     \
     X(reference_baseline)          \
-    X(forms_containing_block)
+    X(forms_containing_block)      \
+    X(corner_radius)
 
 #include <centui/font.hpp>
 #include <centui/types.hpp>
@@ -220,6 +221,7 @@ public:
     centui::display display = centui::display::flex;
     bool reference_baseline = false;
     bool forms_containing_block = false;
+    float corner_radius = 0;
 
     bool operator==(const style&) const = default;
 
@@ -284,6 +286,7 @@ struct style_patch
     std::optional<centui::display> display = std::nullopt;
     std::optional<bool> reference_baseline = std::nullopt;
     std::optional<bool> forms_containing_block = std::nullopt;
+    std::optional<float> corner_radius = std::nullopt;
 
     [[nodiscard]] style apply(style candidate) const;
 };

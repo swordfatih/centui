@@ -96,15 +96,15 @@ TEST_CASE("Draw resources survive CPU cache eviction and service destruction", "
     REQUIRE(cached->glyphs.front().image == image);
 
     centui::draw_list output{{100, 100}, {}};
-    output.commands.emplace_back(
-        centui::text_command{
-            {0, 0, 100, 100},
-            {255, 255, 255, 255},
-            std::move(prepared),
-            centui::text_alignment::left,
-            {0, 0, 100, 100}
+    centui::details::for_each_glyph(
+        {{0, 0, 100, 100}, {255, 255, 255, 255}, prepared, centui::text_alignment::left, {0, 0, 100, 100}},
+        {0, 0, 100, 100},
+        [&](const auto& quad)
+        {
+            output.commands.push_back({quad.bounds, quad.uv, quad.image, quad.color});
         }
     );
+    prepared.reset();
     fonts.set_cache_budget(0);
     const auto uncached = fonts.prepare("A", face, 20);
     REQUIRE(uncached->glyphs.front().image != image);
@@ -113,18 +113,12 @@ TEST_CASE("Draw resources survive CPU cache eviction and service destruction", "
     cached.reset();
     REQUIRE_FALSE(retained_image.expired());
 
-    std::size_t count = 0;
-    centui::details::for_each_glyph(
-        std::get<centui::text_command>(output.commands.front()),
-        {0, 0, 100, 100},
-        [&](const auto& quad)
-        {
-            REQUIRE(quad.image == retained_image.lock());
-            REQUIRE(quad.image->pixels == pixels);
-            ++count;
-        }
-    );
-    REQUIRE(count > 0);
+    REQUIRE_FALSE(output.commands.empty());
+    for(const auto& quad: output.commands)
+    {
+        REQUIRE(quad.image == retained_image.lock());
+        REQUIRE(quad.image->pixels == pixels);
+    }
 }
 
 TEST_CASE("Wrapping and CRLF retain original UTF-8 byte clusters", "[font][render]")

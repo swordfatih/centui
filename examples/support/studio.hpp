@@ -44,6 +44,7 @@ struct row
 
 struct card
 {
+    float corner_radius = 14;
     centui::edges padding = centui::edges::all(centui::px(20));
     centui::length gap = centui::px(16);
     centui::states_color background_color = solid(0x1B2636);
@@ -90,6 +91,7 @@ struct accent
 
 struct control
 {
+    float corner_radius = 7;
     centui::length height = centui::px(44);
     centui::edges padding = centui::edges::all(centui::px(10));
     centui::states_color background_color = solid(0x26364A);
@@ -126,6 +128,7 @@ struct selection_style
 
 struct primary
 {
+    float corner_radius = 8;
     centui::length height = centui::px(46);
     centui::edges padding = centui::edges::all(centui::px(12));
     centui::text_alignment text_align = centui::text_alignment::center;
@@ -141,6 +144,7 @@ struct primary
 
 struct preset
 {
+    float corner_radius = 10;
     centui::edges padding = centui::edges::all(centui::px(16));
 
     struct

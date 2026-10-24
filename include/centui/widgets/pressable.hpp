@@ -23,9 +23,9 @@ struct pressable_options
 class pressable_widget : public container_widget
 {
 public:
-    explicit pressable_widget(centui::style appearance = {}, pressable_options options = {});
+    explicit pressable_widget(pressable_options options = {}, centui::style appearance = {});
 
-    explicit pressable_widget(handle<> content, centui::style appearance = {}, pressable_options options = {});
+    explicit pressable_widget(handle<> content, pressable_options options = {}, centui::style appearance = {});
 
     void set_on_click(std::function<void()> callback);
 
@@ -55,7 +55,7 @@ public:
         centui::style appearance = centui::style::resolve<Styles...>()
     )
         : handle<pressable_widget>(
-              make_widget<pressable_widget>(std::move(content), std::move(appearance), std::move(options))
+              make_widget<pressable_widget>(std::move(content), std::move(options), std::move(appearance))
           )
     {
     }
@@ -65,7 +65,7 @@ public:
         pressable_options options = {},
         centui::style appearance = centui::style::resolve<Styles...>()
     )
-        : handle<pressable_widget>(make_widget<pressable_widget>(std::move(appearance), std::move(options)))
+        : handle<pressable_widget>(make_widget<pressable_widget>(std::move(options), std::move(appearance)))
     {
         this->get().append(std::span{children.begin(), children.size()});
     }

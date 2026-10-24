@@ -3,10 +3,12 @@
 namespace centui
 {
 
-range_widget::range_widget(centui::style appearance, float minimum, float maximum, float step)
+range_widget::range_widget(range_options options, centui::style appearance)
     : widget(std::move(appearance))
 {
-    set_range(minimum, maximum, step);
+    set_range(options.minimum, options.maximum, options.step);
+    set_value(options.value);
+    set_on_change(std::move(options.on_change));
     set_interactive();
     set_focusable();
 }

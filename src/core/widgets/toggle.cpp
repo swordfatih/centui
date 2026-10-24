@@ -3,10 +3,11 @@
 namespace centui
 {
 
-toggle_widget::toggle_widget(std::string label, centui::style appearance, bool checked)
-    : button_widget(std::move(label), std::move(appearance)),
-      m_checked(checked)
+toggle_widget::toggle_widget(std::string label, toggle_options options, centui::style appearance)
+    : button_widget(std::move(label), {}, std::move(appearance)),
+      m_checked(options.checked)
 {
+    set_on_change(std::move(options.on_change));
 }
 
 bool toggle_widget::checked() const noexcept

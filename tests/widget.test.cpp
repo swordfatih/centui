@@ -54,7 +54,7 @@ protected:
 
     void paint(centui::painter& output) const override
     {
-        output.rectangle(bounds(), centui::color::from_hex(0x123456));
+        output.rectangle(output.bounds(), centui::color::from_hex(0x123456));
     }
 
 private:

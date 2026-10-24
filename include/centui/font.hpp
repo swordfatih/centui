@@ -6,7 +6,6 @@
 #include <cstdint>
 #include <filesystem>
 #include <limits>
-#include <map>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -107,18 +106,15 @@ public:
 
     [[nodiscard]] rect measure(std::string_view value, float size) const;
 
+    /// \brief Adds physical glyph images to an existing logical layout without reshaping it.
+    [[nodiscard]] std::shared_ptr<const text_layout> rasterize(
+        const text_layout& layout,
+        const std::optional<centui::font>& face,
+        float size
+    ) const;
+
 private:
-    using image_cache = std::map<std::pair<float, std::uint32_t>, std::shared_ptr<const glyph_bitmap>>;
-
-    struct data
-    {
-        std::shared_ptr<const void> revision = std::make_shared<const int>(0);
-
-        std::map<std::shared_ptr<const void>, image_cache> images;
-        std::optional<centui::font> default_font;
-        std::size_t cache_budget = 8 * 1024 * 1024;
-        std::size_t cache_bytes = 0;
-    };
+    struct data;
 
     const centui::font& resolve(const std::optional<centui::font>& face) const;
 
@@ -126,6 +122,32 @@ private:
 
     std::shared_ptr<data> m_data;
     float m_scale = 1;
+};
+
+/// \brief Per-widget logical layout and paint cache. DPI changes only refresh glyph images.
+class text_cache
+{
+public:
+    [[nodiscard]] std::shared_ptr<const text_layout> layout(
+        text_service& service,
+        std::string_view value,
+        const std::optional<centui::font>& face,
+        float size,
+        float width
+    );
+
+    [[nodiscard]] std::shared_ptr<const text_layout> rasterize(text_service& service);
+
+    void reset();
+
+private:
+    std::string m_value;
+    std::optional<centui::font> m_face;
+    std::shared_ptr<const void> m_identity;
+    float m_size = 0;
+    float m_width = 0;
+    std::shared_ptr<const text_layout> m_layout;
+    std::shared_ptr<const text_layout> m_raster;
 };
 
 } // namespace centui

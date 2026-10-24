@@ -95,6 +95,7 @@ struct columns
 
 struct panel
 {
+    float corner_radius = 14;
     edges padding = edges::all(px(20));
     length gap = px(16);
     states_color background_color = solid(0x141820);
@@ -104,6 +105,7 @@ struct panel
 
 struct stat
 {
+    float corner_radius = 14;
     centui::flex flex = centui::flex::all(1, 1, px(0));
     edges padding = edges::all(px(20));
     length gap = px(11);
@@ -229,6 +231,7 @@ struct nav_active
 
 struct action
 {
+    float corner_radius = 8;
     length height = px(46);
     edges padding = {px(0), px(12), px(0), px(12)};
     justification justify_content = justification::center;
@@ -246,6 +249,7 @@ struct action
 
 struct primary
 {
+    float corner_radius = 8;
     length height = px(46);
     edges padding = {px(0), px(14), px(0), px(14)};
     justification justify_content = justification::center;
@@ -263,6 +267,7 @@ struct primary
 
 struct inputstyle
 {
+    float corner_radius = 6;
     length height = px(38);
     edges padding = edges::all(px(10));
     states_color background_color = solid(0x1D222D);
@@ -288,103 +293,98 @@ struct progress_fg
     states_color background_color = solid(0x9B8AF9);
 };
 
-// A small RGBA bitmap is a portable way of drawing charts with CentUI's image widget.
-inline void pixel(bitmap& image, int x, int y, std::uint32_t rgb, unsigned alpha = 255)
+class chart_widget : public widget
 {
-    if(x < 0 || y < 0 || x >= image.width || y >= image.height)
+public:
+    explicit chart_widget(centui::style appearance)
+        : widget(std::move(appearance))
     {
-        return;
     }
 
-    const auto offset = static_cast<std::size_t>((y * image.width + x) * 4);
-    image.pixels[offset] = static_cast<std::uint8_t>((rgb >> 16) & 255);
-    image.pixels[offset + 1] = static_cast<std::uint8_t>((rgb >> 8) & 255);
-    image.pixels[offset + 2] = static_cast<std::uint8_t>(rgb & 255);
-    image.pixels[offset + 3] = static_cast<std::uint8_t>(alpha);
-}
-
-inline void line(bitmap& image, int x0, int y0, int x1, int y1, std::uint32_t rgb, int width = 2)
-{
-    int dx = std::abs(x1 - x0);
-    int dy = std::abs(y1 - y0);
-    int sx = x0 < x1 ? 1 : -1;
-    int sy = y0 < y1 ? 1 : -1;
-    int error = dx - dy;
-
-    while(true)
+protected:
+    size measure(const measure_context&) override
     {
-        for(int oy = -width / 2; oy <= width / 2; ++oy)
+        return {900, 260};
+    }
+
+    void on_layout() override
+    {
+        const auto bounds = content_bounds();
+        const auto scale = std::min(bounds.width / 900, bounds.height / 260);
+        m_offset = {(bounds.width - 900 * scale) / 2, (bounds.height - 260 * scale) / 2};
+        if(scale == m_scale)
         {
-            for(int ox = -width / 2; ox <= width / 2; ++ox)
+            return;
+        }
+        m_scale = scale;
+        m_grid = {};
+        m_primary = {};
+        m_secondary = {};
+        m_area = {};
+        m_area.move_to({16 * scale, 260 * scale});
+        for(int y = 36; y < 240; y += 49)
+        {
+            for(int x = 8; x < 890; x += 8)
             {
-                pixel(image, x0 + ox, y0 + oy, rgb);
+                m_grid.rectangle({x * scale, y * scale, scale, scale});
             }
         }
-
-        if(x0 == x1 && y0 == y1)
+        constexpr int values[] = {174, 164, 180, 152, 159, 141, 150, 114, 128, 112, 118, 93, 105,
+                                  88,  103, 78,  90,  62,  73,  55,  64,  44,  56,  39,  47, 27};
+        for(int index = 0; index < 26; ++index)
         {
-            break;
-        }
-
-        const int twice_error = error * 2;
-        if(twice_error > -dy)
-        {
-            error -= dy;
-            x0 += sx;
-        }
-        if(twice_error < dx)
-        {
-            error += dx;
-            y0 += sy;
-        }
-    }
-}
-
-inline handle<image_widget> chart()
-{
-    bitmap image{900, 260, std::vector<std::uint8_t>(900 * 260 * 4, 0)};
-
-    for(int y = 36; y < 240; y += 49)
-    {
-        for(int x = 8; x < 890; x += 8)
-        {
-            pixel(image, x, y, 0x303644);
-        }
-    }
-
-    const std::vector<int> values = {174, 164, 180, 152, 159, 141, 150, 114, 128, 112, 118, 93, 105,
-                                     88,  103, 78,  90,  62,  73,  55,  64,  44,  56,  39,  47, 27};
-
-    for(int index = 0; index < 25; ++index)
-    {
-        const int x0 = 16 + index * 34;
-        const int x1 = 16 + (index + 1) * 34;
-        const int y0 = values[index];
-        const int y1 = values[index + 1];
-
-        line(image, x0, y0 + 34, x1, y1 + 34, 0x9A83FA, 3);
-        line(image, x0, y0 + 55, x1, y1 + 55, 0x325E73, 2);
-    }
-
-    for(int y = 0; y < 260; ++y)
-    {
-        for(int x = 0; x < 900; ++x)
-        {
-            const auto offset = static_cast<std::size_t>((y * 900 + x) * 4);
-            if(image.pixels[offset + 3] == 0)
+            const vec2 primary{(16 + index * 34) * scale, (values[index] + 34) * scale};
+            const vec2 secondary{primary.x, (values[index] + 55) * scale};
+            m_area.line_to(primary);
+            if(index == 0)
             {
-                image.pixels[offset] = 0x14;
-                image.pixels[offset + 1] = 0x18;
-                image.pixels[offset + 2] = 0x20;
-                image.pixels[offset + 3] = 255;
+                m_primary.move_to(primary);
+                m_secondary.move_to(secondary);
+            }
+            else
+            {
+                m_primary.line_to(primary);
+                m_secondary.line_to(secondary);
             }
         }
+        m_area.line_to({866 * scale, 260 * scale}).close();
+        m_area_brush =
+            linear_gradient{{0, 40 * scale}, {0, 260 * scale}, {{0, {154, 131, 250, 72}}, {1, {154, 131, 250, 0}}}};
     }
 
-    style image_style;
-    image_style.width = percent(100);
-    image_style.height = px(228);
-    return make_widget<image_widget>(std::move(image), image_style);
+    void paint(painter& output) const override
+    {
+        if(m_scale <= 0)
+        {
+            return;
+        }
+        const auto bounds = output.bounds();
+        output.rectangle(
+            {bounds.x + m_offset.x, bounds.y + m_offset.y, 900 * m_scale, 260 * m_scale},
+            color::from_hex(0x141820)
+        );
+        output.fill(m_grid, color::from_hex(0x303644), m_offset);
+        output.fill(m_area, m_area_brush, m_offset);
+        output.stroke(m_primary, color::from_hex(0x9A83FA), 3 * m_scale, m_offset);
+        output.stroke(m_secondary, color::from_hex(0x325E73), 3 * m_scale, m_offset);
+    }
+
+private:
+    path m_grid;
+    path m_primary;
+    path m_secondary;
+    path m_area;
+    brush m_area_brush = color{};
+    vec2 m_offset{};
+    float m_scale = -1;
+};
+
+inline handle<chart_widget> chart()
+{
+    style appearance;
+    appearance.width = percent(100);
+    appearance.height = px(228);
+    return make_widget<chart_widget>(appearance);
 }
 
 inline auto statcard(std::string label, std::string number, std::string delta, std::string note)
@@ -394,6 +394,15 @@ inline auto statcard(std::string label, std::string number, std::string delta, s
         text<metric>{std::move(number)},
         container<row>{text<green>{std::move(delta)}, text<faint>{std::move(note)}}
     };
+}
+
+inline auto traffic_bar(float percentage)
+{
+    auto fill = container<progress_fg>{};
+    fill->patch_style({.width = percent(percentage), .corner_radius = 3.5f});
+    auto track = container<progress_bg>{fill};
+    track->patch_style({.corner_radius = 3.5f});
+    return track;
 }
 
 inline auto activity(std::string dot, std::string titletext, std::string subtitle, std::string time)
@@ -416,6 +425,7 @@ int main()
     auto selected = std::make_shared<std::string>("Overview");
     auto toast = centui::text<muted>{"All systems operational  /  Last synced just now"};
     auto period = centui::text<purple>{"Last 30 days"};
+    auto short_period = std::make_shared<bool>(false);
     auto search = std::make_shared<std::string>();
 
     auto root = centui::container<screen>{
@@ -537,13 +547,15 @@ int main()
                         centui::button<action>{
                             "◷  Last 30 days   ▾",
                             {
-                                .on_click = [period]() mutable
+                                .on_click = [period, short_period]() mutable
                                 {
-                                    period.set_text("Last 7 days (demo)");
+                                    *short_period = !*short_period;
+                                    period.set_text(*short_period ? "Last 7 days" : "Last 30 days");
                                 }
                             }
                         }
                     },
+                    period,
                     centui::container<stats>{
                         statcard("Total revenue", "$128,430", "↗  12.8%", "vs. previous period"),
                         statcard("Active users", "24,892", "↗  8.2%", "vs. previous period"),
@@ -586,30 +598,28 @@ int main()
                                     centui::text<white>{"●  Direct"},
                                     centui::text<white>{"42.6%"}
                                 },
-                                centui::container<progress_bg>{
-                                    centui::container<progress_fg>{}
-                                }
+                                traffic_bar(42.6f)
                             },
                             centui::container<stack>{
                                 centui::container<spread>{
                                     centui::text<white>{"●  Organic search"},
                                     centui::text<white>{"28.4%"}
                                 },
-                                centui::text<purple>{"━━━━━━━━━━━━━━"}
+                                traffic_bar(28.4f)
                             },
                             centui::container<stack>{
                                 centui::container<spread>{
                                     centui::text<white>{"●  Social media"},
                                     centui::text<white>{"18.2%"}
                                 },
-                                centui::text<purple>{"━━━━━━━━━"}
+                                traffic_bar(18.2f)
                             },
                             centui::container<stack>{
                                 centui::container<spread>{
                                     centui::text<white>{"●  Referral"},
                                     centui::text<white>{"10.8%"}
                                 },
-                                centui::text<purple>{"━━━━━━"}
+                                traffic_bar(10.8f)
                             },
                             centui::container<separator>{},
                             centui::text<green>{"↗  Traffic is up 18.6%"},

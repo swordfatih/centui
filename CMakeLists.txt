@@ -46,7 +46,7 @@ endfunction()
 
 include(src/core/Dependencies.cmake)
 centui_sources(centui "${PROJECT_SOURCE_DIR}/src/core" "${PROJECT_SOURCE_DIR}/include/centui/*.hpp")
-target_link_libraries(${PROJECT_NAME} PRIVATE yogacore freetype harfbuzz)
+target_link_libraries(${PROJECT_NAME} PRIVATE yogacore freetype harfbuzz lunasvg::lunasvg plutovg::plutovg)
 
 if(CENTUI_BUILD_BGFX)
     add_subdirectory(src/backends/bgfx)

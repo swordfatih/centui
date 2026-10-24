@@ -92,13 +92,6 @@ void validate_bitmap(const bitmap& image);
 
 [[nodiscard]] std::vector<std::uint8_t> rgba_pixels(const bitmap& image);
 
-struct rectangle_command
-{
-    rect bounds;
-    centui::color color;
-    rect clip;
-};
-
 struct text_command
 {
     rect bounds;
@@ -123,7 +116,15 @@ struct image_command
     image_sampling sampling = image_sampling::linear;
 };
 
-using draw_command = std::variant<rectangle_command, text_command, image_command>;
+/// \brief A clipped quad in logical units. An absent image means a solid color.
+struct draw_quad
+{
+    rect bounds;
+    rect uv{0, 0, 1, 1};
+    std::shared_ptr<const bitmap> image;
+    centui::color color{255, 255, 255, 255};
+    image_sampling sampling = image_sampling::linear;
+};
 
 // Document-owned storage, borrowed synchronously until its next preparation.
 // Commands retain immutable CPU resources independently of the font cache.
@@ -131,7 +132,7 @@ using draw_command = std::variant<rectangle_command, text_command, image_command
 struct draw_list
 {
     centui::viewport viewport;
-    std::vector<draw_command> commands;
+    std::vector<draw_quad> commands;
 };
 
 /// \brief Backend interface for drawing a prepared list.
