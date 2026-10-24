@@ -132,6 +132,8 @@ public:
 
     [[nodiscard]] rect content_bounds() const noexcept;
 
+    [[nodiscard]] const layout_metrics& metrics() const noexcept;
+
     [[nodiscard]] bool hovered() const noexcept;
 
     [[nodiscard]] bool pressed() const noexcept;
@@ -173,6 +175,9 @@ protected:
 
     /// \brief Measures content without mutating the document or its widgets.
     virtual size measure(const measure_context&);
+
+    /// \brief Supplies an optional content baseline callback; it must not mutate the tree.
+    virtual baseline_function baseline();
 
     /// \brief Records drawing commands without mutating the document or its widgets.
     virtual void paint(painter&) const;
@@ -223,6 +228,7 @@ private:
     centui::style m_style;
     rect m_bounds{};
     rect m_content{};
+    layout_metrics m_metrics{};
     std::vector<std::shared_ptr<widget>> m_children;
     std::weak_ptr<widget> m_parent;
 
@@ -391,6 +397,11 @@ public:
 
     void set_font(const centui::font& face);
 
+    /// \brief Validates layout configuration and requests fresh geometry.
+    void set_layout_options(layout_options options);
+
+    [[nodiscard]] const layout_options& options() const noexcept;
+
     void set_host_services(std::shared_ptr<const host_services> services);
 
     [[nodiscard]] invalidation pending_changes() const noexcept;
@@ -486,6 +497,11 @@ private:
 
     struct layout_entry
     {
+        explicit layout_entry(layout_options options)
+            : native(options)
+        {
+        }
+
         std::shared_ptr<widget> value;
         centui::layout native;
         std::vector<std::unique_ptr<layout_entry>> children;
@@ -562,6 +578,7 @@ private:
     draw_list m_draw;
 
     centui::viewport m_viewport{};
+    layout_options m_layout_options{};
 
     std::weak_ptr<widget> m_hover;
     std::weak_ptr<widget> m_capture;

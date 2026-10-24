@@ -15,6 +15,47 @@
 namespace centui
 {
 
+/// \brief Document-wide Yoga behavior. Zero scale preserves fractional logical coordinates.
+/// Compatibility flags opt into individual historical Yoga behaviors.
+struct layout_options
+{
+    layout_direction root_direction = layout_direction::ltr;
+    float point_scale_factor = 0;
+    bool stretch_flex_basis = false;
+    bool absolute_position_without_insets_excludes_padding = false;
+    bool absolute_percent_against_inner_size = false;
+    bool experimental_web_flex_basis = false;
+
+    void validate() const;
+
+    bool operator==(const layout_options&) const = default;
+};
+
+/// \brief Resolved physical edges in logical units.
+struct computed_edges
+{
+    float top = 0;
+    float right = 0;
+    float bottom = 0;
+    float left = 0;
+
+    bool operator==(const computed_edges&) const = default;
+};
+
+/// \brief Yoga results from the most recent document preparation.
+struct layout_metrics
+{
+    computed_edges margin;
+    computed_edges padding;
+    computed_edges border;
+    layout_direction direction = layout_direction::ltr;
+    bool had_overflow = false;
+};
+
+/// \brief Returns a baseline offset from the content top for the supplied content size.
+/// An empty function lets Yoga derive the baseline from children or the bottom edge.
+using baseline_function = std::function<float(size)>;
+
 /// \brief Owns a move-only, const-invocable widget measurement callback.
 class measure_function
 {
@@ -70,7 +111,7 @@ private:
 class layout
 {
 public:
-    layout();
+    explicit layout(layout_options options = {});
 
     ~layout();
 
@@ -88,9 +129,13 @@ public:
 
     [[nodiscard]] rect content_bounds() const;
 
+    [[nodiscard]] layout_metrics metrics() const;
+
     void rethrow_measure_failure();
 
     void set_measure(measure_function measure);
+
+    void set_baseline(baseline_function baseline);
 
 private:
     struct data;

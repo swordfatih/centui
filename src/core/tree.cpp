@@ -203,14 +203,14 @@ bool widget::effectively_enabled() const noexcept
 
 bool widget::effectively_visible() const noexcept
 {
-    if(m_style.visibility != visibility::visible)
+    if(m_style.visibility != visibility::visible || m_style.display == display::none)
     {
         return false;
     }
 
     for(auto ancestor = m_parent.lock(); ancestor; ancestor = ancestor->m_parent.lock())
     {
-        if(ancestor->m_style.visibility != visibility::visible)
+        if(ancestor->m_style.visibility != visibility::visible || ancestor->m_style.display == display::none)
         {
             return false;
         }
@@ -230,8 +230,8 @@ void widget::set_style(centui::style replacement)
         return;
     }
 
-    const bool targeting_changed =
-        m_style.visibility != replacement.visibility || m_style.overflow != replacement.overflow;
+    const bool targeting_changed = m_style.visibility != replacement.visibility ||
+                                   m_style.overflow != replacement.overflow || m_style.display != replacement.display;
     m_style = std::move(replacement);
 
     if(changes.layout)
@@ -252,6 +252,33 @@ void widget::set_style(centui::style replacement)
 void widget::patch_style(const style_patch& patch)
 {
     set_style(patch.apply(m_style));
+}
+
+const layout_metrics& widget::metrics() const noexcept
+{
+    return m_metrics;
+}
+
+baseline_function widget::baseline()
+{
+    return {};
+}
+
+void document::set_layout_options(layout_options options)
+{
+    m_context->check_mutation();
+    options.validate();
+
+    if(m_layout_options != options)
+    {
+        m_layout_options = options;
+        dirty_tree();
+    }
+}
+
+const layout_options& document::options() const noexcept
+{
+    return m_layout_options;
 }
 
 rect widget::bounds() const noexcept
@@ -921,11 +948,11 @@ void document::settle_input(centui::viewport viewport)
 
 std::unique_ptr<document::layout_entry> document::make_layout(const std::shared_ptr<widget>& value)
 {
-    auto entry = std::make_unique<layout_entry>();
+    auto entry = std::make_unique<layout_entry>(m_layout_options);
     entry->value = value;
     entry->native.update(value->m_style);
 
-    if(value->m_children.empty())
+    if(value->m_children.empty() && value->m_style.display != display::contents)
     {
         entry->native.set_measure(
             [this, value](axis_constraint width, axis_constraint height)
@@ -952,6 +979,8 @@ std::unique_ptr<document::layout_entry> document::make_layout(const std::shared_
         }
     }
 
+    entry->native.set_baseline(value->baseline());
+
     return entry;
 }
 
@@ -967,6 +996,20 @@ void document::check_measurements(layout_entry& entry)
 
 void document::store_bounds(layout_entry& entry, float x, float y)
 {
+    if(entry.value->m_style.display == display::contents)
+    {
+        // Yoga positions descendants against the nearest ancestor that generates a box.
+        entry.value->m_bounds = {};
+        entry.value->m_content = {};
+        entry.value->m_metrics = {};
+
+        for(auto& child: entry.children)
+        {
+            store_bounds(*child, x, y);
+        }
+        return;
+    }
+
     auto box = entry.native.bounds();
     box.x += x;
     box.y += y;
@@ -975,6 +1018,7 @@ void document::store_bounds(layout_entry& entry, float x, float y)
     content.x += box.x;
     content.y += box.y;
     entry.value->m_content = content;
+    entry.value->m_metrics = entry.native.metrics();
 
     for(auto& child: entry.children)
     {
@@ -1020,7 +1064,21 @@ void document::update_layout(centui::viewport viewport)
         if(m_root.valid())
         {
             auto tree = make_layout(m_root.m_value);
-            tree->native.calculate(viewport.logical_width(), viewport.logical_height());
+            if(m_root.style().display == display::contents)
+            {
+                // A boxless root participates in the document's viewport formatting context.
+                layout viewport_layout{m_layout_options};
+                centui::style viewport_style;
+                viewport_style.width = px(viewport.logical_width());
+                viewport_style.height = px(viewport.logical_height());
+                viewport_layout.update(viewport_style);
+                viewport_layout.insert_child(tree->native);
+                viewport_layout.calculate(viewport.logical_width(), viewport.logical_height());
+            }
+            else
+            {
+                tree->native.calculate(viewport.logical_width(), viewport.logical_height());
+            }
             check_measurements(*tree);
             store_bounds(*tree, 0, 0);
         }
@@ -1056,7 +1114,7 @@ void document::paint_tree(
     details::visual_state inherited_state
 )
 {
-    if(value.m_style.visibility != visibility::visible)
+    if(value.m_style.visibility != visibility::visible || value.m_style.display == display::none)
     {
         return;
     }
@@ -1068,19 +1126,32 @@ void document::paint_tree(
                        : value.m_focused      ? details::visual_state::focused
                        : !value.m_interactive ? inherited_state
                                               : details::visual_state::normal;
+    if(value.m_style.display == display::contents)
+    {
+        for(const auto& child: value.m_children)
+        {
+            paint_tree(*child, output, clip, enabled, state);
+        }
+        return;
+    }
+
     const auto appearance = value.resolved_style();
     painter background{output, m_fonts, value.m_bounds, clip, appearance, state};
     background.rectangle(value.m_bounds, details::state_color(value.m_style.background_color, state));
     const auto border = details::state_color(value.m_style.border_color, state);
-    const auto width = std::min(value.m_style.border_width, std::min(value.m_bounds.width, value.m_bounds.height) / 2);
+    const auto widths = value.m_metrics.border;
 
-    if(width > 0)
+    if(widths.top > 0 || widths.right > 0 || widths.bottom > 0 || widths.left > 0)
     {
         const auto box = value.m_bounds;
-        background.rectangle({box.x, box.y, box.width, width}, border);
-        background.rectangle({box.x, box.y + box.height - width, box.width, width}, border);
-        background.rectangle({box.x, box.y + width, width, box.height - 2 * width}, border);
-        background.rectangle({box.x + box.width - width, box.y + width, width, box.height - 2 * width}, border);
+        const auto top = std::min(widths.top, box.height);
+        const auto bottom = std::min(widths.bottom, box.height - top);
+        const auto left = std::min(widths.left, box.width);
+        const auto right = std::min(widths.right, box.width - left);
+        background.rectangle({box.x, box.y, box.width, top}, border);
+        background.rectangle({box.x, box.y + box.height - bottom, box.width, bottom}, border);
+        background.rectangle({box.x, box.y + top, left, box.height - top - bottom}, border);
+        background.rectangle({box.x + box.width - right, box.y + top, right, box.height - top - bottom}, border);
     }
 
     painter content{output, m_fonts, value.m_content, intersection(clip, value.m_content), appearance, state};
@@ -1103,7 +1174,7 @@ bool document::contains(rect box, float x, float y) noexcept
 bool document::eligible(const std::shared_ptr<widget>& value) const
 {
     if(!value || !m_host_focused || m_viewport.width <= 0 || m_viewport.height <= 0 ||
-       value->m_document.lock() != m_context || !value->m_interactive)
+       value->m_document.lock() != m_context || !value->m_interactive || value->m_style.display == display::contents)
     {
         return false;
     }
@@ -1114,7 +1185,7 @@ bool document::eligible(const std::shared_ptr<widget>& value) const
 bool document::focus_eligible(const std::shared_ptr<widget>& value) const
 {
     return value && m_host_focused && value->m_document.lock() == m_context && value->m_focusable &&
-           value->effectively_enabled() && value->effectively_visible();
+           value->m_style.display != display::contents && value->effectively_enabled() && value->effectively_visible();
 }
 
 void document::set_focus(std::shared_ptr<widget> value)
@@ -1145,12 +1216,14 @@ void document::set_focus(std::shared_ptr<widget> value)
 
 std::shared_ptr<widget> document::hit(const std::shared_ptr<widget>& value, float x, float y, rect clip) const
 {
-    if(!value || !value->m_enabled || value->m_style.visibility != visibility::visible || !contains(clip, x, y))
+    if(!value || !value->m_enabled || value->m_style.visibility != visibility::visible ||
+       value->m_style.display == display::none || !contains(clip, x, y))
     {
         return {};
     }
 
-    const auto child_clip = value->m_clip_children || value->m_style.overflow != overflow::visible
+    const auto child_clip = value->m_style.display != display::contents &&
+                                    (value->m_clip_children || value->m_style.overflow != overflow::visible)
                                 ? intersection(clip, value->m_content)
                                 : clip;
 

@@ -45,6 +45,30 @@ auto progress = centui::make_widget<meter>(0.25f);
 
 Call `check_mutation()` before changing widget state. Use `invalidate_paint()` when only the appearance changes, or `invalidate_layout()` when the natural size or child arrangement changes. Measurement and painting should only read the tree. Widgets with children are laid out by Yoga rather than by their `measure()` hook. The complete [custom primitive](https://github.com/swordfatih/centui/blob/main/examples/custom_primitive/main.cpp) is a small starting point.
 
+## Baselines
+
+Override `baseline()` when a custom widget should align something other than its
+bottom edge with neighboring text:
+
+```cpp
+centui::baseline_function baseline() override
+{
+    return [](centui::size content)
+    {
+        return content.height * 0.75f;
+    };
+}
+```
+
+The callback receives the content size and returns a finite offset from its top,
+in logical units. CentUI adds the resolved top padding and border. Like
+measurement, it runs during layout and must not mutate the widget tree. Callback
+exceptions are captured at the Yoga boundary and rethrown during preparation.
+Returning an empty function uses Yoga's normal baseline selection from children
+or, for a leaf, the bottom edge. `reference_baseline` selects which descendant a
+container uses. Text and input widgets provide a first-line font baseline;
+scrolling input content does not change the input's layout baseline.
+
 ## Input and focus
 
 Call `set_interactive()` if the widget should receive pointer events, and `set_focusable()` if it can take keyboard focus. Override `on_event(const centui::input_event&)` and return `true` for events you handle. `on_focus_changed(bool)` lets you react to focus transitions. Read `hovered()`, `pressed()`, `focused()`, and `effectively_enabled()` when painting an interaction state.

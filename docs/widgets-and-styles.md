@@ -51,6 +51,181 @@ auto save = centui::button<blue_button>{"Save"};
 
 You can combine style structs, use a `centui::style` value at runtime, or change a mounted widget with `patch_style({.height = centui::px(52)})`. The layout system handles width, height, padding, margins, gaps, alignment, and direction. State colors can vary for normal, hover, press, focus, and disabled states. Text inherits a font from its ancestors or the document's font service.
 
+## Flexible sizing
+
+CentUI exposes Yoga 3.2.1 layout through ordinary style values. Flex sizing is a
+single value containing `grow`, `shrink`, and `basis`:
+
+```cpp
+struct workspace
+{
+    centui::direction flex_direction = centui::direction::row;
+    centui::length gap = centui::px(16);
+};
+
+struct sidebar
+{
+    centui::flex flex = centui::flex::all(0, 0, centui::px(240));
+};
+
+struct main_panel
+{
+    centui::flex flex = centui::flex::all(1, 1, centui::automatic());
+    centui::length min_width = centui::px(120);
+};
+```
+
+`basis` is the starting size along the parent's main axis. `grow` distributes
+remaining space; `shrink` distributes a deficit using each child's shrink factor
+and basis. Minimum and maximum dimensions constrain the result. The defaults are
+`{0, 0, automatic()}`: children do not grow or shrink unless requested.
+`flex::all(grow, shrink, basis)` sets all three members. There is no scalar flex
+shorthand or hidden precedence between separate flex properties.
+
+Style composition supports partial nested overrides:
+
+```cpp
+struct expand_twice
+{
+    struct
+    {
+        float grow = 2;
+    } flex;
+};
+
+auto panel = centui::container<main_panel, expand_twice>{};
+panel.patch_style({.flex = centui::flex::all(1, 0, centui::px(200))});
+```
+
+Runtime patches replace a supplied nested value as a whole, just as they do for
+edges and state colors. To change a single member at runtime while preserving
+the others, copy `panel.style().flex`, edit it, and patch the resulting value.
+
+## Lengths, constraints, and edges
+
+- `px(value)` uses logical display units; `percent(value)` uses Yoga's percentage
+  reference rules, not a fraction between zero and one.
+- `automatic()` requests automatic width, height, flex basis, margin, or inset.
+  It replaces the former `fit()` spelling and does not mean CSS `fit-content`.
+- `undefined()` clears an edge override or size constraint. It is distinct from
+  automatic margins, which can consume free space.
+- `min_width`, `min_height`, `max_width`, and `max_height` accept points,
+  percentages, or undefined. `aspect_ratio` is an optional positive width/height
+  ratio. Minimums take precedence when constraints conflict, following Yoga.
+- `box_sizing` selects `box_sizing::border_box` (the default) or
+  `box_sizing::content_box`.
+
+`padding`, `margin`, `inset`, and `border_width` use `centui::edges`, containing
+`top`, `right`, `bottom`, `left`, `start`, `end`, `horizontal`, and `vertical`.
+Entries default to undefined. `edges::all(value)` fills the four physical edges.
+Logical start/end override physical left/right, which override horizontal;
+physical top/bottom override vertical. To let an axis fallback apply after
+`edges::all(...)`, clear the relevant physical entries with `undefined()`.
+
+```cpp
+struct padded
+{
+    centui::edges padding{
+        .start = centui::px(24),
+        .horizontal = centui::px(12),
+        .vertical = centui::px(8),
+    };
+    centui::edges border_width{.bottom = centui::px(2)};
+};
+```
+
+Padding and borders must be nonnegative; margins and insets may be negative.
+Borders accept logical points or undefined, never percentages or automatic.
+Padding accepts points, percentages, or undefined. Invalid values, nonfinite
+numbers, and invalid enum choices throw before a widget's style is changed.
+
+Clear constraints and overrides explicitly:
+
+```cpp
+panel.patch_style({.max_width = centui::undefined()});
+panel.patch_style({.row_gap = centui::undefined()});
+panel.patch_style({.aspect_ratio = std::optional<float>{}});
+```
+
+An omitted patch field leaves its value unchanged. For optional properties such
+as `aspect_ratio`, supplying an empty inner optional clears the value.
+
+## Flow, alignment, and positioning
+
+| Property | Values / behavior |
+| --- | --- |
+| `flex_direction` | Column, row, and their reversed variants |
+| `flex_wrap` | `wrapping::none`, `wrap`, or `reverse` |
+| `justify_content` | Start, center, end, space between, around, or evenly |
+| `align_items` | Start, center, end, stretch, or baseline |
+| `align_self` | The item alignment choices, plus `automatic` to use the parent's alignment |
+| `align_content` | Start, center, end, stretch, space between, around, or evenly for wrapped lines |
+| `gap` | Default spacing between rows and columns |
+| `row_gap`, `column_gap` | Axis-specific overrides; undefined restores `gap` |
+| `layout_direction` | `layout_direction::inherit`, `ltr`, or `rtl` |
+| `position` | `position::normal` (Yoga static), `relative`, or `absolute` |
+| `forms_containing_block` | Makes a static node establish an absolute-positioning containing block |
+| `reference_baseline` | Selects a descendant as a container's reference baseline |
+
+Gaps accept nonnegative points or percentages. Relative positioning offsets a
+box without changing its allocated space; static positioning ignores its own
+insets; absolute positioning removes a box from flex flow. Logical start/end
+follow layout direction. RTL layout does not itself change text alignment or
+provide a new text-shaping policy.
+
+Text and input widgets report their first-line font baseline. Custom widgets can
+supply their own [baseline callback](extending.md). Containers without a custom
+callback use Yoga's descendant baseline selection.
+
+## Display and overflow
+
+`display::flex` generates a box. `display::none` removes the widget and its
+descendants from layout, painting, pointer targeting, and focus.
+`display::contents` preserves widget ownership and event ancestry, while its
+children participate in the nearest ancestor's box layout. The wrapper has zero
+bounds and no paint, clipping, child offset, pointer target, or focus target.
+Its enabled state, visibility, text-style ancestry, and event bubbling remain
+meaningful. A contents root places its children in the viewport's default column
+layout; its own box styles are ignored.
+
+`visibility::hidden` retains layout space but hides the subtree;
+`visibility::collapsed` removes its layout space even when display is contents.
+
+`overflow::visible` permits descendants outside a box. `overflow::clip` clips
+them to its content bounds. `overflow::scroll` also selects Yoga's scroll
+measurement behavior; use the `scroll` widget for actual scrolling and offsets.
+Clipping applies to pointer targeting as well as drawing.
+
+## Layout configuration and results
+
+```cpp
+document.set_layout_options({
+    .root_direction = centui::layout_direction::rtl,
+    .point_scale_factor = 0,
+});
+
+const auto& metrics = panel->metrics();
+// metrics.margin, padding, and border contain resolved physical edges.
+// metrics.direction and metrics.had_overflow report Yoga's layout result.
+```
+
+Options apply to all nodes on the next preparation. The default point scale of
+zero disables layout rounding; a positive value specifies pixels per logical
+unit for Yoga's rounding grid. It is independent of font rasterization scale.
+Keep zero unless rounded geometry is wanted.
+
+The three explicit compatibility switches are `stretch_flex_basis`,
+`absolute_position_without_insets_excludes_padding`, and
+`absolute_percent_against_inner_size`. All default to false. The
+`experimental_web_flex_basis` switch is also off by default. CentUI sets its own
+style defaults explicitly instead of exposing Yoga's `UseWebDefaults` switch.
+
+`bounds()`, `content_bounds()`, and `metrics()` reflect the last completed
+preparation. Yoga's node ownership, cloning, dirty flags, and callback context
+are managed internally. No native Yoga handles are needed by widgets.
+
+The [Yoga coverage matrix](yoga-coverage.md) maps supported capabilities to tests.
+
 ## Keep a handle when you need it
 
 Copies of a handle refer to the same widget. A parent owns its children, and a document mounts one root. Keep a named handle for a widget you plan to update. You can remove or append children through widget methods or the document; edits requested inside callbacks settle before the next input event.

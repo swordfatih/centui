@@ -215,14 +215,15 @@ enum class unit
 {
     px,
     percent,
-    fit,
+    automatic,
+    undefined,
 };
 
-/// \brief A size expressed in pixels, percent, or content-fitting units.
+/// \brief A logical length, percentage, automatic value, or absent constraint.
 struct length
 {
     float value = 0;
-    centui::unit unit = centui::unit::fit;
+    centui::unit unit = centui::unit::automatic;
 
     constexpr bool operator==(const length&) const = default;
 };
@@ -237,21 +238,48 @@ constexpr length percent(float value)
     return {value, unit::percent};
 }
 
-constexpr length fit()
+constexpr length automatic()
 {
-    return {0, unit::fit};
+    return {0, unit::automatic};
 }
 
-/// \brief Independent lengths for the four edges of a box.
+/// \brief Clears a constraint or edge override; distinct from automatic sizing.
+constexpr length undefined()
+{
+    return {0, unit::undefined};
+}
+
+/// \brief Main-axis sizing before and during flexible space distribution.
+struct flex
+{
+    float grow = 0;
+    float shrink = 0;
+    length basis = automatic();
+
+    static constexpr flex all(float grow, float shrink, length basis)
+    {
+        return {grow, shrink, basis};
+    }
+
+    constexpr bool operator==(const flex&) const = default;
+};
+
+/// \brief Physical and logical edges. Undefined entries allow axis fallbacks.
+/// Logical start/end take precedence over left/right, then horizontal/vertical.
 struct edges
 {
-    length top = fit();
+    length top = undefined();
 
-    length right = fit();
+    length right = undefined();
 
-    length bottom = fit();
+    length bottom = undefined();
 
-    length left = fit();
+    length left = undefined();
+
+    length start = undefined();
+    length end = undefined();
+    length horizontal = undefined();
+    length vertical = undefined();
 
     static constexpr edges all(length value)
     {
@@ -259,6 +287,33 @@ struct edges
     }
 
     constexpr bool operator==(const edges&) const = default;
+};
+
+enum class layout_direction
+{
+    inherit,
+    ltr,
+    rtl
+};
+
+enum class wrapping
+{
+    none,
+    wrap,
+    reverse
+};
+
+enum class box_sizing
+{
+    border_box,
+    content_box
+};
+
+enum class display
+{
+    flex,
+    none,
+    contents
 };
 
 enum class position

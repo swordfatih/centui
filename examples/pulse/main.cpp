@@ -1,6 +1,5 @@
 // PULSE / CentUI — dark analytics dashboard
 // Drop into centui/examples/pulse/main.cpp; see README.md.
-#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <memory>
@@ -35,25 +34,24 @@ struct shell
 
 struct side
 {
-    length width = px(248), height = percent(100);
+    centui::flex flex = centui::flex::all(0, 0, px(248));
+    length height = percent(100);
     edges padding = edges::all(px(24));
     length gap = px(22);
     states_color background_color = solid(0x101219);
-    float border_width = 1;
+    centui::edges border_width = centui::edges::all(centui::px(1));
     states_color border_color = solid(0x252932);
 };
 
 struct dashboard_viewport
 {
-    // Updated to the window's remaining width in the main loop.
-    length width = px(1192);
+    centui::flex flex = centui::flex::all(1, 1, px(0));
     length height = percent(100);
 };
 
 struct body
 {
-    // Updated alongside the viewport so content uses all available space.
-    length width = px(1132);
+    length width = percent(100);
     edges padding = edges::all(px(30));
     length gap = px(24);
 };
@@ -100,29 +98,28 @@ struct panel
     edges padding = edges::all(px(20));
     length gap = px(16);
     states_color background_color = solid(0x141820);
-    float border_width = 1;
+    centui::edges border_width = centui::edges::all(centui::px(1));
     states_color border_color = solid(0x262C37);
 };
 
 struct stat
 {
-    // Four cards and three 14px gaps must fit inside their parent.
-    length width = percent(23);
+    centui::flex flex = centui::flex::all(1, 1, px(0));
     edges padding = edges::all(px(20));
     length gap = px(11);
     states_color background_color = solid(0x141820);
-    float border_width = 1;
+    centui::edges border_width = centui::edges::all(centui::px(1));
     states_color border_color = solid(0x262C37);
 };
 
 struct wide
 {
-    length width = percent(62);
+    centui::flex flex = centui::flex::all(2, 1, px(0));
 };
 
 struct narrow
 {
-    length width = percent(32);
+    centui::flex flex = centui::flex::all(1, 1, px(0));
 };
 
 struct fill
@@ -269,7 +266,7 @@ struct inputstyle
     length height = px(38);
     edges padding = edges::all(px(10));
     states_color background_color = solid(0x1D222D);
-    float border_width = 1;
+    centui::edges border_width = centui::edges::all(centui::px(1));
     states_color border_color = solid(0x353C49);
 };
 
@@ -686,41 +683,7 @@ int main()
         }
     };
 
-    // Keep typed declarative nodes above; only their dimensions change at runtime.
-    auto dashboard = root->children().at(0)->children().at(1);
-    auto dashboard_body = dashboard->children().at(0);
-
     centui::document document{root};
     document.set_font(centui::font{CENTUI_FONT_PATH});
-    centui::ui integration{window, renderer};
-
-    float last_width = -1.0f;
-    while(window.poll_events())
-    {
-        const auto surface = window.viewport();
-        const float logical_width = surface.logical_width();
-
-        if(logical_width != last_width)
-        {
-            // A fixed sidebar plus a dynamically sized content column.
-            const float available = std::max(1.0f, logical_width - 248.0f);
-
-            auto viewport_style = centui::style::resolve<dashboard_viewport>();
-            viewport_style.width = centui::px(available);
-            dashboard.set_style(viewport_style);
-
-            auto body_style = centui::style::resolve<body>();
-            body_style.width = centui::px(std::max(1.0f, available - 60.0f));
-            dashboard_body.set_style(body_style);
-
-            last_width = logical_width;
-        }
-
-        integration.process_events(document, window.events());
-        if(renderer.begin_frame())
-        {
-            integration.render(document);
-            renderer.end_frame();
-        }
-    }
+    centui::run(window, renderer, document);
 }

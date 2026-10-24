@@ -24,6 +24,8 @@ public:
 protected:
     size measure(const measure_context& context) override;
 
+    baseline_function baseline() override;
+
     void paint(painter& output) const override;
 
 private:

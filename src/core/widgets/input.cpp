@@ -71,6 +71,15 @@ size input_widget::measure(const measure_context& context)
     return {std::max(160.0f, m_layout->bounds.width), std::max(style().font_size * 1.5f, m_layout->bounds.height)};
 }
 
+baseline_function input_widget::baseline()
+{
+    return [this](size content)
+    {
+        prepare_text(fonts(), m_multiline ? content.width : std::numeric_limits<float>::infinity());
+        return m_layout->ascender;
+    };
+}
+
 void input_widget::on_layout()
 {
     const auto area = content_bounds();

@@ -47,23 +47,23 @@ struct card
     centui::edges padding = centui::edges::all(centui::px(20));
     centui::length gap = centui::px(16);
     centui::states_color background_color = solid(0x1B2636);
-    float border_width = 1;
+    centui::edges border_width = centui::edges::all(centui::px(1));
     centui::states_color border_color = solid(0x304156);
 };
 
 struct sidebar
 {
-    centui::length width = centui::percent(24);
+    centui::flex flex = centui::flex::all(6, 1, centui::px(0));
 };
 
 struct editor
 {
-    centui::length width = centui::percent(44);
+    centui::flex flex = centui::flex::all(11, 1, centui::px(0));
 };
 
 struct preview
 {
-    centui::length width = centui::percent(28);
+    centui::flex flex = centui::flex::all(7, 1, centui::px(0));
 };
 
 struct heading
@@ -93,7 +93,7 @@ struct control
     centui::length height = centui::px(44);
     centui::edges padding = centui::edges::all(centui::px(10));
     centui::states_color background_color = solid(0x26364A);
-    float border_width = 1;
+    centui::edges border_width = centui::edges::all(centui::px(1));
 
     struct
     {

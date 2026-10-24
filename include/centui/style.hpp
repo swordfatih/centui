@@ -28,7 +28,23 @@
     X(visibility)                  \
     X(overflow)                    \
     X(border_width)                \
-    X(border_color)
+    X(border_color)                \
+    X(flex)                        \
+    X(min_width)                   \
+    X(min_height)                  \
+    X(max_width)                   \
+    X(max_height)                  \
+    X(aspect_ratio)                \
+    X(flex_wrap)                   \
+    X(align_self)                  \
+    X(align_content)               \
+    X(row_gap)                     \
+    X(column_gap)                  \
+    X(layout_direction)            \
+    X(box_sizing)                  \
+    X(display)                     \
+    X(reference_baseline)          \
+    X(forms_containing_block)
 
 #include <centui/font.hpp>
 #include <centui/types.hpp>
@@ -40,7 +56,7 @@ namespace details
 {
 
 // Check supported names explicitly; recursive overrides preserve unspecified fields.
-// Edges and state colors support partial nested overrides.
+// Edges, flex sizing, and state colors support partial nested overrides.
 template <typename...>
 inline constexpr bool always_false = false;
 
@@ -63,6 +79,16 @@ void merge_nested(Target& target, const Source& source)
         CENTUI_MERGE_NESTED(right)
         CENTUI_MERGE_NESTED(bottom)
         CENTUI_MERGE_NESTED(left)
+        CENTUI_MERGE_NESTED(start)
+        CENTUI_MERGE_NESTED(end)
+        CENTUI_MERGE_NESTED(horizontal)
+        CENTUI_MERGE_NESTED(vertical)
+    }
+    else if constexpr(std::is_same_v<Target, centui::flex>)
+    {
+        CENTUI_MERGE_NESTED(grow)
+        CENTUI_MERGE_NESTED(shrink)
+        CENTUI_MERGE_NESTED(basis)
     }
     else if constexpr(std::is_same_v<Target, states_color>)
     {
@@ -84,7 +110,8 @@ void merge_value(Target& target, const Source& source)
     {
         target = source;
     }
-    else if constexpr((std::is_same_v<Target, edges> || std::is_same_v<Target, states_color>) &&
+    else if constexpr((std::is_same_v<Target, edges> || std::is_same_v<Target, states_color> ||
+                       std::is_same_v<Target, centui::flex>) &&
                       std::is_class_v<Source>)
     {
         merge_nested(target, source);
@@ -146,19 +173,19 @@ public:
         return resolve<types...>(style{});
     }
 
-    edges padding = edges::all(px(0));
+    edges padding{};
 
-    edges margin = edges::all(px(0));
+    edges margin{};
 
-    edges inset = edges::all(fit());
+    edges inset{};
 
     length gap = px(0);
 
     centui::position position = centui::position::relative;
 
-    length width = fit();
+    length width = automatic();
 
-    length height = fit();
+    length height = automatic();
 
     direction flex_direction = direction::column;
     alignment align_items = alignment::stretch;
@@ -173,95 +200,32 @@ public:
     text_alignment text_align = text_alignment::left;
     centui::visibility visibility = centui::visibility::visible;
     centui::overflow overflow = centui::overflow::visible;
-    float border_width = 0;
+    edges border_width{};
 
     states_color border_color = states_color::all({0, 0, 0, 0});
+
+    centui::flex flex = {};
+    length min_width = undefined();
+    length min_height = undefined();
+    length max_width = undefined();
+    length max_height = undefined();
+    std::optional<float> aspect_ratio = std::nullopt;
+    wrapping flex_wrap = wrapping::none;
+    alignment align_self = alignment::automatic;
+    alignment align_content = alignment::start;
+    length row_gap = undefined();
+    length column_gap = undefined();
+    centui::layout_direction layout_direction = centui::layout_direction::inherit;
+    centui::box_sizing box_sizing = centui::box_sizing::border_box;
+    centui::display display = centui::display::flex;
+    bool reference_baseline = false;
+    bool forms_containing_block = false;
 
     bool operator==(const style&) const = default;
 
     // Shared by style construction, full replacement, and patches.
     /// \brief Throws std::invalid_argument when a property cannot be represented or laid out.
-    void validate() const
-    {
-        const auto check_length = [](length value, bool nonnegative)
-        {
-            if(!std::isfinite(value.value))
-            {
-                throw std::invalid_argument("Style lengths must be finite");
-            }
-
-            switch(value.unit)
-            {
-            case unit::px:
-            case unit::percent:
-            {
-                if(nonnegative && value.value < 0)
-                {
-                    throw std::invalid_argument("Size, padding, and gap cannot be negative");
-                }
-
-                break;
-            }
-
-            case unit::fit:
-            {
-                if(value.value != 0)
-                {
-                    throw std::invalid_argument("Fit lengths must have zero value");
-                }
-
-                break;
-            }
-
-            default:
-            {
-                throw std::invalid_argument("Invalid length unit");
-            }
-            }
-        };
-
-        const auto check_edges = [&](const edges& value, bool nonnegative)
-        {
-            check_length(value.top, nonnegative);
-            check_length(value.right, nonnegative);
-            check_length(value.bottom, nonnegative);
-            check_length(value.left, nonnegative);
-        };
-
-        check_length(width, true);
-        check_length(height, true);
-        check_length(gap, true);
-        check_edges(padding, true);
-        check_edges(margin, false);
-        check_edges(inset, false);
-
-        if(!std::isfinite(font_size) || font_size <= 0 ||
-           std::round(static_cast<double>(font_size)) > std::numeric_limits<std::uint32_t>::max())
-        {
-            throw std::invalid_argument("Font size must be positive, finite, and representable");
-        }
-
-        const auto check_enum = [](auto value, auto first, auto last)
-        {
-            if(value < first || value > last)
-            {
-                throw std::invalid_argument("Invalid style enum value");
-            }
-        };
-
-        check_enum(position, centui::position::normal, centui::position::absolute);
-        check_enum(flex_direction, direction::column, direction::row_reverse);
-        check_enum(align_items, alignment::automatic, alignment::space_evenly);
-        check_enum(justify_content, justification::start, justification::space_evenly);
-        check_enum(text_align, text_alignment::left, text_alignment::right);
-        check_enum(visibility, centui::visibility::visible, centui::visibility::collapsed);
-        check_enum(overflow, centui::overflow::visible, centui::overflow::scroll);
-
-        if(!std::isfinite(border_width) || border_width < 0)
-        {
-            throw std::invalid_argument("Border width must be finite and nonnegative");
-        }
-    }
+    void validate() const;
 
     [[nodiscard]] invalidation changes_from(const style& previous) const noexcept;
 
@@ -280,7 +244,8 @@ private:
     }
 };
 
-/// \brief Replaces only the properties supplied by the caller.
+/// \brief Replaces only supplied properties; nested values are replaced as a whole.
+/// Use undefined() to clear a length; an engaged empty optional clears font or aspect ratio.
 struct style_patch
 {
     std::optional<edges> padding = std::nullopt;
@@ -300,8 +265,25 @@ struct style_patch
     std::optional<text_alignment> text_align = std::nullopt;
     std::optional<centui::visibility> visibility = std::nullopt;
     std::optional<centui::overflow> overflow = std::nullopt;
-    std::optional<float> border_width = std::nullopt;
+    std::optional<edges> border_width = std::nullopt;
     std::optional<states_color> border_color = std::nullopt;
+
+    std::optional<centui::flex> flex = std::nullopt;
+    std::optional<length> min_width = std::nullopt;
+    std::optional<length> min_height = std::nullopt;
+    std::optional<length> max_width = std::nullopt;
+    std::optional<length> max_height = std::nullopt;
+    std::optional<std::optional<float>> aspect_ratio = std::nullopt;
+    std::optional<wrapping> flex_wrap = std::nullopt;
+    std::optional<alignment> align_self = std::nullopt;
+    std::optional<alignment> align_content = std::nullopt;
+    std::optional<length> row_gap = std::nullopt;
+    std::optional<length> column_gap = std::nullopt;
+    std::optional<centui::layout_direction> layout_direction = std::nullopt;
+    std::optional<centui::box_sizing> box_sizing = std::nullopt;
+    std::optional<centui::display> display = std::nullopt;
+    std::optional<bool> reference_baseline = std::nullopt;
+    std::optional<bool> forms_containing_block = std::nullopt;
 
     [[nodiscard]] style apply(style candidate) const;
 };

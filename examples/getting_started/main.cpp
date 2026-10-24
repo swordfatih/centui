@@ -19,7 +19,8 @@ struct screen
 
 struct card
 {
-    centui::length width = centui::px(380);
+    centui::length width = centui::percent(90);
+    centui::length max_width = centui::px(380);
     centui::edges padding = centui::edges::all(centui::px(28));
     centui::length gap = centui::px(18);
     centui::states_color background_color = centui::states_color::all({30, 41, 59, 255});
@@ -44,6 +45,7 @@ struct counter
 
 struct action
 {
+    centui::flex flex = centui::flex::all(1, 1, centui::px(0));
     centui::length height = centui::px(46);
     centui::edges padding = centui::edges::all(centui::px(12));
     centui::text_alignment text_align = centui::text_alignment::center;
@@ -55,6 +57,12 @@ struct action
         centui::color pressed{29, 78, 216, 255};
         centui::color focused{59, 130, 246, 255};
     } background_color;
+};
+
+struct actions
+{
+    centui::direction flex_direction = centui::direction::row;
+    centui::length column_gap = centui::px(12);
 };
 
 } // namespace
@@ -78,21 +86,23 @@ int main()
             centui::text<title>{"Hello, world."},
             centui::text<caption>{"A little state. A live label. One button."},
             label,
-            centui::button<action>{
-                "Click me",
-                {
-                    .on_click = increment,
-                }
-            },
-            centui::button<action>{
-                "Start over",
-                {
-                    .on_click = [count, label]() mutable
+            centui::container<actions>{
+                centui::button<action>{
+                    "Click me",
                     {
-                        *count = 0;
-                        label.set_text("0");
-                    },
-                }
+                        .on_click = increment,
+                    }
+                },
+                centui::button<action>{
+                    "Start over",
+                    {
+                        .on_click = [count, label]() mutable
+                        {
+                            *count = 0;
+                            label.set_text("0");
+                        },
+                    }
+                },
             },
         },
     };

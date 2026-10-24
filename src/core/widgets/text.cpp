@@ -36,6 +36,14 @@ size text_widget::measure(const measure_context& context)
     return {layout.bounds.width, layout.bounds.height};
 }
 
+baseline_function text_widget::baseline()
+{
+    return [this](size content)
+    {
+        return prepared(fonts(), text_style(), content.width).ascender;
+    };
+}
+
 void text_widget::paint(painter& output) const
 {
     const auto appearance = text_style();
