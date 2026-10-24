@@ -6,6 +6,14 @@ namespace centui
 {
 
 /// \brief Owns a widget tree and coordinates layout, painting, focus, and input.
+struct preparation_statistics
+{
+    std::size_t layout_nodes_created = 0;
+    std::size_t paint_visits = 0;
+    std::size_t command_cache_hits = 0;
+    std::size_t command_cache_bytes = 0;
+};
+
 class document
 {
 public:
@@ -63,6 +71,10 @@ public:
     /// \brief Sets the retained raster cache budget; live draw lists and scratch storage are additional.
     void set_paint_cache_budget(std::size_t bytes);
 
+    void set_command_cache_budget(std::size_t bytes);
+
+    [[nodiscard]] preparation_statistics statistics() const noexcept;
+
     void process_event(const input_event& event, centui::viewport viewport);
 
     /// \brief Dispatches portable events in order, then applies deferred tree changes.
@@ -87,6 +99,9 @@ private:
 
     struct phase_guard;
     struct layout_entry;
+    struct layout_state;
+    struct frame_scheduler;
+    struct input_state;
 
     static void associate(
         const std::shared_ptr<widget>& value,
@@ -111,7 +126,7 @@ private:
 
     static void check_measurements(layout_entry& entry);
 
-    static void store_bounds(layout_entry& entry, float x, float y);
+    static void store_bounds(layout_entry& entry, float x, float y, bool force);
 
     void update_layout(centui::viewport viewport);
 
@@ -123,6 +138,14 @@ private:
         rect clip,
         bool enabled,
         details::visual_state inherited_state = details::visual_state::normal
+    );
+
+    void paint_tree_uncached(
+        const widget& value,
+        draw_list& output,
+        rect clip,
+        bool enabled,
+        details::visual_state inherited_state
     );
 
     static bool contains(rect box, float x, float y) noexcept;

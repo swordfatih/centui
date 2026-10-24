@@ -63,6 +63,13 @@ target_link_libraries(my_app PRIVATE centui::centui centui::sdl centui::bgfx)
 
 Link `centui::centui` for the core library and the targets for your chosen integrations. CMake fetches the dependencies and propagates the required include paths and C++20 support. Pin `GIT_TAG` to a commit for reproducible builds. See [window and renderer integration](docs/backends.md) for the available backends.
 
+For a vendored checkout or Git submodule, use `add_subdirectory(path/to/centui)`
+and link the same targets. FetchContent also accepts `SOURCE_DIR` for a local
+checkout. CI exercises all three approaches with an independent consumer project.
+An installed `find_package(centui)` package is not currently provided.
+See [performance and validation](docs/performance.md) for cache controls,
+instrumentation, benchmarks, and integration tests.
+
 ## Build the examples
 
 From a checkout of this repository, build the SDL/bgfx example with Ninja:

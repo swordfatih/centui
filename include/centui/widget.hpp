@@ -84,6 +84,9 @@ public:
 
     void set_enabled(bool value);
 
+    /// Opt-in command reuse while geometry and inherited appearance stay unchanged.
+    void set_paint_boundary(bool value);
+
 protected:
     explicit widget(centui::style value = {});
 
@@ -162,6 +165,8 @@ private:
     bool m_clip_children = false;
     vec2 m_child_offset{};
     bool m_enabled = true;
+    bool m_paint_boundary = false;
+    std::size_t m_paint_revision = 0;
     bool m_hovered = false;
     bool m_pressed = false;
     bool m_focused = false;

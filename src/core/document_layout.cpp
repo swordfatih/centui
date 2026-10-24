@@ -8,20 +8,20 @@ void document::set_layout_options(layout_options options)
     m_data->context->check_mutation();
     options.validate();
 
-    if(m_data->layout_options != options)
+    if(m_data->geometry.layout_options != options)
     {
-        m_data->viewport_layout.reset();
-        m_data->tree.reset();
-        m_data->configuration.reset();
-        m_data->layout_options = options;
-        m_data->measure_all = true;
+        m_data->geometry.viewport_layout.reset();
+        m_data->geometry.tree.reset();
+        m_data->geometry.configuration.reset();
+        m_data->geometry.layout_options = options;
+        m_data->geometry.measure_all = true;
         dirty_tree();
     }
 }
 
 const layout_options& document::options() const noexcept
 {
-    return m_data->layout_options;
+    return m_data->geometry.layout_options;
 }
 
 void document::sync_layout(
@@ -32,7 +32,8 @@ void document::sync_layout(
 {
     if(!entry || entry->value != value)
     {
-        entry = std::make_unique<layout_entry>(*m_data->configuration);
+        entry = std::make_unique<layout_entry>(*m_data->geometry.configuration);
+        ++m_data->statistics.layout_nodes_created;
         entry->value = value;
     }
 
@@ -130,8 +131,13 @@ void document::check_measurements(layout_entry& entry)
     }
 }
 
-void document::store_bounds(layout_entry& entry, float x, float y)
+void document::store_bounds(layout_entry& entry, float x, float y, bool force)
 {
+    if(!force && !entry.native.has_new_layout())
+    {
+        return;
+    }
+    entry.native.mark_layout_seen();
     if(entry.value->m_style.display == display::contents)
     {
         // Yoga positions descendants against the nearest ancestor that generates a box.
@@ -141,7 +147,7 @@ void document::store_bounds(layout_entry& entry, float x, float y)
 
         for(auto& child: entry.children)
         {
-            store_bounds(*child, x, y);
+            store_bounds(*child, x, y, true);
         }
         return;
     }
@@ -149,6 +155,7 @@ void document::store_bounds(layout_entry& entry, float x, float y)
     auto box = entry.native.bounds();
     box.x += x;
     box.y += y;
+    const bool moved = entry.value->m_bounds.x != box.x || entry.value->m_bounds.y != box.y;
     entry.value->m_bounds = box;
     auto content = entry.native.content_bounds();
     content.x += box.x;
@@ -158,7 +165,12 @@ void document::store_bounds(layout_entry& entry, float x, float y)
 
     for(auto& child: entry.children)
     {
-        store_bounds(*child, box.x + entry.value->m_child_offset.x, box.y + entry.value->m_child_offset.y);
+        store_bounds(
+            *child,
+            box.x + entry.value->m_child_offset.x,
+            box.y + entry.value->m_child_offset.y,
+            force || moved
+        );
     }
 }
 
@@ -172,16 +184,16 @@ void document::update_layout(centui::viewport viewport)
     m_data->fonts.set_scale(viewport.scale);
     if(m_data->font_revision != m_data->fonts.identity())
     {
-        m_data->measure_all = true;
+        m_data->geometry.measure_all = true;
         dirty_tree();
     }
     if(viewport != m_data->viewport)
     {
         if(viewport.scale != m_data->viewport.scale)
         {
-            m_data->pointer_x *= m_data->viewport.scale / viewport.scale;
-            m_data->pointer_y *= m_data->viewport.scale / viewport.scale;
-            m_data->text_input_area.reset();
+            m_data->input.pointer_x *= m_data->viewport.scale / viewport.scale;
+            m_data->input.pointer_y *= m_data->viewport.scale / viewport.scale;
+            m_data->input.text_input_area.reset();
         }
         m_data->viewport = viewport;
         dirty_tree();
@@ -198,44 +210,46 @@ void document::update_layout(centui::viewport viewport)
         {
             if(context.layout_dirty)
             {
-                if(!m_data->configuration)
+                if(!m_data->geometry.configuration)
                 {
-                    m_data->configuration = std::make_unique<layout_configuration>(m_data->layout_options);
+                    m_data->geometry.configuration =
+                        std::make_unique<layout_configuration>(m_data->geometry.layout_options);
                 }
-                sync_layout(m_data->tree, m_data->root.m_value, m_data->measure_all);
+                sync_layout(m_data->geometry.tree, m_data->root.m_value, m_data->geometry.measure_all);
                 if(m_data->root.style().display == display::contents)
                 {
-                    if(!m_data->viewport_layout)
+                    if(!m_data->geometry.viewport_layout)
                     {
-                        m_data->viewport_layout = std::make_unique<layout>(*m_data->configuration);
-                        m_data->viewport_layout->insert_child(m_data->tree->native);
+                        m_data->geometry.viewport_layout = std::make_unique<layout>(*m_data->geometry.configuration);
+                        m_data->geometry.viewport_layout->insert_child(m_data->geometry.tree->native);
                     }
                     centui::style appearance;
                     appearance.width = px(viewport.logical_width());
                     appearance.height = px(viewport.logical_height());
-                    m_data->viewport_layout->update(appearance);
-                    m_data->viewport_layout->calculate(viewport.logical_width(), viewport.logical_height());
+                    m_data->geometry.viewport_layout->update(appearance);
+                    m_data->geometry.viewport_layout->calculate(viewport.logical_width(), viewport.logical_height());
                 }
                 else
                 {
-                    m_data->viewport_layout.reset();
-                    m_data->tree->native.calculate(viewport.logical_width(), viewport.logical_height());
+                    m_data->geometry.viewport_layout.reset();
+                    m_data->geometry.tree->native.calculate(viewport.logical_width(), viewport.logical_height());
                 }
-                check_measurements(*m_data->tree);
+                check_measurements(*m_data->geometry.tree);
             }
-            store_bounds(*m_data->tree, 0, 0);
+            store_bounds(*m_data->geometry.tree, 0, 0, context.placement_dirty);
         }
         else
         {
-            m_data->viewport_layout.reset();
-            m_data->tree.reset();
+            m_data->geometry.viewport_layout.reset();
+            m_data->geometry.tree.reset();
         }
     }
     context.layout_dirty = false;
     context.placement_dirty = false;
     context.paint_dirty = true;
-    m_data->measure_all = false;
-    m_data->hit_dirty = true;
+    m_data->clear_commands();
+    m_data->geometry.measure_all = false;
+    m_data->input.hit_dirty = true;
     m_data->font_revision = m_data->fonts.identity();
     try
     {

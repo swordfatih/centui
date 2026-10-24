@@ -275,11 +275,11 @@ path::data& path::writable()
     {
         m_data = std::make_shared<data>();
     }
-    else if(!m_data.unique())
+    else if(m_data.use_count() != 1)
     {
         m_data = std::make_shared<data>(*m_data);
     }
-    else if(!m_data->revision.unique())
+    else if(m_data->revision.use_count() != 1)
     {
         // A cached raster observes the old revision. Editing an otherwise
         // unshared path needs a new identity, but no geometry copy.

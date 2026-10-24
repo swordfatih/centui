@@ -2,6 +2,8 @@
 
 #include "paint_service.hpp"
 
+#include <map>
+
 #include <centui/document.hpp>
 
 namespace centui
@@ -50,6 +52,40 @@ struct document::layout_entry
     std::vector<std::unique_ptr<layout_entry>> children;
 };
 
+struct document::layout_state
+{
+    centui::layout_options layout_options{};
+    std::unique_ptr<layout_configuration> configuration;
+    std::unique_ptr<layout> viewport_layout;
+    std::unique_ptr<layout_entry> tree;
+    bool measure_all = true;
+};
+
+struct document::frame_scheduler
+{
+    bool frames_dirty = true;
+    std::vector<std::weak_ptr<widget>> frames;
+
+    void request(const std::shared_ptr<widget>& value);
+};
+
+struct document::input_state
+{
+    std::weak_ptr<widget> hover;
+    std::weak_ptr<widget> capture;
+    mouse_button capture_button = mouse_button::primary;
+    std::weak_ptr<widget> focus;
+
+    bool host_focused = true;
+    bool pointer_known = false;
+    bool hit_dirty = true;
+    float pointer_x = 0;
+    float pointer_y = 0;
+
+    std::shared_ptr<const host_services> host;
+    std::optional<rect> text_input_area;
+};
+
 struct document::data
 {
     handle<> root;
@@ -59,30 +95,30 @@ struct document::data
     std::shared_ptr<const void> font_revision;
     draw_list draw;
 
-    centui::viewport viewport{};
-    centui::layout_options layout_options{};
-    std::unique_ptr<layout_configuration> configuration;
-    std::unique_ptr<layout> viewport_layout;
-    std::unique_ptr<layout_entry> tree;
-    bool measure_all = true;
-    bool frames_dirty = true;
-    std::vector<std::weak_ptr<widget>> frames;
+    struct command_entry
+    {
+        std::size_t revision;
+        std::vector<draw_quad> commands;
+    };
 
-    std::weak_ptr<widget> hover;
-    std::weak_ptr<widget> capture;
-    mouse_button capture_button = mouse_button::primary;
-    std::weak_ptr<widget> focus;
+    std::map<std::weak_ptr<const widget>, command_entry, std::owner_less<>> commands;
+    std::size_t command_budget = 4 * 1024 * 1024;
+    preparation_statistics statistics;
+
+    void clear_commands()
+    {
+        commands.clear();
+        statistics.command_cache_bytes = 0;
+    }
+
+    centui::viewport viewport{};
+    layout_state geometry;
+    frame_scheduler scheduler;
 
     std::vector<std::function<void()>> edits;
     bool dispatching = false;
-    bool host_focused = true;
-    bool pointer_known = false;
-    bool hit_dirty = true;
-    float pointer_x = 0;
-    float pointer_y = 0;
+    input_state input;
 
-    std::shared_ptr<const host_services> host;
-    std::optional<rect> text_input_area;
 };
 
 } // namespace centui

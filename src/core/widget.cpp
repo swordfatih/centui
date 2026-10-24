@@ -266,6 +266,13 @@ void widget::check_mutation() const
     }
 }
 
+void widget::set_paint_boundary(bool value)
+{
+    check_mutation();
+    m_paint_boundary = value;
+    invalidate_paint();
+}
+
 void widget::invalidate_layout()
 {
     check_mutation();
@@ -281,6 +288,20 @@ void widget::invalidate_layout()
 void widget::invalidate_paint()
 {
     check_mutation();
+    // Ancestors contain this widget; descendants may inherit its appearance.
+    for(auto parent = m_parent.lock(); parent; parent = parent->m_parent.lock())
+    {
+        ++parent->m_paint_revision;
+    }
+    const auto dirty = [&](auto&& self, widget& value) -> void
+    {
+        ++value.m_paint_revision;
+        for(const auto& child: value.m_children)
+        {
+            self(self, *child);
+        }
+    };
+    dirty(dirty, *this);
 
     if(auto context = m_document.lock())
     {
@@ -435,9 +456,9 @@ bool widget::focus_next(bool reverse)
 
 const host_services& widget::host() const
 {
-    if(auto context = m_document.lock(); context && context->owner.m_data->host)
+    if(auto context = m_document.lock(); context && context->owner.m_data->input.host)
     {
-        return *context->owner.m_data->host;
+        return *context->owner.m_data->input.host;
     }
 
     static const host_services empty;

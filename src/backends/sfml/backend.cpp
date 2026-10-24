@@ -71,6 +71,16 @@ void backend::end_frame()
     m_window->get().display();
 }
 
+void backend::set_cache_budget(std::size_t bytes)
+{
+    m_cache_budget = bytes;
+}
+
+centui::details::texture_cache_statistics backend::cache_statistics() const
+{
+    return m_images.statistics();
+}
+
 void backend::clear_cache()
 {
     m_images.clear();
@@ -79,7 +89,6 @@ void backend::clear_cache()
 void backend::set_cache_limit(std::size_t images)
 {
     m_cache_limit = std::max(std::size_t{1}, images);
-    clear_cache();
 }
 
 void backend::draw(const draw_list& list)
@@ -91,13 +100,7 @@ void backend::draw(const draw_list& list)
         return;
     }
 
-    std::erase_if(
-        m_images,
-        [](const auto& entry)
-        {
-            return entry.first.expired();
-        }
-    );
+    m_images.begin_frame(list, m_cache_limit, m_cache_budget);
 
     struct restore_state
     {
@@ -132,11 +135,6 @@ const ::sf::Texture& backend::texture(const std::shared_ptr<const bitmap>& bitma
     {
         found->second.setSmooth(sampling == image_sampling::linear);
         return found->second;
-    }
-
-    if(m_images.size() >= m_cache_limit)
-    {
-        clear_cache();
     }
 
     const auto rgba = rgba_pixels(*bitmap);

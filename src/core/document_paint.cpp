@@ -11,6 +11,53 @@ void document::paint_tree(
     details::visual_state inherited_state
 )
 {
+    const auto key = value.weak_from_this();
+    if(!value.m_paint_boundary)
+    {
+        if(const auto found = m_data->commands.find(key); found != m_data->commands.end())
+        {
+            m_data->statistics.command_cache_bytes -= found->second.commands.size() * sizeof(draw_quad);
+            m_data->commands.erase(found);
+        }
+    }
+
+    if(value.m_paint_boundary)
+    {
+        const auto found = m_data->commands.find(key);
+        if(found != m_data->commands.end())
+        {
+            if(found->second.revision == value.m_paint_revision)
+            {
+                output.commands
+                    .insert(output.commands.end(), found->second.commands.begin(), found->second.commands.end());
+                ++m_data->statistics.command_cache_hits;
+                return;
+            }
+            m_data->statistics.command_cache_bytes -= found->second.commands.size() * sizeof(draw_quad);
+            m_data->commands.erase(found);
+        }
+    }
+    const auto begin = output.commands.size();
+    ++m_data->statistics.paint_visits;
+    paint_tree_uncached(value, output, clip, enabled, inherited_state);
+    const auto bytes = (output.commands.size() - begin) * sizeof(draw_quad);
+    if(value.m_paint_boundary && bytes > 0 && bytes <= m_data->command_budget &&
+       m_data->statistics.command_cache_bytes <= m_data->command_budget - bytes)
+    {
+        data::command_entry entry{value.m_paint_revision, {output.commands.begin() + begin, output.commands.end()}};
+        m_data->commands.emplace(key, std::move(entry));
+        m_data->statistics.command_cache_bytes += bytes;
+    }
+}
+
+void document::paint_tree_uncached(
+    const widget& value,
+    draw_list& output,
+    rect clip,
+    bool enabled,
+    details::visual_state inherited_state
+)
+{
     if(value.m_style.visibility != visibility::visible || value.m_style.display == display::none)
     {
         return;

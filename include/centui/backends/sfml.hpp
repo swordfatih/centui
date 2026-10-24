@@ -18,6 +18,7 @@
 
 #include <centui/platforms/sfml.hpp>
 #include <centui/render.hpp>
+#include <centui/texture_cache.hpp>
 
 #include <SFML/Graphics.hpp>
 
@@ -57,6 +58,10 @@ public:
 
     void set_cache_limit(std::size_t images);
 
+    void set_cache_budget(std::size_t bytes);
+
+    [[nodiscard]] centui::details::texture_cache_statistics cache_statistics() const;
+
     void draw(const draw_list& list) override;
 
 private:
@@ -72,7 +77,8 @@ private:
     std::optional<std::reference_wrapper<platform>> m_platform;
     float m_scale = 1;
     std::size_t m_cache_limit = 1024;
-    std::map<std::weak_ptr<const bitmap>, ::sf::Texture, std::owner_less<>> m_images;
+    std::size_t m_cache_budget = 32 * 1024 * 1024;
+    centui::details::texture_cache<::sf::Texture> m_images;
 };
 
 } // namespace centui::sfml

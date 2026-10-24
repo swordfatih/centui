@@ -15,6 +15,8 @@ endfunction()
 
 project_option(BUILD_EXAMPLES "Build enabled example executables" OFF)
 project_option(BUILD_TESTS "Build the test executable" OFF)
+option(CENTUI_BUILD_INTEGRATION_TESTS "Build native window smoke tests" OFF)
+option(CENTUI_BUILD_BENCHMARKS "Build preparation benchmark" OFF)
 
 option(CENTUI_BUILD_BGFX "Build the bgfx backend and shaders" OFF)
 option(CENTUI_BUILD_SFML "Build the SFML platform and renderer backend" OFF)
@@ -23,7 +25,7 @@ option(CENTUI_BUILD_GLFW "Build the GLFW platform" OFF)
 
 include(FetchContent)
 
-if(BUILD_TESTS)
+if(BUILD_TESTS OR CENTUI_BUILD_INTEGRATION_TESTS)
     enable_testing()
 endif()
 
@@ -87,7 +89,7 @@ endif()
 # Tests
 # ------------------------
 if(BUILD_TESTS)
-    file(GLOB_RECURSE test_sources CONFIGURE_DEPENDS "${PROJECT_SOURCE_DIR}/tests/*.cpp")
+    file(GLOB test_sources CONFIGURE_DEPENDS "${PROJECT_SOURCE_DIR}/tests/*.test.cpp")
     if(test_sources)
         set(test_target "${PROJECT_NAME}_tests")
         add_executable(${test_target} ${test_sources})
@@ -97,3 +99,12 @@ if(BUILD_TESTS)
         catch_discover_tests(${test_target})
     endif()
 endif()
+
+if(CENTUI_BUILD_INTEGRATION_TESTS)
+    add_subdirectory(tests/integration)
+endif()
+if(CENTUI_BUILD_BENCHMARKS)
+    add_executable(centui_benchmark tests/benchmark.cpp)
+    target_link_libraries(centui_benchmark PRIVATE centui::centui)
+endif()
+

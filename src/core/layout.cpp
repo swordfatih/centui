@@ -478,6 +478,21 @@ void layout::insert_child(const layout& child)
     YGNodeInsertChild(m_data->node.get(), child.m_data->node.get(), YGNodeGetChildCount(m_data->node.get()));
 }
 
+bool layout::has_new_layout() const
+{
+    return YGNodeGetHasNewLayout(m_data->node.get());
+}
+
+void layout::mark_layout_seen()
+{
+    YGNodeSetHasNewLayout(m_data->node.get(), false);
+}
+
+void layout::remove_child(const layout& child)
+{
+    YGNodeRemoveChild(m_data->node.get(), child.m_data->node.get());
+}
+
 void layout::remove_children()
 {
     YGNodeRemoveAllChildren(m_data->node.get());

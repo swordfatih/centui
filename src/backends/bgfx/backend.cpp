@@ -277,6 +277,16 @@ void backend::rectangle(const rect& bounds, color value)
     ::bgfx::submit(m_view_id, m_program.get());
 }
 
+void backend::set_cache_budget(std::size_t bytes)
+{
+    m_cache_budget = bytes;
+}
+
+centui::details::texture_cache_statistics backend::cache_statistics() const
+{
+    return m_glyphs.statistics();
+}
+
 void backend::clear_cache()
 {
     m_glyphs.clear();
@@ -285,7 +295,6 @@ void backend::clear_cache()
 void backend::set_cache_limit(std::size_t images)
 {
     m_cache_limit = std::max(std::size_t{1}, images);
-    clear_cache();
 }
 
 void backend::draw(const draw_list& list)
@@ -303,13 +312,7 @@ void backend::draw(const draw_list& list)
         throw std::invalid_argument("UI viewport exceeds bgfx view dimensions");
     }
 
-    std::erase_if(
-        m_glyphs,
-        [](const auto& entry)
-        {
-            return entry.first.expired();
-        }
-    );
+    m_glyphs.begin_frame(list, m_cache_limit, m_cache_budget);
     begin(static_cast<std::uint16_t>(size.width), static_cast<std::uint16_t>(size.height), size.scale);
     for(const auto& item: list.commands)
     {
@@ -340,11 +343,6 @@ const backend::texture_handle& backend::get_glyph(const std::shared_ptr<const bi
        bitmap->height > std::numeric_limits<std::uint16_t>::max())
     {
         throw std::invalid_argument("Glyph image exceeds bgfx texture dimensions");
-    }
-
-    if(m_glyphs.size() >= m_cache_limit)
-    {
-        clear_cache();
     }
 
     if(bitmap->pixels.size() > std::numeric_limits<std::uint32_t>::max() / sizeof(std::uint32_t))

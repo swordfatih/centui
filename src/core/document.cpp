@@ -74,18 +74,18 @@ void document::set_host_services(std::shared_ptr<const host_services> services)
 {
     m_data->context->check_mutation();
 
-    if(m_data->host == services)
+    if(m_data->input.host == services)
     {
         return;
     }
 
-    if(m_data->host && m_data->host->text_input)
+    if(m_data->input.host && m_data->input.host->text_input)
     {
-        m_data->host->text_input(std::nullopt);
+        m_data->input.host->text_input(std::nullopt);
     }
 
-    m_data->host = std::move(services);
-    m_data->text_input_area.reset();
+    m_data->input.host = std::move(services);
+    m_data->input.text_input_area.reset();
     sync_host();
 }
 
@@ -109,8 +109,8 @@ void document::set_root(handle<> value)
             }
 
             clear_input();
-            m_data->viewport_layout.reset();
-            m_data->tree.reset();
+            m_data->geometry.viewport_layout.reset();
+            m_data->geometry.tree.reset();
             associate(m_data->root.m_value, {});
             m_data->root = value;
             associate(m_data->root.m_value, m_data->context);
@@ -145,8 +145,6 @@ void document::append(const handle<>& parent, std::span<const handle<>> children
             validate_append(parent, batch);
             auto target = checked(parent);
             target->insert_children(batch);
-            m_data->viewport_layout.reset();
-            m_data->tree.reset();
 
             for(const auto& child: batch)
             {
@@ -168,8 +166,32 @@ void document::remove(const handle<>& child)
             auto target = checked(child);
             // Layout callbacks retain widgets; release them when the edit commits,
             // even when a zero-sized viewport prevents the next layout pass.
-            m_data->viewport_layout.reset();
-            m_data->tree.reset();
+            if(target == m_data->root.m_value)
+            {
+                m_data->geometry.viewport_layout.reset();
+                m_data->geometry.tree.reset();
+            }
+            else if(m_data->geometry.tree)
+            {
+                const auto detach = [&](auto&& self, layout_entry& entry) -> bool
+                {
+                    for(auto it = entry.children.begin(); it != entry.children.end(); ++it)
+                    {
+                        if((*it)->value == target)
+                        {
+                            entry.native.remove_child((*it)->native);
+                            entry.children.erase(it);
+                            return true;
+                        }
+                        if(self(self, **it))
+                        {
+                            return true;
+                        }
+                    }
+                    return false;
+                };
+                detach(detach, *m_data->geometry.tree);
+            }
 
             if(target == m_data->root.m_value)
             {
@@ -251,7 +273,7 @@ void document::associate(
     value->m_document = context;
     if(context)
     {
-        context->owner.m_data->frames_dirty = true;
+        context->owner.m_data->scheduler.frames_dirty = true;
     }
 
     if(!context)
@@ -299,10 +321,11 @@ void document::validate_append(const handle<>& parent, std::span<const handle<>>
 
 void document::dirty_tree() noexcept
 {
-    m_data->hit_dirty = true;
+    m_data->input.hit_dirty = true;
     m_data->context->placement_dirty = true;
     m_data->context->layout_dirty = true;
     m_data->context->paint_dirty = true;
+    m_data->clear_commands();
 }
 
 void document::edit(std::function<void()> operation)
@@ -399,6 +422,18 @@ void document::dispatch_guarded(const std::function<void()>& operation)
     }
 }
 
+preparation_statistics document::statistics() const noexcept
+{
+    return m_data->statistics;
+}
+
+void document::set_command_cache_budget(std::size_t bytes)
+{
+    m_data->context->check_mutation();
+    m_data->command_budget = bytes;
+    m_data->clear_commands();
+}
+
 void document::set_paint_cache_budget(std::size_t bytes)
 {
     m_data->context->check_mutation();
@@ -407,7 +442,11 @@ void document::set_paint_cache_budget(std::size_t bytes)
 
 void document::request_frame(const std::shared_ptr<widget>& value)
 {
-    auto& frames = m_data->frames;
+    m_data->scheduler.request(value);
+}
+
+void document::frame_scheduler::request(const std::shared_ptr<widget>& value)
+{
     std::erase_if(
         frames,
         [](const auto& entry)
@@ -437,7 +476,7 @@ void document::advance(frame_duration elapsed)
     dispatch_guarded(
         [&]
         {
-            if(m_data->frames_dirty)
+            if(m_data->scheduler.frames_dirty)
             {
                 const auto collect = [&](auto&& self, const std::shared_ptr<widget>& value) -> void
                 {
@@ -455,9 +494,9 @@ void document::advance(frame_duration elapsed)
                     }
                 };
                 collect(collect, m_data->root.m_value);
-                m_data->frames_dirty = false;
+                m_data->scheduler.frames_dirty = false;
             }
-            auto pending = std::exchange(m_data->frames, {});
+            auto pending = std::exchange(m_data->scheduler.frames, {});
             std::size_t next = 0;
             try
             {

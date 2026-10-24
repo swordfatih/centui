@@ -26,7 +26,7 @@ void document::process_events(std::span<const input_event> events, centui::viewp
 
 void document::interaction_changed()
 {
-    m_data->hit_dirty = true;
+    m_data->input.hit_dirty = true;
 
     if(m_data->dispatching)
     {
@@ -75,7 +75,7 @@ bool document::advance_focus(const handle<>& scope, bool reverse)
         return false;
     }
 
-    const auto found = std::ranges::find(candidates, handle<>{m_data->focus.lock()});
+    const auto found = std::ranges::find(candidates, handle<>{m_data->input.focus.lock()});
     std::size_t index = reverse ? candidates.size() - 1 : 0;
 
     if(found != candidates.end())
@@ -107,16 +107,16 @@ void document::collect_focus(const std::shared_ptr<widget>& value, std::vector<h
 
 void document::sync_host()
 {
-    const auto focused = m_data->focus.lock();
+    const auto focused = m_data->input.focus.lock();
     const auto area = focused ? focused->text_input_area() : std::nullopt;
 
-    if(area != m_data->text_input_area)
+    if(area != m_data->input.text_input_area)
     {
-        m_data->text_input_area = area;
+        m_data->input.text_input_area = area;
 
-        if(m_data->host && m_data->host->text_input)
+        if(m_data->input.host && m_data->input.host->text_input)
         {
-            m_data->host->text_input(area);
+            m_data->input.host->text_input(area);
         }
     }
 }
@@ -128,7 +128,7 @@ bool document::contains(rect box, float x, float y) noexcept
 
 bool document::eligible(const std::shared_ptr<widget>& value) const
 {
-    if(!value || !m_data->host_focused || m_data->viewport.width <= 0 || m_data->viewport.height <= 0 ||
+    if(!value || !m_data->input.host_focused || m_data->viewport.width <= 0 || m_data->viewport.height <= 0 ||
        value->m_document.lock() != m_data->context || !value->m_interactive ||
        value->m_style.display == display::contents)
     {
@@ -140,21 +140,22 @@ bool document::eligible(const std::shared_ptr<widget>& value) const
 
 bool document::focus_eligible(const std::shared_ptr<widget>& value) const
 {
-    return value && m_data->host_focused && value->m_document.lock() == m_data->context && value->m_focusable &&
+    return value && m_data->input.host_focused && value->m_document.lock() == m_data->context && value->m_focusable &&
            value->m_style.display != display::contents && value->effectively_enabled() && value->effectively_visible();
 }
 
 void document::set_focus(std::shared_ptr<widget> value)
 {
-    auto old = m_data->focus.lock();
+    auto old = m_data->input.focus.lock();
 
     if(old == value)
     {
         return;
     }
 
-    m_data->focus.reset();
+    m_data->input.focus.reset();
     m_data->context->paint_dirty = true;
+    m_data->clear_commands();
 
     if(old)
     {
@@ -164,7 +165,7 @@ void document::set_focus(std::shared_ptr<widget> value)
 
     if(focus_eligible(value))
     {
-        m_data->focus = value;
+        m_data->input.focus = value;
         value->m_focused = true;
         value->on_focus_changed(true);
     }
@@ -225,7 +226,7 @@ bool document::route_event(std::shared_ptr<widget> target, const input_event& ev
 
 void document::set_hover(std::shared_ptr<widget> value)
 {
-    if(auto old = m_data->hover.lock(); old != value)
+    if(auto old = m_data->input.hover.lock(); old != value)
     {
         if(old)
         {
@@ -237,21 +238,23 @@ void document::set_hover(std::shared_ptr<widget> value)
             value->m_hovered = true;
         }
 
-        m_data->hover = value;
+        m_data->input.hover = value;
         m_data->context->paint_dirty = true;
+        m_data->clear_commands();
     }
 }
 
 void document::cancel_capture()
 {
-    auto captured = m_data->capture.lock();
-    m_data->capture.reset();
+    auto captured = m_data->input.capture.lock();
+    m_data->input.capture.reset();
 
     if(captured)
     {
         captured->m_pressed = false;
         m_data->context->paint_dirty = true;
-        captured->on_event({.type = input_event_type::pointer_cancelled, .button = m_data->capture_button});
+        m_data->clear_commands();
+        captured->on_event({.type = input_event_type::pointer_cancelled, .button = m_data->input.capture_button});
     }
 }
 
@@ -264,31 +267,31 @@ void document::clear_input()
 
 void document::synchronize_input()
 {
-    if(!eligible(m_data->hover.lock()))
+    if(!eligible(m_data->input.hover.lock()))
     {
         set_hover({});
     }
 
-    if(!eligible(m_data->capture.lock()))
+    if(!eligible(m_data->input.capture.lock()))
     {
         cancel_capture();
     }
 
-    if(auto focused = m_data->focus.lock(); focused && !focus_eligible(focused))
+    if(auto focused = m_data->input.focus.lock(); focused && !focus_eligible(focused))
     {
         set_focus({});
     }
 
-    if(m_data->hit_dirty && !m_data->context->layout_dirty)
+    if(m_data->input.hit_dirty && !m_data->context->layout_dirty)
     {
-        m_data->hit_dirty = false;
-        const bool inside = m_data->pointer_known && m_data->host_focused && m_data->pointer_x >= 0 &&
-                            m_data->pointer_y >= 0 && m_data->pointer_x < m_data->viewport.logical_width() &&
-                            m_data->pointer_y < m_data->viewport.logical_height();
-        auto target = inside ? hit(m_data->pointer_x, m_data->pointer_y) : nullptr;
+        m_data->input.hit_dirty = false;
+        const bool inside = m_data->input.pointer_known && m_data->input.host_focused && m_data->input.pointer_x >= 0 &&
+                            m_data->input.pointer_y >= 0 && m_data->input.pointer_x < m_data->viewport.logical_width() &&
+                            m_data->input.pointer_y < m_data->viewport.logical_height();
+        auto target = inside ? hit(m_data->input.pointer_x, m_data->input.pointer_y) : nullptr;
         set_hover(target);
 
-        if(auto captured = m_data->capture.lock())
+        if(auto captured = m_data->input.capture.lock())
         {
             const bool pressed = captured == target;
 
@@ -296,6 +299,7 @@ void document::synchronize_input()
             {
                 captured->m_pressed = pressed;
                 m_data->context->paint_dirty = true;
+                m_data->clear_commands();
             }
         }
     }
@@ -306,17 +310,17 @@ void document::dispatch(const input_event& event)
     if(event.type == input_event_type::key_pressed || event.type == input_event_type::key_released ||
        event.type == input_event_type::text_entered || event.type == input_event_type::composition)
     {
-        if(!m_data->host_focused)
+        if(!m_data->input.host_focused)
         {
             return;
         }
 
-        if(!route_event(m_data->focus.lock(), event) && event.type == input_event_type::key_pressed &&
+        if(!route_event(m_data->input.focus.lock(), event) && event.type == input_event_type::key_pressed &&
            event.code == key::tab)
         {
             auto scope = m_data->root.m_value;
 
-            for(auto current = m_data->focus.lock(); current; current = current->m_parent.lock())
+            for(auto current = m_data->input.focus.lock(); current; current = current->m_parent.lock())
             {
                 if(current->m_focus_scope)
                 {
@@ -334,14 +338,14 @@ void document::dispatch(const input_event& event)
         return;
     }
 
-    m_data->hit_dirty = true;
+    m_data->input.hit_dirty = true;
 
     switch(event.type)
     {
     case input_event_type::focus_lost:
     {
-        m_data->pointer_known = false;
-        m_data->host_focused = false;
+        m_data->input.pointer_known = false;
+        m_data->input.host_focused = false;
         clear_input();
 
         return;
@@ -349,20 +353,21 @@ void document::dispatch(const input_event& event)
 
     case input_event_type::focus_gained:
     {
-        m_data->host_focused = true;
+        m_data->input.host_focused = true;
 
         return;
     }
 
     case input_event_type::pointer_left:
     {
-        m_data->pointer_known = false;
+        m_data->input.pointer_known = false;
         set_hover({});
 
-        if(auto captured = m_data->capture.lock())
+        if(auto captured = m_data->input.capture.lock())
         {
             captured->m_pressed = false;
             m_data->context->paint_dirty = true;
+            m_data->clear_commands();
         }
 
         return;
@@ -370,7 +375,7 @@ void document::dispatch(const input_event& event)
 
     case input_event_type::pointer_cancelled:
     {
-        m_data->pointer_known = false;
+        m_data->input.pointer_known = false;
         set_hover({});
         cancel_capture();
 
@@ -383,9 +388,9 @@ void document::dispatch(const input_event& event)
     }
     }
 
-    m_data->pointer_known = true;
-    m_data->pointer_x = event.x;
-    m_data->pointer_y = event.y;
+    m_data->input.pointer_known = true;
+    m_data->input.pointer_x = event.x;
+    m_data->input.pointer_y = event.y;
     const bool in_viewport = event.x >= 0 && event.y >= 0 && event.x < m_data->viewport.logical_width() &&
                              event.y < m_data->viewport.logical_height();
     auto target = in_viewport ? hit(event.x, event.y) : nullptr;
@@ -400,7 +405,7 @@ void document::dispatch(const input_event& event)
 
     if(event.type == input_event_type::pointer_moved)
     {
-        auto active = m_data->capture.lock();
+        auto active = m_data->input.capture.lock();
 
         if(active)
         {
@@ -410,6 +415,7 @@ void document::dispatch(const input_event& event)
             {
                 active->m_pressed = pressed;
                 m_data->context->paint_dirty = true;
+                m_data->clear_commands();
             }
         }
         else
@@ -430,24 +436,25 @@ void document::dispatch(const input_event& event)
     if(event.type == input_event_type::pointer_pressed)
     {
         // One gesture at a time; extra presses cannot steal its capture.
-        if(!m_data->capture.expired())
+        if(!m_data->input.capture.expired())
         {
             return;
         }
 
         if(target)
         {
-            m_data->capture = target;
-            m_data->capture_button = event.button;
+            m_data->input.capture = target;
+            m_data->input.capture_button = event.button;
             target->m_pressed = true;
             m_data->context->paint_dirty = true;
+            m_data->clear_commands();
 
             if(event.button == mouse_button::primary && focus_eligible(target))
             {
                 set_focus(target);
             }
             // Focus callbacks may disable the target and cancel the gesture.
-            if(m_data->capture.lock() == target)
+            if(m_data->input.capture.lock() == target)
             {
                 target->on_event(event);
             }
@@ -455,19 +462,20 @@ void document::dispatch(const input_event& event)
     }
     else if(event.type == input_event_type::pointer_released)
     {
-        if(event.button != m_data->capture_button)
+        if(event.button != m_data->input.capture_button)
         {
             return;
         }
 
-        auto captured = m_data->capture.lock();
+        auto captured = m_data->input.capture.lock();
         // User code may mutate the tree or throw; capture is already ended.
-        m_data->capture.reset();
+        m_data->input.capture.reset();
 
         if(captured)
         {
             captured->m_pressed = false;
             m_data->context->paint_dirty = true;
+            m_data->clear_commands();
             captured->on_event(event);
         }
     }

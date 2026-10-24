@@ -139,6 +139,12 @@ public:
 
     void remove_children();
 
+    void remove_child(const layout& child);
+
+    [[nodiscard]] bool has_new_layout() const;
+
+    void mark_layout_seen();
+
     void invalidate_measure();
 
     void calculate(float width, float height);
