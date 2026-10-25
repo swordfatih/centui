@@ -68,7 +68,7 @@ int main()
 
     document.set_font(centui::font{CENTUI_FONT_PATH});
 
-    const auto result = emscripten_request_animation_frame_loop(
+    emscripten_request_animation_frame_loop(
         [](double, void*) -> EM_BOOL
         {
             if(!platform.poll_events())
@@ -83,5 +83,5 @@ int main()
         nullptr
     );
 
-    return result == EMSCRIPTEN_RESULT_SUCCESS ? 0 : 1;
+    return 0;
 }

@@ -44,7 +44,7 @@ emcmake cmake -S . -B build/web -G Ninja \
 cmake --build build/web --target centui_example_web
 ```
 
-Only the browser example is added when configuring examples with Emscripten.
+Only the browser examples are added when configuring examples with Emscripten.
 The normal desktop examples retain their application-owned desktop loops.
 Leave `CENTUI_BUILD_TESTS` off for this example: the current native test suite
 is not a browser test harness.
@@ -58,6 +58,25 @@ python -m http.server 8000 --directory build/web/examples/web
 Open `http://localhost:8000/centui_example_web.html`. Deploy its HTML, JavaScript,
 WebAssembly, and asset data files together. Opening the HTML directly through
 `file://` is not sufficient for loading the application and assets.
+
+## Pulse dashboard
+
+`examples/pulse_web` copies the desktop Pulse dashboard, preserving its widget
+tree, styles, charts, and callbacks. Its window, renderer, document, and UI remain
+alive after `main()`, and a browser animation callback drives `ui.frame()`.
+It uses the same HTML shell as the smaller web example. Each example's
+`CMakeLists.txt` defines its own font packaging and web link settings.
+The desktop `examples/pulse` is unchanged.
+
+With the same Emscripten configuration, build and serve it with:
+
+```sh
+cmake --build build/web --target centui_example_pulse_web --parallel 4
+python -m http.server 8000 --directory build/web/examples/pulse_web
+```
+
+Open `http://localhost:8000/centui_example_pulse_web.html`. Use a desktop-sized
+browser window to view the full dashboard.
 
 ## Integration boundaries
 

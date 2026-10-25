@@ -3,6 +3,7 @@ if(NOT CENTUI_BUILD_EXAMPLES)
 endif()
 
 add_subdirectory(web)
+add_subdirectory(pulse_web)
 
 if(EMSCRIPTEN)
     return()

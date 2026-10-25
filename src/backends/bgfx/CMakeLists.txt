@@ -41,6 +41,19 @@ FetchContent_Declare(bgfx_cmake
 )
 FetchContent_MakeAvailable(bgfx_cmake)
 
+if(EMSCRIPTEN)
+    # Emscripten reports an x86 compatibility processor, triggering bx's native SSE flag.
+    # Leave bx on its portable implementation unless the application explicitly enables Wasm SIMD.
+    foreach(property COMPILE_OPTIONS INTERFACE_COMPILE_OPTIONS)
+        get_target_property(bx_options bx ${property})
+
+        if(bx_options)
+            list(REMOVE_ITEM bx_options "$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-msse4.2>")
+            set_property(TARGET bx PROPERTY ${property} "${bx_options}")
+        endif()
+    endforeach()
+endif()
+
 add_library(centui_bgfx STATIC)
 add_library(centui::backend::bgfx ALIAS centui_bgfx)
 centui_sources(centui_bgfx "${CMAKE_CURRENT_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/include/centui/backends/bgfx.hpp")
