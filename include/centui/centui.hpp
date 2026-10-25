@@ -3,7 +3,6 @@
 /// \file
 /// \brief Complete core widget, document, style, and rendering API.
 
-#include <centui/controls.hpp>
 #include <centui/document.hpp>
 #include <centui/font.hpp>
 #include <centui/image.hpp>
