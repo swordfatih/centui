@@ -53,7 +53,7 @@ protected:
 
     baseline_function baseline() override;
 
-    void on_layout() override;
+    void on_geometry() override;
 
     void paint(painter& output) const override;
 
@@ -84,6 +84,8 @@ private:
     std::size_t display_caret() const noexcept;
 
     void prepare_text(text_service& service, float width) const;
+
+    void refresh_text_geometry();
 
     void changed_layout();
 

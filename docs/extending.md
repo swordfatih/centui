@@ -43,7 +43,21 @@ private:
 auto progress = centui::make_widget<meter>(0.25f);
 ```
 
-Call `check_mutation()` before changing widget state. Use `invalidate_paint()` when only the appearance changes, or `invalidate_layout()` when the natural size or child arrangement changes. Measurement and painting should only read the tree. Widgets with children are laid out by Yoga rather than by their `measure()` hook. The complete [custom primitive](https://github.com/swordfatih/centui/blob/main/examples/custom_primitive/main.cpp) is a small starting point.
+Call `check_mutation()` before changing widget state. Framework setters propagate their own changes; callers do not repeat invalidation. Custom setters choose the work they require:
+
+| Request | Contract |
+| --- | --- |
+| `invalidate_layout()` | Content metrics, measurement/baseline inputs, or intrinsic requirements changed. Synchronize layout, calculate bounds, refresh geometry, and repaint. This is the conservative option. |
+| `invalidate_geometry()` | Rebuild geometry derived from current allocated bounds, such as paths, caret placement, or reveal calculations. Includes paint invalidation without requesting Yoga calculation. |
+| `invalidate_paint()` | Drawing changed with no geometry preparation required. |
+
+`measure()`, baseline evaluation (including `baseline()`), and `paint()` must not mutate widgets or request more work. They may retain internal derived caches. Widgets with children are laid out by Yoga rather than by their `measure()` hook. The complete [custom primitive](https://github.com/swordfatih/centui/blob/main/examples/custom_primitive/main.cpp) is a small starting point.
+
+`on_geometry()` is the sole geometry preparation hook. It runs after current layout and placement, before painting and host text-input synchronization. It runs on mounting, after layout/placement changes, and after explicit geometry invalidation even when the widget rectangle is unchanged. Explicit requests coalesce and do not retain removed widgets. Requests made while detached or without a valid viewport survive until geometry becomes available. A failed hook and unfinished work remain pending for retry.
+
+Geometry hooks may change child offsets or request intrinsic layout, but must converge. Changed offsets cause another placement pass before dependent geometry and targeting settle. Do not unconditionally reschedule the hook, and do not invoke lifecycle hooks directly from event handlers; share a private helper when immediate hit-test geometry is needed.
+
+Command caching does not discover dependencies on external state or another widget. A custom widget reading those values must explicitly invalidate when they change. Requesting an animation frame alone does not imply changed layout, geometry, or drawing; invalidate the state changed by the frame callback.
 
 ## Baselines
 
@@ -84,9 +98,9 @@ Containers can call `set_clip_children(true)` or `set_child_offset({x, y})` when
 Build reusable geometry with `centui::path`: `move_to`, `line_to`, `curve_to`,
 `close`, `rectangle`, `rounded_rectangle`, and `circle`. Copies share storage
 until one is edited. Keep paths as widget members and rebuild size-dependent
-geometry in `on_layout()`, using `content_bounds()` for the current dimensions.
-Layout hooks run after bounds are stored and may request a frame. If a hook
-throws, preparation retries the notifications on its next call.
+geometry in `on_geometry()`, using `content_bounds()` for the current dimensions.
+Geometry hooks run after bounds are stored and may request a frame. If a hook
+throws, preparation retries the failed and unfinished requests on its next call.
 
 ```cpp
 void paint(centui::painter& output) const override

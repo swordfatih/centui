@@ -26,8 +26,9 @@ namespace details
 {
 
 struct document_context;
+struct invalidation_access;
 
-}
+} // namespace details
 
 /// \brief Base class for widgets owned by a document tree.
 /// Parents own children; parent and document links are weak.
@@ -96,13 +97,13 @@ public:
 protected:
     explicit widget(centui::style_source value = {});
 
-    /// \brief Measures content without mutating the document or its widgets.
+    /// \brief Measures content without mutating widgets or requesting work. Derived caches are permitted.
     virtual size measure(const measure_context&);
 
-    /// \brief Supplies an optional content baseline callback; it must not mutate the tree.
+    /// \brief Supplies a baseline callback; neither evaluation nor this hook may mutate or request work.
     virtual baseline_function baseline();
 
-    /// \brief Records drawing commands without mutating the document or its widgets.
+    /// \brief Records commands without mutating widgets or requesting work. Derived caches are permitted.
     virtual void paint(painter&) const;
 
     /// \brief Handles an input event and returns whether it was consumed.
@@ -110,12 +111,14 @@ protected:
 
     virtual void on_focus_changed(bool);
 
-    virtual void on_layout();
+    /// Rebuild geometry from current bounds; also called for explicit geometry requests.
+    /// Hooks may edit widgets, but must converge. Intrinsic changes require invalidate_layout().
+    virtual void on_geometry();
 
     /// \brief Runs once after request_frame(); request again to continue animation.
     virtual void on_frame(frame_duration elapsed);
 
-    /// \brief Coalesces requests for the next document tick, without retaining this widget.
+    /// \brief Coalesces ticks without retaining this widget; the callback must invalidate what it changes.
     void request_frame();
 
     virtual std::optional<rect> text_input_area() const;
@@ -138,8 +141,11 @@ protected:
 
     void check_mutation() const;
 
-    /// \brief Requests new geometry and paint after a content change.
+    /// \brief Content/measurement or baseline inputs changed; calculate layout, refresh geometry and paint.
     void invalidate_layout();
+
+    /// Rebuild local geometry without Yoga calculation; includes paint invalidation.
+    void invalidate_geometry();
 
     /// \brief Requests new paint while retaining the current geometry.
     void invalidate_paint();
@@ -148,6 +154,7 @@ private:
     friend class document;
     friend class details::event_access;
     friend struct details::widget_access;
+    friend struct details::invalidation_access;
 
     void interaction_changed();
 
@@ -189,7 +196,9 @@ private:
     bool m_hovered = false;
     bool m_pressed = false;
     bool m_focused = false;
-    bool m_measure_dirty = true;
+    bool m_layout_dirty = true;
+    bool m_layout_descendants_dirty = true;
+    bool m_geometry_dirty = true;
     bool m_frame_requested = false;
 };
 

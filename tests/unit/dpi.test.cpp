@@ -49,7 +49,12 @@ TEST_CASE("Documents refresh text caches and hit test in logical coordinates", "
     document.set_font(centui::font{CENTUI_FONT_PATH});
 
     (void)document.prepare({200, 100, 1});
+    const auto before_scale = document.statistics();
     const auto& dense = document.prepare({400, 200, 2});
+    REQUIRE(document.statistics().measurement_calls == before_scale.measurement_calls);
+    REQUIRE(document.statistics().layout_nodes_synchronized == before_scale.layout_nodes_synchronized);
+    REQUIRE(document.statistics().layout_calculations == before_scale.layout_calculations);
+    REQUIRE(document.statistics().geometry_callbacks == before_scale.geometry_callbacks);
     REQUIRE(root->bounds().width == 200);
     REQUIRE(action->bounds().width == 80);
 

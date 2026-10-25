@@ -31,7 +31,7 @@ public:
     std::function<void()> layout_callback;
 
 protected:
-    void on_layout() override
+    void on_geometry() override
     {
         if(layout_callback)
         {

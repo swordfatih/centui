@@ -17,6 +17,7 @@ public:
     explicit popup_widget(handle<> content, centui::style_source appearance = {});
 
     /// \brief Shows the popup and requests focus inside its content.
+    /// Falls back to the popup when its content has no eligible focus target.
     void open();
 
     /// \brief Hides the popup and restores the previous focus when it is still available.
@@ -25,7 +26,7 @@ public:
     void set_on_close(centui::callback<> callback);
 
 protected:
-    void on_layout() override;
+    void on_geometry() override;
 
     bool on_event(const input_event& event) override;
 

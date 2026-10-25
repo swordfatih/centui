@@ -70,12 +70,19 @@ void popup_widget::set_on_close(centui::callback<> callback)
     m_on_close.set(std::move(callback));
 }
 
-void popup_widget::on_layout()
+void popup_widget::on_geometry()
 {
     if(m_focus_pending && effectively_visible())
     {
         m_focus_pending = false;
-        focus_next();
+        for(const auto& child: children())
+        {
+            if(child->focus_next())
+            {
+                return;
+            }
+        }
+        request_focus();
     }
 }
 

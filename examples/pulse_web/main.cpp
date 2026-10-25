@@ -311,7 +311,7 @@ protected:
         return {900, 260};
     }
 
-    void on_layout() override
+    void on_geometry() override
     {
         const auto bounds = content_bounds();
         const auto scale = std::min(bounds.width / 900, bounds.height / 260);

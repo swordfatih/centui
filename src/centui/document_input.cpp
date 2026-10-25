@@ -36,7 +36,7 @@ void document::process_events(std::span<const input_event> events, centui::viewp
 
 void document::interaction_changed()
 {
-    m_data->input.hit_dirty = true;
+    details::invalidation_access::invalidate_document(*m_data->context, details::change::interaction);
 
     if(m_data->dispatching)
     {
@@ -117,6 +117,11 @@ void document::collect_focus(const std::shared_ptr<widget>& value, std::vector<h
 
 void document::sync_host()
 {
+    if(m_data->viewport.width <= 0 || m_data->viewport.height <= 0 || m_data->context->layout_dirty ||
+       m_data->context->placement_dirty || m_data->context->geometry_dirty)
+    {
+        return;
+    }
     const auto focused = m_data->input.focus.lock();
     const auto area = focused ? focused->text_input_area() : std::nullopt;
 
@@ -164,12 +169,11 @@ void document::set_focus(std::shared_ptr<widget> value)
     }
 
     m_data->input.focus.reset();
-    m_data->context->paint_dirty = true;
-    m_data->clear_commands();
 
     if(old)
     {
         old->m_focused = false;
+        old->invalidate_paint();
         old->on_focus_changed(false);
     }
 
@@ -177,6 +181,7 @@ void document::set_focus(std::shared_ptr<widget> value)
     {
         m_data->input.focus = value;
         value->m_focused = true;
+        value->invalidate_paint();
         value->on_focus_changed(true);
     }
 }
@@ -241,16 +246,16 @@ void document::set_hover(std::shared_ptr<widget> value)
         if(old)
         {
             old->m_hovered = false;
+            old->invalidate_paint();
         }
 
         if(value)
         {
             value->m_hovered = true;
+            value->invalidate_paint();
         }
 
         m_data->input.hover = value;
-        m_data->context->paint_dirty = true;
-        m_data->clear_commands();
     }
 }
 
@@ -262,8 +267,7 @@ void document::cancel_capture()
     if(captured)
     {
         captured->m_pressed = false;
-        m_data->context->paint_dirty = true;
-        m_data->clear_commands();
+        captured->invalidate_paint();
         captured->on_event({.type = input_event_type::pointer_cancelled, .button = m_data->input.capture_button});
     }
 }
@@ -292,7 +296,8 @@ void document::synchronize_input()
         set_focus({});
     }
 
-    if(m_data->input.hit_dirty && !m_data->context->layout_dirty)
+    if(m_data->input.hit_dirty && !m_data->context->layout_dirty && !m_data->context->placement_dirty &&
+       !m_data->context->geometry_dirty)
     {
         m_data->input.hit_dirty = false;
         const bool inside = m_data->input.pointer_known && m_data->input.host_focused && m_data->input.pointer_x >= 0 &&
@@ -309,8 +314,7 @@ void document::synchronize_input()
             if(captured->m_pressed != pressed)
             {
                 captured->m_pressed = pressed;
-                m_data->context->paint_dirty = true;
-                m_data->clear_commands();
+                captured->invalidate_paint();
             }
         }
     }
@@ -377,8 +381,7 @@ void document::dispatch(const input_event& event)
         if(auto captured = m_data->input.capture.lock())
         {
             captured->m_pressed = false;
-            m_data->context->paint_dirty = true;
-            m_data->clear_commands();
+            captured->invalidate_paint();
         }
 
         return;
@@ -425,8 +428,7 @@ void document::dispatch(const input_event& event)
             if(active->m_pressed != pressed)
             {
                 active->m_pressed = pressed;
-                m_data->context->paint_dirty = true;
-                m_data->clear_commands();
+                active->invalidate_paint();
             }
         }
         else
@@ -457,8 +459,7 @@ void document::dispatch(const input_event& event)
             m_data->input.capture = target;
             m_data->input.capture_button = event.button;
             target->m_pressed = true;
-            m_data->context->paint_dirty = true;
-            m_data->clear_commands();
+            target->invalidate_paint();
 
             if(event.button == mouse_button::primary && focus_eligible(target))
             {
@@ -485,8 +486,7 @@ void document::dispatch(const input_event& event)
         if(captured)
         {
             captured->m_pressed = false;
-            m_data->context->paint_dirty = true;
-            m_data->clear_commands();
+            captured->invalidate_paint();
             captured->on_event(event);
         }
     }

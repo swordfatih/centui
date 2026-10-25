@@ -40,7 +40,7 @@ protected:
         return {120, 24};
     }
 
-    void on_layout() override
+    void on_geometry() override
     {
         const auto bounds = content_bounds();
         m_extent = {bounds.width, bounds.height};

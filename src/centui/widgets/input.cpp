@@ -36,14 +36,22 @@ void input_widget::set_selection(std::size_t anchor, std::size_t caret)
     m_anchor = boundary(std::min(anchor, m_value.size()));
     m_caret = boundary(std::min(caret, m_value.size()));
 
-    if(!m_preedit.empty())
+    const bool cancelled_composition = !m_preedit.empty();
+    if(cancelled_composition)
     {
         m_layout.reset();
     }
 
     m_preedit.clear();
     m_reveal_caret = true;
-    invalidate_layout();
+    if(cancelled_composition)
+    {
+        invalidate_layout();
+    }
+    else
+    {
+        invalidate_geometry();
+    }
 }
 
 std::pair<std::size_t, std::size_t> input_widget::selection() const noexcept
@@ -82,7 +90,12 @@ baseline_function input_widget::baseline()
     };
 }
 
-void input_widget::on_layout()
+void input_widget::on_geometry()
+{
+    refresh_text_geometry();
+}
+
+void input_widget::refresh_text_geometry()
 {
     const auto area = content_bounds();
     prepare_text(fonts(), m_multiline ? area.width : std::numeric_limits<float>::infinity());
@@ -165,8 +178,11 @@ void input_widget::on_focus_changed(bool value)
     if(!value)
     {
         m_dragging = false;
-        m_preedit.clear();
-        changed_layout();
+        if(!m_preedit.empty())
+        {
+            m_preedit.clear();
+            changed_layout();
+        }
     }
 }
 
@@ -197,9 +213,14 @@ bool input_widget::on_event(const input_event& event)
 
     if(event.type == input_event_type::pointer_pressed && event.button == mouse_button::primary)
     {
+        const bool cancelled_composition = !m_preedit.empty();
         m_preedit.clear();
         m_layout.reset();
-        on_layout();
+        if(cancelled_composition)
+        {
+            changed_layout();
+        }
+        refresh_text_geometry();
         m_dragging = true;
         move_caret(hit(event.x, event.y), event.mods.shift);
 

@@ -34,7 +34,7 @@ void scroll_widget::set_offset(vec2 value)
     set_child_offset({-m_offset.x, -m_offset.y});
 }
 
-void scroll_widget::on_layout()
+void scroll_widget::on_geometry()
 {
     const auto area = content_bounds();
     vec2 extent{};

@@ -1,3 +1,5 @@
+#include "invalidation.hpp"
+
 #include <centui/style.hpp>
 
 namespace centui
@@ -141,25 +143,37 @@ void style::validate() const
 
 invalidation style::changes_from(const style& previous) const noexcept
 {
-    const bool text_changed = font_size != previous.font_size || font != previous.font;
-    const bool layout_changed =
-        text_changed || padding != previous.padding || margin != previous.margin || inset != previous.inset ||
-        gap != previous.gap || position != previous.position || width != previous.width || height != previous.height ||
-        flex_direction != previous.flex_direction || align_items != previous.align_items ||
-        justify_content != previous.justify_content || visibility != previous.visibility ||
-        overflow != previous.overflow || border_width != previous.border_width || flex != previous.flex ||
-        min_width != previous.min_width || min_height != previous.min_height || max_width != previous.max_width ||
-        max_height != previous.max_height || aspect_ratio != previous.aspect_ratio || flex_wrap != previous.flex_wrap ||
-        align_self != previous.align_self || align_content != previous.align_content || row_gap != previous.row_gap ||
-        column_gap != previous.column_gap || layout_direction != previous.layout_direction ||
-        box_sizing != previous.box_sizing || display != previous.display ||
-        reference_baseline != previous.reference_baseline || forms_containing_block != previous.forms_containing_block;
+    const auto effects = details::classify_style(*this, previous);
+    return {.layout = effects.layout, .paint = effects.paint};
+}
 
-    return {
+details::style_effects details::classify_style(const style& next, const style& previous) noexcept
+{
+    const bool text_changed = next.font_size != previous.font_size || next.font != previous.font;
+    const bool layout_changed =
+        text_changed || next.padding != previous.padding || next.margin != previous.margin ||
+        next.inset != previous.inset || next.gap != previous.gap || next.position != previous.position ||
+        next.width != previous.width || next.height != previous.height ||
+        next.flex_direction != previous.flex_direction || next.align_items != previous.align_items ||
+        next.justify_content != previous.justify_content || next.visibility != previous.visibility ||
+        next.overflow != previous.overflow || next.border_width != previous.border_width ||
+        next.flex != previous.flex || next.min_width != previous.min_width || next.min_height != previous.min_height ||
+        next.max_width != previous.max_width || next.max_height != previous.max_height ||
+        next.aspect_ratio != previous.aspect_ratio || next.flex_wrap != previous.flex_wrap ||
+        next.align_self != previous.align_self || next.align_content != previous.align_content ||
+        next.row_gap != previous.row_gap || next.column_gap != previous.column_gap ||
+        next.layout_direction != previous.layout_direction || next.box_sizing != previous.box_sizing ||
+        next.display != previous.display || next.reference_baseline != previous.reference_baseline ||
+        next.forms_containing_block != previous.forms_containing_block;
+
+    return style_effects{
         .layout = layout_changed,
-        .paint = layout_changed || background_color != previous.background_color || text_color != previous.text_color ||
-                 text_align != previous.text_align || border_color != previous.border_color ||
-                 corner_radius != previous.corner_radius,
+        .paint = layout_changed || next.background_color != previous.background_color ||
+                 next.text_color != previous.text_color || next.text_align != previous.text_align ||
+                 next.border_color != previous.border_color || next.corner_radius != previous.corner_radius,
+        .interaction = next.visibility != previous.visibility || next.overflow != previous.overflow ||
+                       next.display != previous.display,
+        .inherited_metrics = text_changed,
     };
 }
 

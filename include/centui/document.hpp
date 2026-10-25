@@ -9,6 +9,12 @@ namespace centui
 struct preparation_statistics
 {
     std::size_t layout_nodes_created = 0;
+    // Native input synchronization, excluding clean branches inspected en route.
+    std::size_t layout_nodes_synchronized = 0;
+    std::size_t measurement_calls = 0;
+    std::size_t layout_calculations = 0;
+    // Actual hook invocations, including failed attempts and retries.
+    std::size_t geometry_callbacks = 0;
     std::size_t paint_visits = 0;
     std::size_t command_cache_hits = 0;
     std::size_t command_cache_bytes = 0;
@@ -63,6 +69,7 @@ public:
 
     void set_host_services(std::shared_ptr<const host_services> services);
 
+    /// Paint includes geometry/placement preparation still awaiting settlement.
     [[nodiscard]] invalidation pending_changes() const noexcept;
 
     /// \brief Replaces the mounted tree with a detached root.
@@ -100,6 +107,7 @@ public:
 private:
     friend class widget;
     friend class details::event_access;
+    friend struct details::invalidation_access;
 
     void patch_style_type(details::style_type_id type, const style_patch& patch);
 
@@ -170,7 +178,7 @@ private:
 
     void update_layout(centui::viewport viewport);
 
-    void notify_layout(const std::shared_ptr<widget>& value);
+    void refresh_geometry(const std::shared_ptr<widget>& value);
 
     void paint_tree(
         const widget& value,

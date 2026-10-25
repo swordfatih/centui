@@ -3,27 +3,77 @@
 CentUI retains Yoga nodes across append/remove operations. Removed layout entries
 are destroyed at edit commit, including when the viewport is minimized. Geometry
 application uses Yoga's new-layout flag, while ancestor movement and scrolling
-force placement updates. Layout callbacks retain their existing notification and
-exception-retry behavior.
+force placement updates. Layout synchronization follows dirty ancestor paths and
+skips clean sibling subtrees. Direct child flags may be scanned along those paths;
+this is not a strict O(depth) guarantee. A synchronized node is one whose native
+inputs are processed, not a clean child flag inspected while traversing.
+
+Yoga still calculates from the root to resolve flex, wrapping, percentage and
+baseline dependencies. Every node reporting new layout is processed, including
+dependent siblings. Inherited font/text metrics conservatively synchronize a
+subtree; default font replacement retains a document-wide measurement fallback.
+Layout-option replacement may rebuild native entries. Failed measurement,
+baseline evaluation or synchronization retains pending layout for a conservative
+full measurement retry.
+
+`on_geometry()` rebuilds geometry from current allocated bounds. An explicit
+`invalidate_geometry()` coalesces the hook and invalidates its paint subtree,
+without Yoga calculation or unrelated geometry callbacks. Layout and placement
+conservatively schedule geometry hooks across the tree, including fixed-size
+widgets whose content metrics or child extents changed. Hooks must converge;
+offset changes settle through another placement pass. Geometry requests live on
+widgets, so scanning the mounted tree does not retain removed widgets or dispatch
+requests into their previous document. `pending_changes().paint` includes pending
+geometry and placement preparation. Zero-sized surfaces retain that work.
+
+Custom widgets use `invalidate_layout()` for content/measurement/baseline changes,
+`invalidate_geometry()` for derived geometry (paint included), and
+`invalidate_paint()` for drawing alone. Framework setters do their own propagation.
+Measurement, baseline evaluation, and painting may retain derived caches but may
+not mutate or request work. External state dependencies require explicit
+invalidation. A frame request only schedules a callback; the callback invalidates
+what it changes. See [Extending CentUI](extending.md).
 
 ## Optional paint boundaries
 
 Call `panel->set_paint_boundary(true)` to reuse a panel's prepared commands while
 another region changes. This is useful for static panels beside animated controls.
 It is disabled by default on every widget. Custom widget setters must call
-`invalidate_paint()` or `invalidate_layout()` when their output changes.
+`invalidate_paint()`, `invalidate_geometry()` or `invalidate_layout()` when their output changes.
 
-The initial implementation deliberately clears boundary caches after geometry,
-viewport, or input-state changes. It does not accelerate scrolling or hover-only
-updates. It preserves the renderer API and still copies and submits every visible
-quad. No offscreen render targets are introduced.
+Cache validity requires unchanged subtree drawing, inherited appearance and
+interaction state, allocated geometry/effective clipping, raster scale and resource
+content identity. Local appearance, explicit geometry requests, and hover/focus/
+press transitions increment source/descendant revisions and containing ancestor
+revisions. Unrelated sibling boundaries remain reusable, including beneath nested
+boundaries. Allocated bounds, placement, topology and raster-scale changes
+conservatively clear all command entries. It still copies and submits every
+visible quad. No offscreen render targets are introduced.
+
+Logical viewport resizing calculates Yoga with new constraints without inherently
+reapplying unchanged native inputs. A scale-only change with the same logical size
+refreshes raster commands and host coordinates without intrinsic measurement or
+geometry callbacks. Logical text caches remain reusable, while glyph images use
+the new raster scale. Explicit Yoga point-scale configuration remains independent.
+Retained pointer positions preserve the existing physical-position adjustment on
+scale changes; newly delivered pointer events use adapter-provided logical units.
+
+Failed painting leaves the published draw list intact and paint pending. Completed
+subtree cache entries remain valid under the same dependency contract on retry.
+Eviction and budget changes affect storage, not widget content or layout; live
+draw lists retain immutable resources.
 
 `document.set_command_cache_budget(bytes)` controls retained command storage
 (4 MiB by default, zero disables admission). The budget counts command payloads;
 container overhead, the final draw list, and referenced image resources are extra.
 Nested boundaries may duplicate commands and should be used sparingly.
-`document.statistics()` reports cumulative layout allocations, paint visits,
-command-cache hits, and currently retained command bytes.
+`document.statistics()` reports cumulative layout allocations, native input
+synchronizations (`layout_nodes_synchronized`), actual measurement invocations
+(`measurement_calls`), root calculation attempts (`layout_calculations`), actual
+geometry hook invocations (`geometry_callbacks`, including failures/retries), paint
+visits, command-cache hits, and currently retained command bytes. Requests alone
+do not increment counters. Idle preparation and equal effective mutations do no
+synchronization, measurement, calculation or paint work.
 
 Build with `-DCENTUI_BUILD_EXAMPLES=ON` and run `centui_example_benchmark` from `build/examples/benchmark/` for a static
 panel beside an invalidating widget, with and without boundaries. This synthetic

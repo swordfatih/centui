@@ -1,5 +1,6 @@
 #pragma once
 
+#include "invalidation.hpp"
 #include "paint_service.hpp"
 
 #include <map>
@@ -18,6 +19,7 @@ struct document_context
     bool layout_dirty = true;
     bool paint_dirty = true;
     bool placement_dirty = true;
+    bool geometry_dirty = true;
     bool preparing = false;
     // The document owns this context; widgets only keep weak references to it.
     document& owner;
@@ -107,7 +109,9 @@ struct document::data
     std::size_t command_budget = 4 * 1024 * 1024;
     preparation_statistics statistics;
 
-    void clear_commands()
+    // Geometry, clipping, topology and raster changes invalidate all boundaries.
+    // Local appearance/inherited state uses subtree revisions instead.
+    void invalidate_all_commands()
     {
         commands.clear();
         statistics.command_cache_bytes = 0;

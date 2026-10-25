@@ -30,23 +30,34 @@ void document::sync_layout(
     bool inherited_dirty
 )
 {
+    bool created = false;
     if(!entry || entry->value != value)
     {
         entry = std::make_unique<layout_entry>(*m_data->geometry.configuration);
         ++m_data->statistics.layout_nodes_created;
         entry->value = value;
+        created = true;
+    }
+
+    if(!created && !inherited_dirty && !value->m_layout_dirty && !value->m_layout_descendants_dirty)
+    {
+        return;
     }
 
     const auto& appearance = value->m_style;
-    const bool text_changed = inherited_dirty || !entry->applied_style ||
-                              entry->applied_style->font != appearance.font ||
-                              entry->applied_style->font_size != appearance.font_size;
-    const bool dirty = value->m_measure_dirty || text_changed;
-    if(!entry->applied_style || *entry->applied_style != appearance)
+    const auto effects = entry->applied_style ? details::classify_style(appearance, *entry->applied_style)
+                                              : details::style_effects{true, true, true, true};
+    const bool text_changed = inherited_dirty || effects.inherited_metrics;
+    const bool dirty = value->m_layout_dirty || text_changed;
+    if(created || dirty || effects.layout)
+    {
+        ++m_data->statistics.layout_nodes_synchronized;
+    }
+    if(effects.layout)
     {
         entry->native.update(appearance);
-        entry->applied_style = appearance;
     }
+    entry->applied_style = appearance;
 
     const bool measured = value->m_children.empty() && appearance.display != display::contents;
     if(measured != entry->measured)
@@ -57,6 +68,7 @@ void document::sync_layout(
             entry->native.set_measure(
                 [this, value](axis_constraint width, axis_constraint height)
                 {
+                    ++m_data->statistics.measurement_calls;
                     return value->measure({width, height, m_data->fonts});
                 }
             );
@@ -118,7 +130,8 @@ void document::sync_layout(
         entry->native.invalidate_measure();
         entry->native.set_baseline(value->baseline());
     }
-    value->m_measure_dirty = false;
+    value->m_layout_dirty = false;
+    value->m_layout_descendants_dirty = false;
 }
 
 void document::check_measurements(layout_entry& entry)
@@ -176,9 +189,10 @@ void document::store_bounds(layout_entry& entry, float x, float y, bool force)
 
 void document::update_layout(centui::viewport viewport)
 {
-    if(!std::isfinite(viewport.scale) || viewport.scale <= 0)
+    if(!std::isfinite(viewport.scale) || viewport.scale <= 0 || !std::isfinite(viewport.width) ||
+       !std::isfinite(viewport.height) || viewport.width < 0 || viewport.height < 0)
     {
-        throw std::invalid_argument("Viewport scale must be finite and positive");
+        throw std::invalid_argument("Viewport dimensions must be finite and nonnegative; scale must be positive");
     }
 
     m_data->fonts.set_scale(viewport.scale);
@@ -189,14 +203,21 @@ void document::update_layout(centui::viewport viewport)
     }
     if(viewport != m_data->viewport)
     {
+        const bool logical_size_changed = viewport.logical_width() != m_data->viewport.logical_width() ||
+                                          viewport.logical_height() != m_data->viewport.logical_height();
         if(viewport.scale != m_data->viewport.scale)
         {
             m_data->input.pointer_x *= m_data->viewport.scale / viewport.scale;
             m_data->input.pointer_y *= m_data->viewport.scale / viewport.scale;
             m_data->input.text_input_area.reset();
+            details::invalidation_access::invalidate_document(*m_data->context, details::change::raster);
         }
         m_data->viewport = viewport;
-        dirty_tree();
+        m_data->input.hit_dirty = true;
+        if(logical_size_changed)
+        {
+            details::invalidation_access::invalidate_document(*m_data->context, details::change::layout);
+        }
     }
     auto& context = *m_data->context;
     if((!context.layout_dirty && !context.placement_dirty) || viewport.width <= 0 || viewport.height <= 0)
@@ -204,6 +225,7 @@ void document::update_layout(centui::viewport viewport)
         return;
     }
 
+    try
     {
         phase_guard guard{context};
         if(m_data->root.valid())
@@ -227,11 +249,13 @@ void document::update_layout(centui::viewport viewport)
                     appearance.width = px(viewport.logical_width());
                     appearance.height = px(viewport.logical_height());
                     m_data->geometry.viewport_layout->update(appearance);
+                    ++m_data->statistics.layout_calculations;
                     m_data->geometry.viewport_layout->calculate(viewport.logical_width(), viewport.logical_height());
                 }
                 else
                 {
                     m_data->geometry.viewport_layout.reset();
+                    ++m_data->statistics.layout_calculations;
                     m_data->geometry.tree->native.calculate(viewport.logical_width(), viewport.logical_height());
                 }
                 check_measurements(*m_data->geometry.tree);
@@ -244,38 +268,62 @@ void document::update_layout(centui::viewport viewport)
             m_data->geometry.tree.reset();
         }
     }
-    context.layout_dirty = false;
-    context.placement_dirty = false;
-    context.paint_dirty = true;
-    m_data->clear_commands();
-    m_data->geometry.measure_all = false;
-    m_data->input.hit_dirty = true;
-    m_data->font_revision = m_data->fonts.identity();
-    try
-    {
-        notify_layout(m_data->root.m_value);
-    }
     catch(...)
     {
-        // A hook may have failed before rebuilding its retained geometry.
-        // Retry notifications on the next preparation even if Yoga is clean.
-        context.placement_dirty = true;
+        // Synchronization and calculation acknowledgements are independent.
+        // Retry every measurement/baseline, including failures cached by Yoga.
+        m_data->geometry.measure_all = true;
+        context.layout_dirty = true;
         throw;
     }
+    context.layout_dirty = false;
+    context.placement_dirty = false;
+    m_data->geometry.measure_all = false;
+    details::invalidation_access::geometry_applied(context);
+    m_data->font_revision = m_data->fonts.identity();
+    const auto schedule = [&](auto&& self, const std::shared_ptr<widget>& value) -> void
+    {
+        if(!value)
+        {
+            return;
+        }
+        value->m_geometry_dirty = true;
+        for(const auto& child: value->m_children)
+        {
+            self(self, child);
+        }
+    };
+    schedule(schedule, m_data->root.m_value);
+    context.geometry_dirty = true;
 }
 
-void document::notify_layout(const std::shared_ptr<widget>& value)
+void document::refresh_geometry(const std::shared_ptr<widget>& value)
 {
-    if(!value)
+    auto& context = *m_data->context;
+    if(!value || value->m_document.lock() != m_data->context || context.layout_dirty || context.placement_dirty)
     {
         return;
     }
 
-    value->on_layout();
+    if(value->m_geometry_dirty)
+    {
+        value->m_geometry_dirty = false;
+        ++m_data->statistics.geometry_callbacks;
+        try
+        {
+            value->on_geometry();
+        }
+        catch(...)
+        {
+            value->m_geometry_dirty = true;
+            context.geometry_dirty = true;
+            throw;
+        }
+    }
 
     for(const auto& child: value->m_children)
     {
-        notify_layout(child);
+        refresh_geometry(child);
     }
 }
 

@@ -188,7 +188,11 @@ void document::set_host_services(std::shared_ptr<const host_services> services)
 
 invalidation document::pending_changes() const noexcept
 {
-    return {.layout = m_data->context->layout_dirty, .paint = m_data->context->paint_dirty};
+    const auto& context = *m_data->context;
+    return {
+        .layout = context.layout_dirty,
+        .paint = context.paint_dirty || context.placement_dirty || context.geometry_dirty
+    };
 }
 
 void document::set_root(handle<> value)
@@ -259,7 +263,7 @@ void document::append(const handle<>& parent, std::span<const handle<>> children
                 associate(child.m_value, m_data->context);
             }
             commit_styles(mounted);
-            dirty_tree();
+            details::invalidation_access::invalidate(*target, details::change::topology);
         }
     );
 }
@@ -311,6 +315,7 @@ void document::remove(const handle<>& child)
             {
                 auto parent = target->m_parent.lock();
                 std::erase(parent->m_children, target);
+                details::invalidation_access::invalidate(*parent, details::change::topology);
                 target->m_parent.reset();
                 target->m_parent_claim.reset();
             }
@@ -382,6 +387,9 @@ void document::associate(
     }
 
     value->m_document = context;
+    value->m_layout_dirty = true;
+    value->m_layout_descendants_dirty = true;
+    value->m_geometry_dirty = true;
     if(context)
     {
         context->owner.m_data->scheduler.frames_dirty = true;
@@ -433,10 +441,7 @@ void document::validate_append(const handle<>& parent, std::span<const handle<>>
 void document::dirty_tree() noexcept
 {
     m_data->input.hit_dirty = true;
-    m_data->context->placement_dirty = true;
-    m_data->context->layout_dirty = true;
-    m_data->context->paint_dirty = true;
-    m_data->clear_commands();
+    details::invalidation_access::invalidate_document(*m_data->context, details::change::topology);
 }
 
 void document::edit(std::function<void()> operation)
@@ -487,9 +492,18 @@ void document::settle_input(centui::viewport viewport)
     {
         flush_edits();
         update_layout(viewport);
+        auto& context = *m_data->context;
+        if(viewport.width > 0 && viewport.height > 0 && context.geometry_dirty)
+        {
+            context.geometry_dirty = false;
+            refresh_geometry(m_data->root.m_value);
+        }
+        // Eligibility/cancellation also runs on minimized surfaces. Hit testing
+        // itself waits for geometry and placement to settle.
         synchronize_input();
-    } while(!m_data->edits.empty() || ((m_data->context->layout_dirty || m_data->context->placement_dirty) &&
-                                       viewport.width > 0 && viewport.height > 0));
+    } while(!m_data->edits.empty() ||
+            ((m_data->context->layout_dirty || m_data->context->placement_dirty || m_data->context->geometry_dirty) &&
+             viewport.width > 0 && viewport.height > 0));
 }
 
 void document::dispatch_guarded(const std::function<void()>& operation)
@@ -542,7 +556,7 @@ void document::set_command_cache_budget(std::size_t bytes)
 {
     m_data->context->check_mutation();
     m_data->command_budget = bytes;
-    m_data->clear_commands();
+    m_data->invalidate_all_commands();
 }
 
 void document::set_paint_cache_budget(std::size_t bytes)

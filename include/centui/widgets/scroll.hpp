@@ -25,7 +25,7 @@ public:
     void set_offset(vec2 value);
 
 protected:
-    void on_layout() override;
+    void on_geometry() override;
 
     bool on_event(const input_event& event) override;
 

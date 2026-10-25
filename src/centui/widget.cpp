@@ -120,13 +120,12 @@ void widget::set_style(centui::style replacement)
 
 bool widget::commit_style(centui::style replacement, bool notify)
 {
-    const auto changes = replacement.changes_from(m_style);
-    if(!changes.any())
+    const auto changes = details::classify_style(replacement, m_style);
+    if(!changes.paint && !changes.layout && !changes.interaction)
     {
         return false;
     }
-    const bool targeting_changed = m_style.visibility != replacement.visibility ||
-                                   m_style.overflow != replacement.overflow || m_style.display != replacement.display;
+    const bool targeting_changed = changes.interaction;
     m_style = std::move(replacement);
     if(changes.layout)
     {
@@ -240,7 +239,7 @@ void widget::on_focus_changed(bool)
 {
 }
 
-void widget::on_layout()
+void widget::on_geometry()
 {
 }
 
@@ -270,6 +269,7 @@ void widget::set_interactive(bool value)
     }
 
     m_interactive = value;
+    invalidate_paint();
     interaction_changed();
 }
 
@@ -315,11 +315,7 @@ void widget::set_child_offset(vec2 value)
     }
 
     m_child_offset = value;
-    if(auto context = m_document.lock())
-    {
-        context->placement_dirty = true;
-        context->paint_dirty = true;
-    }
+    details::invalidation_access::invalidate(*this, details::change::placement);
 }
 
 void widget::check_mutation() const
@@ -333,6 +329,10 @@ void widget::check_mutation() const
 void widget::set_paint_boundary(bool value)
 {
     check_mutation();
+    if(m_paint_boundary == value)
+    {
+        return;
+    }
     m_paint_boundary = value;
     invalidate_paint();
 }
@@ -340,20 +340,25 @@ void widget::set_paint_boundary(bool value)
 void widget::invalidate_layout()
 {
     check_mutation();
-    m_measure_dirty = true;
+    details::invalidation_access::invalidate(*this, details::change::layout);
+}
 
-    if(auto context = m_document.lock())
-    {
-        context->layout_dirty = true;
-        context->paint_dirty = true;
-    }
+void widget::invalidate_geometry()
+{
+    check_mutation();
+    details::invalidation_access::invalidate(*this, details::change::geometry);
 }
 
 void widget::invalidate_paint()
 {
     check_mutation();
+    details::invalidation_access::invalidate(*this, details::change::paint);
+}
+
+void details::invalidation_access::invalidate_paint_subtree(widget& source)
+{
     // Ancestors contain this widget; descendants may inherit its appearance.
-    for(auto parent = m_parent.lock(); parent; parent = parent->m_parent.lock())
+    for(auto parent = source.m_parent.lock(); parent; parent = parent->m_parent.lock())
     {
         ++parent->m_paint_revision;
     }
@@ -365,12 +370,73 @@ void widget::invalidate_paint()
             self(self, *child);
         }
     };
-    dirty(dirty, *this);
+    dirty(dirty, source);
 
-    if(auto context = m_document.lock())
+    if(auto context = source.m_document.lock())
     {
         context->paint_dirty = true;
     }
+}
+
+void details::invalidation_access::invalidate(widget& source, change reason)
+{
+    if(reason == change::layout || reason == change::topology)
+    {
+        source.m_layout_dirty = true;
+        for(auto parent = source.m_parent.lock(); parent; parent = parent->m_parent.lock())
+        {
+            parent->m_layout_descendants_dirty = true;
+        }
+    }
+    if(reason == change::geometry)
+    {
+        source.m_geometry_dirty = true;
+    }
+    if(reason != change::interaction)
+    {
+        invalidate_paint_subtree(source);
+    }
+    if(auto context = source.m_document.lock())
+    {
+        invalidate_document(*context, reason);
+    }
+}
+
+void details::invalidation_access::invalidate_document(document_context& context, change reason)
+{
+    auto& data = *context.owner.m_data;
+    switch(reason)
+    {
+    case change::topology:
+        data.invalidate_all_commands();
+        [[fallthrough]];
+    case change::layout:
+        context.layout_dirty = true;
+        break;
+    case change::placement:
+        context.placement_dirty = true;
+        data.invalidate_all_commands();
+        break;
+    case change::geometry:
+        context.geometry_dirty = true;
+        break;
+    case change::raster:
+        data.invalidate_all_commands();
+        break;
+    case change::interaction:
+        data.input.hit_dirty = true;
+        return;
+    case change::paint:
+        break;
+    }
+    context.paint_dirty = true;
+}
+
+void details::invalidation_access::geometry_applied(document_context& context)
+{
+    context.owner.m_data->invalidate_all_commands();
+    context.owner.m_data->input.hit_dirty = true;
+    context.paint_dirty = true;
 }
 
 namespace details
