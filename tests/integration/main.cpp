@@ -28,12 +28,8 @@ int run_integration()
             return 1;
         }
 
-        integration.process_events(document, host.events());
-
-        if(renderer.begin_frame())
+        if(integration.frame(document))
         {
-            integration.render(document);
-            renderer.end_frame();
             ++frames;
         }
     }

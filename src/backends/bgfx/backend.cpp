@@ -153,6 +153,11 @@ centui::viewport backend::viewport() const
     return m_surface();
 }
 
+bool backend::begin_frame()
+{
+    return begin_frame({32, 40, 64, 255});
+}
+
 bool backend::begin_frame(color clear)
 {
     if(!m_context)

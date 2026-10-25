@@ -44,6 +44,11 @@ centui::viewport backend::viewport() const
     return {static_cast<int>(std::min(size.x, maximum)), static_cast<int>(std::min(size.y, maximum)), m_scale};
 }
 
+bool backend::begin_frame()
+{
+    return begin_frame({18, 24, 32, 255});
+}
+
 bool backend::begin_frame(color clear)
 {
     if(!m_window)

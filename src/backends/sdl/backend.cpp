@@ -81,6 +81,11 @@ centui::viewport backend::viewport() const
     return {width, height, m_scale};
 }
 
+bool backend::begin_frame()
+{
+    return begin_frame({18, 24, 32, 255});
+}
+
 bool backend::begin_frame(color clear)
 {
     const auto size = viewport();

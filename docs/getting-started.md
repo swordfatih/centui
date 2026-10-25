@@ -88,6 +88,6 @@ document.set_font(centui::font{"assets/fonts/Inter-Regular.ttf"});
 
 `container` arranges its children. `text` paints the label. `button` responds to pointer and keyboard activation. The label variable is a handle to the same widget inside the tree, so the callback can update it. `document` owns the root while it is mounted and prepares layout, input, and drawing. Text needs a font; this path assumes you launch from the repository root.
 
-An SDL window and bgfx renderer can run the document with `centui::run(platform, renderer, document)`. For your own event loop, use `centui::ui` to forward events and draw the prepared interface. [Backends and Windows](backends.md) shows both arrangements.
+Create `centui::ui ui{platform, renderer}`, then call `ui.frame(document)` after each successful `platform.poll_events()`. Each frame processes input, calculates elapsed time, advances widgets, and renders. Your application controls the event loop. For drawing over an existing scene, use the separate event and rendering methods. [Backends and Windows](backends.md) shows both arrangements.
 
 When you want more than text, put arbitrary children inside a `pressable`. The [widgets guide](widgets-and-styles.md) shows that pattern and explains styling.

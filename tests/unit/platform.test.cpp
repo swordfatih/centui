@@ -1,7 +1,10 @@
+#include <functional>
 #include <initializer_list>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <span>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -67,14 +70,19 @@ public:
         surface = list.viewport;
     }
 
-    bool begin_frame()
+    bool begin_frame() override
     {
         ++begins;
 
-        return true;
+        if(on_begin)
+        {
+            on_begin();
+        }
+
+        return ready;
     }
 
-    void end_frame()
+    void end_frame() override
     {
         ++ends;
     }
@@ -82,15 +90,29 @@ public:
     int draws = 0;
     int begins = 0;
     int ends = 0;
+    bool ready = true;
+    std::function<void()> on_begin;
     centui::viewport surface;
 };
 
 class service_probe final : public centui::widget
 {
 public:
+    using widget::request_frame;
+
     std::string clipboard() const
     {
         return host().read_clipboard ? host().read_clipboard() : std::string{};
+    }
+
+    int ticks = 0;
+    centui::frame_duration elapsed{};
+
+protected:
+    void on_frame(centui::frame_duration duration) override
+    {
+        ++ticks;
+        elapsed = duration;
     }
 };
 
@@ -123,18 +145,106 @@ TEST_CASE("Native forwarding borrows host state without taking over its event lo
     REQUIRE(probe->clipboard() == "attached");
 }
 
-TEST_CASE("Convenience runner forwards events and owns frame sequencing", "[platform]")
+TEST_CASE("UI frames process polled events and advance widgets before drawing", "[platform][animation]")
 {
     test_platform host;
+    host.host->read_clipboard = []
+    {
+        return std::string{"attached"};
+    };
+    host.pending = {
+        {.type = centui::input_event_type::pointer_pressed, .x = 5, .y = 5},
+        {.type = centui::input_event_type::pointer_released, .x = 5, .y = 5},
+    };
+
     test_renderer renderer;
-    auto root = centui::container{};
-    centui::document document{root};
+    centui::ui ui{host, renderer};
+    auto probe = centui::make_widget<service_probe>();
+    bool clicked = false;
+    auto action = centui::pressable{
+        probe,
+        {
+            .on_click = [&]
+            {
+                clicked = true;
+                probe->request_frame();
+            },
+        }
+    };
+    action.patch_style({.width = centui::px(100), .height = centui::px(60)});
+    centui::document document{action};
 
-    centui::run(host, renderer, document);
+    renderer.on_begin = [&]
+    {
+        REQUIRE(clicked);
+        REQUIRE(probe->ticks == 1);
+        REQUIRE(probe->elapsed == centui::frame_duration{0.25f});
+        REQUIRE(probe->clipboard() == "attached");
+    };
 
-    REQUIRE(host.polls == 2);
+    REQUIRE(ui.frame(document, centui::frame_duration{0.25f}));
+
+    REQUIRE(host.polls == 0);
     REQUIRE(renderer.begins == 1);
     REQUIRE(renderer.draws == 1);
     REQUIRE(renderer.ends == 1);
     REQUIRE(renderer.surface == host.viewport());
+}
+
+TEST_CASE("UI frames advance animations even when rendering is unavailable", "[platform][animation]")
+{
+    test_platform host;
+    test_renderer renderer;
+    renderer.ready = false;
+    centui::platform& platform_interface = host;
+    centui::renderer& renderer_interface = renderer;
+    centui::ui ui{platform_interface, renderer_interface};
+    auto probe = centui::make_widget<service_probe>();
+    probe->request_frame();
+    centui::document document{probe};
+
+    REQUIRE_FALSE(ui.frame(document, centui::frame_duration{0.5f}));
+    REQUIRE(probe->ticks == 1);
+    REQUIRE(probe->elapsed == centui::frame_duration{0.5f});
+    REQUIRE(host.polls == 0);
+    REQUIRE(renderer.begins == 1);
+    REQUIRE(renderer.draws == 0);
+    REQUIRE(renderer.ends == 0);
+}
+
+TEST_CASE("UI frames support automatic timing and renderer-only applications", "[platform][animation]")
+{
+    test_renderer renderer;
+    centui::ui ui{renderer};
+    auto probe = centui::make_widget<service_probe>();
+    centui::document document{probe};
+
+    probe->request_frame();
+    REQUIRE(ui.frame(document, centui::frame_duration{0.125f}));
+    REQUIRE(probe->elapsed == centui::frame_duration{0.125f});
+
+    probe->request_frame();
+    REQUIRE(ui.frame(document));
+    REQUIRE(probe->ticks == 2);
+    REQUIRE(probe->elapsed.count() >= 0);
+    REQUIRE(renderer.begins == 2);
+    REQUIRE(renderer.draws == 2);
+    REQUIRE(renderer.ends == 2);
+    REQUIRE(renderer.surface == renderer.viewport());
+}
+
+TEST_CASE("UI frames reject invalid elapsed time before beginning rendering", "[platform]")
+{
+    test_renderer renderer;
+    centui::ui ui{renderer};
+    centui::document document{centui::container{}};
+
+    REQUIRE_THROWS_AS(ui.frame(document, centui::frame_duration{-1}), std::invalid_argument);
+    REQUIRE_THROWS_AS(
+        ui.frame(document, centui::frame_duration{std::numeric_limits<float>::infinity()}),
+        std::invalid_argument
+    );
+    REQUIRE(renderer.begins == 0);
+    REQUIRE(renderer.draws == 0);
+    REQUIRE(renderer.ends == 0);
 }

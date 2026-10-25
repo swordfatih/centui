@@ -50,9 +50,11 @@ public:
 
     [[nodiscard]] centui::viewport viewport() const override;
 
-    [[nodiscard]] bool begin_frame(color clear = {18, 24, 32, 255});
+    [[nodiscard]] bool begin_frame() override;
 
-    void end_frame();
+    [[nodiscard]] bool begin_frame(color clear);
+
+    void end_frame() override;
 
     void clear_cache();
 

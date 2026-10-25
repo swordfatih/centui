@@ -143,10 +143,11 @@ call `invalidate_paint()` or `invalidate_layout()` when the displayed state
 changes. Scheduling holds a weak reference, so it does not keep removed widgets
 alive. A request made while detached is delivered after mounting.
 
-`centui::run()` advances widgets automatically after processing events and the
-optional application update callback. In an application-owned loop, call
-`document.advance(elapsed)` once per iteration before rendering; elapsed is a
-finite, nonnegative duration in seconds. Tree edits made during animation
+`ui.frame(document)` processes polled events, calculates elapsed time, advances
+widgets, and renders. Use `ui.frame(document, elapsed)` to supply your own timing.
+When managing these steps separately, call `document.advance(elapsed)` once per
+iteration before rendering; elapsed is a finite, nonnegative duration in seconds.
+Tree edits made during animation
 callbacks are committed after the tick batch, as they are during input dispatch.
 
 The [custom primitive example](https://github.com/swordfatih/centui/blob/main/examples/custom_primitive/main.cpp)

@@ -135,7 +135,7 @@ struct draw_list
     std::vector<draw_quad> commands;
 };
 
-/// \brief Backend interface for drawing a prepared list.
+/// \brief Backend interface for frame presentation and drawing a prepared list.
 class renderer
 {
 public:
@@ -143,7 +143,12 @@ public:
 
     [[nodiscard]] virtual centui::viewport viewport() const = 0;
 
+    /// \brief Begins a frame using the backend's default clear color; false skips rendering.
+    [[nodiscard]] virtual bool begin_frame() = 0;
+
     virtual void draw(const draw_list&) = 0;
+
+    virtual void end_frame() = 0;
 };
 
 [[nodiscard]] rect intersection(rect a, rect b) noexcept;

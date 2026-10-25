@@ -32,6 +32,15 @@ public:
                       << command.bounds.y << "), size " << command.bounds.width << 'x' << command.bounds.height << '\n';
         }
     }
+
+    bool begin_frame() override
+    {
+        return true;
+    }
+
+    void end_frame() override
+    {
+    }
 };
 
 int main()

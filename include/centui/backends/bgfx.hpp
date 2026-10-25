@@ -107,9 +107,11 @@ public:
     [[nodiscard]] centui::viewport viewport() const override;
 
     /// \brief Starts a frame; returns false when the surface has no drawable area.
-    [[nodiscard]] bool begin_frame(color clear = {32, 40, 64, 255});
+    [[nodiscard]] bool begin_frame() override;
 
-    void end_frame();
+    [[nodiscard]] bool begin_frame(color clear);
+
+    void end_frame() override;
 
     /// \brief Releases cached textures while retaining shader resources.
     void clear_cache();

@@ -1,5 +1,11 @@
 #pragma once
 
+#include <chrono>
+#include <functional>
+#include <optional>
+#include <span>
+#include <stdexcept>
+
 #include <centui/document.hpp>
 #include <centui/platform.hpp>
 
@@ -20,6 +26,38 @@ public:
         : m_backend(backend),
           m_platform(host)
     {
+    }
+
+    /// \brief Processes polled events, advances widgets using the internal clock, and renders.
+    /// Returns false when the backend cannot begin a frame. Does not poll events.
+    bool frame(document& owner)
+    {
+        const frame_duration elapsed = std::chrono::steady_clock::now() - m_previous;
+
+        return frame(owner, elapsed);
+    }
+
+    /// \brief Runs one frame with application-supplied elapsed time and resets the internal clock.
+    bool frame(document& owner, frame_duration elapsed)
+    {
+        m_previous = std::chrono::steady_clock::now();
+
+        if(m_platform)
+        {
+            process_events(owner, m_platform->get().events());
+        }
+
+        owner.advance(elapsed);
+
+        if(!m_backend.begin_frame())
+        {
+            return false;
+        }
+
+        render(owner);
+        m_backend.end_frame();
+
+        return true;
     }
 
     void render(document& owner)
@@ -78,33 +116,7 @@ private:
 
     renderer& m_backend;
     std::optional<std::reference_wrapper<Platform>> m_platform;
+    std::chrono::steady_clock::time_point m_previous = std::chrono::steady_clock::now();
 };
-
-/// \brief Polls events, runs the optional update, advances widgets, and renders a frame.
-template <typename Platform, typename Renderer>
-void run(Platform& host, Renderer& backend, document& owner, std::function<void(frame_duration)> update = {})
-{
-    ui integration{host, backend};
-    auto previous = std::chrono::steady_clock::now();
-
-    while(host.poll_events())
-    {
-        const auto now = std::chrono::steady_clock::now();
-        const frame_duration elapsed = now - previous;
-        previous = now;
-        integration.process_events(owner, host.events());
-        if(update)
-        {
-            update(elapsed);
-        }
-        owner.advance(elapsed);
-
-        if(backend.begin_frame())
-        {
-            integration.render(owner);
-            backend.end_frame();
-        }
-    }
-}
 
 } // namespace centui

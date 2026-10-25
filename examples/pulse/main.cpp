@@ -695,5 +695,10 @@ int main()
 
     centui::document document{root};
     document.set_font(centui::font{CENTUI_FONT_PATH});
-    centui::run(window, renderer, document);
+    centui::ui ui{window, renderer};
+
+    while(window.poll_events())
+    {
+        ui.frame(document);
+    }
 }
