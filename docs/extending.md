@@ -87,7 +87,62 @@ scrolling input content does not change the input's layout baseline.
 
 Custom widget constructors should accept `centui::style_source appearance = {}` and forward it to the base `widget` constructor. `make_widget<meter>(..., centui::style_source::composed<meter_style>())` retains named styles so document patches can reach them. A full `centui::style` converts to a complete local replacement. Style recipes reconstruct their definitions during updates, so keep style constructors deterministic and side-effect-free.
 
-Call `set_interactive()` if the widget should receive pointer events, and `set_focusable()` if it can take keyboard focus. Override `on_event(const centui::input_event&)` and return `true` for events you handle. `on_focus_changed(bool)` lets you react to focus transitions. Read `hovered()`, `pressed()`, `focused()`, and `effectively_enabled()` when painting an interaction state.
+Call `set_interactive()` if the widget should receive pointer events, and `set_focusable()` if it can take keyboard focus. Override `on_event(const centui::input_event&)` and return `true` for events you handle. The document owns focus policy and traversal. `request_focus()` returns acceptance for processing; requests during dispatch are deferred and revalidated when committed.
+
+`focused()` reports logical ownership, including while the window is inactive.
+`focus_active()` also requires window activity and modal eligibility. Use
+`on_focus_changed(bool)` for logical ownership and
+`on_focus_activity_changed(bool)` to cancel transient composition or held-key
+state. Activity ends before logical blur, while `focused()` is still true;
+logical acquisition precedes activity acquisition. Mirrors are updated before
+their notifications. A no-op request emits no notifications.
+
+`focus_visible()` adds the document's keyboard indication policy to active focus.
+Mouse presses suppress indication; key presses and text entry enable it. Hover,
+pointer movement, wheel scrolling, releases, and window activation do not change
+that policy. Each document tracks its own mode. Programmatic focus and modal
+restoration inherit the last mode; a new document starts with indication enabled.
+Explicit `document.focus_next()` traversal enables keyboard indication.
+
+The document painter uses `focus_visible()` for the standard outline. Custom
+widgets may use it for their own focus indication, but carets and text sessions
+use `focus_active()`, including after a mouse click. Indication changes invalidate
+paint without changing focus ownership, emitting focus/activity notifications,
+or requesting layout/reveal. The query remains true if a theme sets
+`style.focus.width` to zero; that style only disables the standard outline.
+
+Callbacks may edit widgets or request another focus target. Requests made by a
+notification settle later in the same guarded transaction. A throwing notification
+aborts focus without further notifications and preserves its exception. The shared
+64-transition transaction limit prevents redirect loops: exhaustion cancels
+interaction and text ownership, clears focus, retains valid modal restrictions,
+finishes queued structural edits, and throws `std::logic_error`. The next
+transaction starts with a fresh budget.
+
+Override read-only `focus_bounds()` for a composite focus rectangle in
+document-logical coordinates, inside the widget's paintable area. `reveal()` queues
+those bounds after geometry settles. Protected `request_reveal(rect)` instead
+queues a rectangle relative to the border-box origin, so deferred placement does
+not stale its coordinates. Neither operation acquires focus.
+
+A container that moves descendant content can override `reveal_descendant(rect)`.
+The argument is in document-logical coordinates; return the actual applied
+translation of descendants in those axes, after clamping. Increasing scroll Y by
+20 returns Y = -20. The default returns zero. The hook supports translation only;
+other layout or topology changes go through normal deferred work. Settlement
+walks ancestors nearest-first, refreshes geometry after each hook, and carries
+only the portion surviving each local child clip. Use the container's own viewport,
+without intersecting higher clips before its hook. A zero viewport parks work;
+unreachable nonzero fixed clipping completes best effort. Topology or unexpected
+geometry changes restart from settled bounds, at most eight times per request in
+one transaction. Reveal changes placement without requesting intrinsic measurement.
+
+Custom modal controls call `document.enter_modal(root, initial)` and
+`document.leave_modal(root)`. Roots and restoration targets are observed weakly.
+Nested modal roots must descend from the active root; ordinary containers never
+trap Tab. Keep visibility changes and modal operations within one input callback
+transaction. The built-in popup also preserves detached open intent and registers
+when mounted. The controller centrally unwinds removed, hidden, or disabled roots.
 
 `pressable_widget` already implements ordinary button activation. Derive from it and override `activate()` for a specialized action; call the base method if you also want the registered `on_click` callback. Build composite controls from children when their content should stay reusable.
 

@@ -61,6 +61,10 @@ void style::validate() const
     {
         throw std::invalid_argument("Corner radius must be finite and nonnegative");
     }
+    if(!std::isfinite(focus.width) || focus.width < 0 || !std::isfinite(focus.inset) || focus.inset < 0)
+    {
+        throw std::invalid_argument("Focus indicator dimensions must be finite and nonnegative");
+    }
     check_length(width, true);
     check_length(height, true);
     check_length(gap, true);
@@ -170,7 +174,8 @@ details::style_effects details::classify_style(const style& next, const style& p
         .layout = layout_changed,
         .paint = layout_changed || next.background_color != previous.background_color ||
                  next.text_color != previous.text_color || next.text_align != previous.text_align ||
-                 next.border_color != previous.border_color || next.corner_radius != previous.corner_radius,
+                 next.border_color != previous.border_color || next.corner_radius != previous.corner_radius ||
+                 next.focus != previous.focus,
         .interaction = next.visibility != previous.visibility || next.overflow != previous.overflow ||
                        next.display != previous.display,
         .inherited_metrics = text_changed,
@@ -220,7 +225,8 @@ style style_patch::apply(style candidate) const
     X(display)                     \
     X(reference_baseline)          \
     X(forms_containing_block)      \
-    X(corner_radius)
+    X(corner_radius)               \
+    X(focus)
 
 void style_patch::apply_to(style& candidate) const
 {

@@ -253,10 +253,38 @@ vec2 widget::child_offset() const noexcept
     return m_child_offset;
 }
 
-void widget::set_focus_scope(bool value)
+void widget::set_modal_open(bool value)
 {
     check_mutation();
-    m_focus_scope = value;
+    auto context = m_document.lock();
+    auto operation = [weak = weak_from_this(), value]
+    {
+        if(auto self = weak.lock())
+        {
+            if(auto context = self->m_document.lock(); context && context->owner.m_data->focus->suppressed())
+            {
+                return;
+            }
+            self->m_modal_open = value;
+            self->m_modal_pending = value;
+            self->patch_style({.visibility = value ? visibility::visible : visibility::collapsed});
+            if(auto context = self->m_document.lock(); context && !value)
+            {
+                context->owner.leave_modal(handle<>{self});
+            }
+        }
+    };
+    if(context)
+    {
+        if(!context->owner.m_data->focus->suppressed())
+        {
+            context->owner.edit(std::move(operation));
+        }
+    }
+    else
+    {
+        operation();
+    }
 }
 
 void widget::set_interactive(bool value)
@@ -405,6 +433,14 @@ void details::invalidation_access::invalidate(widget& source, change reason)
 void details::invalidation_access::invalidate_document(document_context& context, change reason)
 {
     auto& data = *context.owner.m_data;
+    if(reason == change::layout || reason == change::topology || reason == change::placement ||
+       reason == change::geometry)
+    {
+        for(auto& request: data.reveals)
+        {
+            request.parked = false;
+        }
+    }
     switch(reason)
     {
     case change::topology:
@@ -572,16 +608,52 @@ bool widget::request_focus()
     return false;
 }
 
-bool widget::focus_next(bool reverse)
+bool widget::focus_active() const noexcept
+{
+    return m_focus_active;
+}
+
+bool widget::focus_visible() const noexcept
+{
+    const auto context = m_document.lock();
+    return m_focus_active && context && context->owner.m_data->focus->show_focus_indication();
+}
+
+void widget::on_focus_activity_changed(bool)
+{
+}
+
+rect widget::focus_bounds() const
+{
+    return bounds();
+}
+
+vec2 widget::reveal_descendant(rect)
+{
+    return {};
+}
+
+void widget::reveal()
 {
     check_mutation();
-
     if(auto context = m_document.lock())
     {
-        return context->owner.advance_focus(handle<>{shared_from_this()}, reverse);
+        context->owner.request_reveal(shared_from_this(), std::nullopt);
     }
+}
 
-    return false;
+void widget::request_reveal(rect local_target)
+{
+    check_mutation();
+    if(!std::isfinite(local_target.x) || !std::isfinite(local_target.y) || !std::isfinite(local_target.width) ||
+       !std::isfinite(local_target.height) || local_target.width < 0 || local_target.height < 0)
+    {
+        throw std::invalid_argument("Reveal rectangle must be finite and nonnegative in size");
+    }
+    if(auto context = m_document.lock())
+    {
+        context->owner.request_reveal(shared_from_this(), local_target);
+    }
 }
 
 const host_services& widget::host() const

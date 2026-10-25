@@ -180,7 +180,8 @@ TEST_CASE("Focus callbacks defer topology edits and recover from exceptions", "[
     REQUIRE_THROWS_AS(child->request_focus(), std::runtime_error);
     REQUIRE(root->children().empty());
     REQUIRE_FALSE(child->focused());
-    REQUIRE(child->focus_changes == std::vector<bool>{true, false});
+    // A throwing notification aborts without further focus notifications.
+    REQUIRE(child->focus_changes == std::vector<bool>{true});
     child->focus_callback = {};
     root->append(child);
     REQUIRE(child->request_focus());

@@ -29,6 +29,14 @@ void pressable_widget::activate()
     m_on_click(*this);
 }
 
+void pressable_widget::on_focus_activity_changed(bool active)
+{
+    if(!active)
+    {
+        m_armed = false;
+    }
+}
+
 bool pressable_widget::on_event(const input_event& event)
 {
     if(event.type == input_event_type::key_pressed && (event.code == key::space || event.code == key::enter))

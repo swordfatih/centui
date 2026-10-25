@@ -104,10 +104,25 @@ public:
     /// \brief Dispatches portable events in order, then applies deferred tree changes.
     void process_events(std::span<const input_event> events, centui::viewport viewport);
 
+    [[nodiscard]] handle<> focused_widget() const;
+
+    /// Traverses eligible controls in tree order, wrapping within the active modal or document.
+    bool focus_next(bool reverse = false);
+
+    void clear_focus();
+
+    /// Borrows roots weakly. Nested roots must descend from the active modal.
+    /// Requests during dispatch are deferred and revalidated when committed.
+    void enter_modal(const handle<>& root, const handle<>& initial = {});
+
+    /// Unwinds root and nested entries; empty or unregistered roots are harmless.
+    void leave_modal(const handle<>& root);
+
 private:
     friend class widget;
     friend class details::event_access;
     friend struct details::invalidation_access;
+    friend class details::focus_controller;
 
     void patch_style_type(details::style_type_id type, const style_patch& patch);
 
@@ -137,9 +152,11 @@ private:
 
     bool request_focus(const handle<>& target);
 
-    bool advance_focus(const handle<>& scope, bool reverse);
+    void request_reveal(const std::shared_ptr<widget>& target, std::optional<rect> local, bool focus = false);
 
-    void collect_focus(const std::shared_ptr<widget>& value, std::vector<handle<>>& result) const;
+    void settle_geometry(centui::viewport viewport);
+
+    bool settle_reveals();
 
     void sync_host();
 
@@ -201,8 +218,6 @@ private:
     [[nodiscard]] bool eligible(const std::shared_ptr<widget>& value) const;
 
     [[nodiscard]] bool focus_eligible(const std::shared_ptr<widget>& value) const;
-
-    void set_focus(std::shared_ptr<widget> value);
 
     std::shared_ptr<widget> hit(const std::shared_ptr<widget>& value, float x, float y, rect clip) const;
 

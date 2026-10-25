@@ -150,7 +150,7 @@ void input_widget::paint(painter& output) const
 
     output.text(m_cache.rasterize(output.fonts()), area, output.foreground());
 
-    if(focused())
+    if(focus_active())
     {
         auto caret = caret_bounds(*m_layout, display_caret());
         caret.x += area.x;
@@ -173,7 +173,7 @@ std::optional<rect> input_widget::text_input_area() const
     return caret;
 }
 
-void input_widget::on_focus_changed(bool value)
+void input_widget::on_focus_activity_changed(bool value)
 {
     if(!value)
     {
@@ -207,6 +207,11 @@ bool input_widget::on_event(const input_event& event)
     if(event.type == input_event_type::pointer_cancelled)
     {
         m_dragging = false;
+        if(!focus_active() && !m_preedit.empty())
+        {
+            m_preedit.clear();
+            changed_layout();
+        }
 
         return true;
     }

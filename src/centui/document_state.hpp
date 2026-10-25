@@ -1,5 +1,6 @@
 #pragma once
 
+#include "focus.hpp"
 #include "invalidation.hpp"
 #include "paint_service.hpp"
 
@@ -76,9 +77,6 @@ struct document::input_state
     std::weak_ptr<widget> hover;
     std::weak_ptr<widget> capture;
     mouse_button capture_button = mouse_button::primary;
-    std::weak_ptr<widget> focus;
-
-    bool host_focused = true;
     bool pointer_known = false;
     bool hit_dirty = true;
     float pointer_x = 0;
@@ -124,6 +122,19 @@ struct document::data
     std::vector<std::function<void()>> edits;
     bool dispatching = false;
     input_state input;
+    std::unique_ptr<details::focus_controller> focus;
+
+    struct reveal_entry
+    {
+        std::weak_ptr<widget> target;
+        std::optional<rect> local;
+        bool focus_driven = false;
+        bool parked = false;
+    };
+
+    std::vector<reveal_entry> reveals;
+    std::map<std::weak_ptr<widget>, unsigned, std::owner_less<>> reveal_restarts;
+    bool revealing = false;
     event::input_reference active_input;
 };
 

@@ -32,6 +32,7 @@ document::document()
     : m_data(std::make_unique<data>())
 {
     m_data->context = std::make_shared<details::document_context>(*this);
+    m_data->focus = std::make_unique<details::focus_controller>(*this);
 }
 
 document::document(handle<> root)
@@ -42,6 +43,7 @@ document::document(handle<> root)
 
 document::~document()
 {
+    m_data->focus->abort(false);
     associate(m_data->root.m_value, {});
     const auto reset = [&](auto&& self, const std::shared_ptr<widget>& value) noexcept -> void
     {
@@ -387,6 +389,7 @@ void document::associate(
     }
 
     value->m_document = context;
+    value->m_modal_pending = context && value->m_modal_open;
     value->m_layout_dirty = true;
     value->m_layout_descendants_dirty = true;
     value->m_geometry_dirty = true;
@@ -399,7 +402,7 @@ void document::associate(
     {
         value->m_hovered = false;
         value->m_pressed = false;
-        value->m_focused = false;
+        // Focus mirrors are cleared by the controller after detachment.
     }
 
     for(const auto& child: value->m_children)
@@ -486,7 +489,7 @@ void document::flush_edits()
     }
 }
 
-void document::settle_input(centui::viewport viewport)
+void document::settle_geometry(centui::viewport viewport)
 {
     do
     {
@@ -506,6 +509,22 @@ void document::settle_input(centui::viewport viewport)
              viewport.width > 0 && viewport.height > 0));
 }
 
+void document::settle_input(centui::viewport viewport)
+{
+    if(viewport != m_data->viewport)
+    {
+        for(auto& request: m_data->reveals)
+        {
+            request.parked = false;
+        }
+    }
+    settle_geometry(viewport);
+    while(settle_reveals())
+    {
+        settle_geometry(viewport);
+    }
+}
+
 void document::dispatch_guarded(const std::function<void()>& operation)
 {
     m_data->context->check_mutation();
@@ -516,12 +535,27 @@ void document::dispatch_guarded(const std::function<void()>& operation)
     }
 
     m_data->dispatching = true;
+    m_data->reveal_restarts.clear();
+    const auto pending_work = [&]
+    {
+        return !m_data->edits.empty() || std::ranges::any_of(
+                                             m_data->reveals,
+                                             [](const auto& request)
+                                             {
+                                                 return !request.parked;
+                                             }
+                                         );
+    };
 
     try
     {
         operation();
-        settle_input(m_data->viewport);
-        sync_host();
+        do
+        {
+            settle_input(m_data->viewport);
+            sync_host();
+        } while(pending_work());
+        m_data->focus->reset_transaction();
         m_data->dispatching = false;
     }
     catch(...)
@@ -532,7 +566,13 @@ void document::dispatch_guarded(const std::function<void()>& operation)
         {
             do
             {
-                flush_edits();
+                try
+                {
+                    flush_edits();
+                }
+                catch(...)
+                {
+                }
                 synchronize_input();
             } while(!m_data->edits.empty());
         }
@@ -541,6 +581,7 @@ void document::dispatch_guarded(const std::function<void()>& operation)
             // Callback exceptions retain priority over failures applying edits.
         }
 
+        m_data->focus->reset_transaction();
         m_data->dispatching = false;
 
         std::rethrow_exception(failure);

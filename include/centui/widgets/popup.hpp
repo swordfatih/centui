@@ -26,15 +26,10 @@ public:
     void set_on_close(centui::callback<> callback);
 
 protected:
-    void on_geometry() override;
-
     bool on_event(const input_event& event) override;
 
 private:
-    static handle<> find_focus(const handle<>& root);
-
-    bool m_focus_pending = false;
-    weak_handle<> m_previous_focus;
+    bool m_open_requested = false;
     centui::callback<> m_on_close;
 };
 

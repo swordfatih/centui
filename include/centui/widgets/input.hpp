@@ -59,7 +59,7 @@ protected:
 
     std::optional<rect> text_input_area() const override;
 
-    void on_focus_changed(bool value) override;
+    void on_focus_activity_changed(bool value) override;
 
     bool on_event(const input_event& event) override;
 

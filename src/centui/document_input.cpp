@@ -38,11 +38,7 @@ void document::interaction_changed()
 {
     details::invalidation_access::invalidate_document(*m_data->context, details::change::interaction);
 
-    if(m_data->dispatching)
-    {
-        synchronize_input();
-    }
-    else
+    if(!m_data->dispatching)
     {
         dispatch_guarded(
             [this]
@@ -56,74 +52,48 @@ void document::interaction_changed()
 bool document::request_focus(const handle<>& target)
 {
     m_data->context->check_mutation();
-
-    if(!focus_eligible(checked(target)))
-    {
-        return false;
-    }
-
-    edit(
-        [this, target]
-        {
-            if(focus_eligible(target.m_value))
-            {
-                set_focus(target.m_value);
-            }
-        }
-    );
-
-    return true;
+    return m_data->focus->request(target.valid() ? target.operator->() : nullptr);
 }
 
-bool document::advance_focus(const handle<>& scope, bool reverse)
+handle<> document::focused_widget() const
 {
-    std::vector<handle<>> candidates;
-    collect_focus(checked(scope), candidates);
-
-    if(candidates.empty())
-    {
-        return false;
-    }
-
-    const auto found = std::ranges::find(candidates, handle<>{m_data->input.focus.lock()});
-    std::size_t index = reverse ? candidates.size() - 1 : 0;
-
-    if(found != candidates.end())
-    {
-        index = static_cast<std::size_t>(found - candidates.begin());
-        index = reverse ? (index + candidates.size() - 1) % candidates.size() : (index + 1) % candidates.size();
-    }
-
-    return request_focus(candidates[index]);
+    return handle<>{m_data->focus->current()};
 }
 
-void document::collect_focus(const std::shared_ptr<widget>& value, std::vector<handle<>>& result) const
+bool document::focus_next(bool reverse)
 {
-    if(!value || !value->effectively_enabled() || !value->effectively_visible())
-    {
-        return;
-    }
+    m_data->context->check_mutation();
+    return m_data->focus->next(reverse);
+}
 
-    if(focus_eligible(value))
-    {
-        result.emplace_back(value);
-    }
+void document::clear_focus()
+{
+    m_data->context->check_mutation();
+    m_data->focus->clear();
+}
 
-    for(const auto& child: value->m_children)
-    {
-        collect_focus(child, result);
-    }
+void document::enter_modal(const handle<>& root, const handle<>& initial)
+{
+    m_data->context->check_mutation();
+    m_data->focus->enter(root.valid() ? root.operator->() : nullptr, initial.valid() ? initial.operator->() : nullptr);
+}
+
+void document::leave_modal(const handle<>& root)
+{
+    m_data->context->check_mutation();
+    m_data->focus->leave(root.valid() ? root.operator->() : nullptr);
 }
 
 void document::sync_host()
 {
-    if(m_data->viewport.width <= 0 || m_data->viewport.height <= 0 || m_data->context->layout_dirty ||
-       m_data->context->placement_dirty || m_data->context->geometry_dirty)
+    const auto focused = m_data->focus->current();
+    const bool active = focused && focused->focus_active();
+    if(active && (m_data->viewport.width <= 0 || m_data->viewport.height <= 0 || m_data->context->layout_dirty ||
+                  m_data->context->placement_dirty || m_data->context->geometry_dirty))
     {
         return;
     }
-    const auto focused = m_data->input.focus.lock();
-    const auto area = focused ? focused->text_input_area() : std::nullopt;
+    const auto area = active ? focused->text_input_area() : std::nullopt;
 
     if(area != m_data->input.text_input_area)
     {
@@ -143,8 +113,8 @@ bool document::contains(rect box, float x, float y) noexcept
 
 bool document::eligible(const std::shared_ptr<widget>& value) const
 {
-    if(!value || !m_data->input.host_focused || m_data->viewport.width <= 0 || m_data->viewport.height <= 0 ||
-       value->m_document.lock() != m_data->context || !value->m_interactive ||
+    if(!value || !m_data->focus->active() || m_data->viewport.width <= 0 || m_data->viewport.height <= 0 ||
+       value->m_document.lock() != m_data->context || !m_data->focus->allowed(value) || !value->m_interactive ||
        value->m_style.display == display::contents)
     {
         return false;
@@ -155,35 +125,7 @@ bool document::eligible(const std::shared_ptr<widget>& value) const
 
 bool document::focus_eligible(const std::shared_ptr<widget>& value) const
 {
-    return value && m_data->input.host_focused && value->m_document.lock() == m_data->context && value->m_focusable &&
-           value->m_style.display != display::contents && value->effectively_enabled() && value->effectively_visible();
-}
-
-void document::set_focus(std::shared_ptr<widget> value)
-{
-    auto old = m_data->input.focus.lock();
-
-    if(old == value)
-    {
-        return;
-    }
-
-    m_data->input.focus.reset();
-
-    if(old)
-    {
-        old->m_focused = false;
-        old->invalidate_paint();
-        old->on_focus_changed(false);
-    }
-
-    if(focus_eligible(value))
-    {
-        m_data->input.focus = value;
-        value->m_focused = true;
-        value->invalidate_paint();
-        value->on_focus_changed(true);
-    }
+    return m_data->focus->eligible(value);
 }
 
 std::shared_ptr<widget> document::hit(const std::shared_ptr<widget>& value, float x, float y, rect clip) const
@@ -217,7 +159,8 @@ std::shared_ptr<widget> document::hit(float x, float y) const
 
 void document::route_motion(std::shared_ptr<widget> target, const input_event& event)
 {
-    for(auto current = std::move(target); current; current = current->m_parent.lock())
+    for(auto current = std::move(target); current && m_data->focus->allowed(current);
+        current = current->m_parent.lock())
     {
         if(eligible(current) && current->on_event(event))
         {
@@ -228,7 +171,8 @@ void document::route_motion(std::shared_ptr<widget> target, const input_event& e
 
 bool document::route_event(std::shared_ptr<widget> target, const input_event& event)
 {
-    for(auto current = std::move(target); current; current = current->m_parent.lock())
+    for(auto current = std::move(target); current && m_data->focus->allowed(current);
+        current = current->m_parent.lock())
     {
         if(current->effectively_enabled() && current->effectively_visible() && current->on_event(event))
         {
@@ -276,7 +220,7 @@ void document::clear_input()
 {
     set_hover({});
     cancel_capture();
-    set_focus({});
+    m_data->focus->clear();
 }
 
 void document::synchronize_input()
@@ -291,16 +235,13 @@ void document::synchronize_input()
         cancel_capture();
     }
 
-    if(auto focused = m_data->input.focus.lock(); focused && !focus_eligible(focused))
-    {
-        set_focus({});
-    }
+    m_data->focus->reconcile();
 
     if(m_data->input.hit_dirty && !m_data->context->layout_dirty && !m_data->context->placement_dirty &&
        !m_data->context->geometry_dirty)
     {
         m_data->input.hit_dirty = false;
-        const bool inside = m_data->input.pointer_known && m_data->input.host_focused && m_data->input.pointer_x >= 0 &&
+        const bool inside = m_data->input.pointer_known && m_data->focus->active() && m_data->input.pointer_x >= 0 &&
                             m_data->input.pointer_y >= 0 &&
                             m_data->input.pointer_x < m_data->viewport.logical_width() &&
                             m_data->input.pointer_y < m_data->viewport.logical_height();
@@ -325,29 +266,20 @@ void document::dispatch(const input_event& event)
     if(event.type == input_event_type::key_pressed || event.type == input_event_type::key_released ||
        event.type == input_event_type::text_entered || event.type == input_event_type::composition)
     {
-        if(!m_data->input.host_focused)
+        if(!m_data->focus->active())
         {
             return;
         }
 
-        if(!route_event(m_data->input.focus.lock(), event) && event.type == input_event_type::key_pressed &&
+        if(event.type == input_event_type::key_pressed || event.type == input_event_type::text_entered)
+        {
+            m_data->focus->set_show_focus_indication(true);
+        }
+
+        if(!route_event(m_data->focus->current(), event) && event.type == input_event_type::key_pressed &&
            event.code == key::tab)
         {
-            auto scope = m_data->root.m_value;
-
-            for(auto current = m_data->input.focus.lock(); current; current = current->m_parent.lock())
-            {
-                if(current->m_focus_scope)
-                {
-                    scope = current;
-                    break;
-                }
-            }
-
-            if(scope)
-            {
-                advance_focus(handle<>{scope}, event.mods.shift);
-            }
+            focus_next(event.mods.shift);
         }
 
         return;
@@ -360,15 +292,17 @@ void document::dispatch(const input_event& event)
     case input_event_type::focus_lost:
     {
         m_data->input.pointer_known = false;
-        m_data->input.host_focused = false;
-        clear_input();
+        set_hover({});
+        m_data->focus->activate(false);
+        cancel_capture();
+        sync_host();
 
         return;
     }
 
     case input_event_type::focus_gained:
     {
-        m_data->input.host_focused = true;
+        m_data->focus->activate(true);
 
         return;
     }
@@ -400,6 +334,11 @@ void document::dispatch(const input_event& event)
     {
         break;
     }
+    }
+
+    if(event.type == input_event_type::pointer_pressed && m_data->focus->active())
+    {
+        m_data->focus->set_show_focus_indication(false);
     }
 
     m_data->input.pointer_known = true;
@@ -463,7 +402,9 @@ void document::dispatch(const input_event& event)
 
             if(event.button == mouse_button::primary && focus_eligible(target))
             {
-                set_focus(target);
+                request_focus(handle<>{target});
+                flush_edits();
+                synchronize_input();
             }
             // Focus callbacks may disable the target and cancel the gesture.
             if(m_data->input.capture.lock() == target)

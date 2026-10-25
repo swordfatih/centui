@@ -309,6 +309,11 @@ TEST_CASE("Hover focus capture and disable preserve an unrelated boundary", "[in
     document.process_event({centui::input_event_type::pointer_pressed, 5, 5}, {200, 100});
     (void)document.prepare({200, 100});
     REQUIRE(a->pressed());
+    REQUIRE_FALSE(a->focus_visible());
+    document.process_event({.type = centui::input_event_type::key_pressed, .code = centui::key::right}, {200, 100});
+    REQUIRE(a->focus_visible());
+    (void)document.prepare({200, 100});
+    REQUIRE(b->paints == 1);
     a->set_enabled(false);
     (void)document.prepare({200, 100});
     REQUIRE_FALSE(a->focused());
@@ -340,10 +345,10 @@ TEST_CASE("Input caret selection and wheel scrolling refresh host bounds without
 {
     auto control = centui::input{"one two three four five six seven eight nine ten"};
     control->patch_style({.width = centui::px(80), .height = centui::px(30)});
+    std::optional<centui::rect> host_area;
     centui::document document{control};
     document.set_font(centui::font{CENTUI_FONT_PATH});
     auto services = std::make_shared<centui::host_services>();
-    std::optional<centui::rect> host_area;
     services->text_input = [&](std::optional<centui::rect> area)
     {
         host_area = area;

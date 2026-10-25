@@ -67,7 +67,7 @@ void document::paint_tree_uncached(
     const auto state = !enabled               ? details::visual_state::disabled
                        : value.m_pressed      ? details::visual_state::pressed
                        : value.m_hovered      ? details::visual_state::hovered
-                       : value.m_focused      ? details::visual_state::focused
+                       : value.m_focus_active ? details::visual_state::focused
                        : !value.m_interactive ? inherited_state
                                               : details::visual_state::normal;
     if(value.m_style.display == display::contents)
@@ -126,6 +126,23 @@ void document::paint_tree_uncached(
     for(const auto& child: value.m_children)
     {
         paint_tree(*child, output, child_clip, enabled, state);
+    }
+
+    const auto indicator = value.m_style.focus;
+    if(value.focus_visible() && indicator.width > 0)
+    {
+        auto box = value.focus_bounds();
+        box.x = box.x - value.m_bounds.x + indicator.inset;
+        box.y = box.y - value.m_bounds.y + indicator.inset;
+        box.width = std::max(0.0f, box.width - 2 * indicator.inset);
+        box.height = std::max(0.0f, box.height - 2 * indicator.inset);
+        const auto width = std::min({indicator.width, box.width / 2, box.height / 2});
+        background.box_border(
+            box,
+            std::max(0.0f, value.m_style.corner_radius - indicator.inset),
+            {width, width, width, width},
+            indicator.color
+        );
     }
 }
 

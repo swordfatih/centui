@@ -27,6 +27,7 @@ namespace details
 
 struct document_context;
 struct invalidation_access;
+class focus_controller;
 
 } // namespace details
 
@@ -56,6 +57,15 @@ public:
 
     [[nodiscard]] bool focused() const noexcept;
 
+    /// Logical focus with window activity and modal eligibility.
+    [[nodiscard]] bool focus_active() const noexcept;
+
+    /// \brief Reports whether active focus should have a visual indication under document policy.
+    /// Used by the standard outline painter and available to custom widget painting.
+    /// A mouse-focused input can report false while focus_active() remains true for its caret
+    /// and text session. This query is independent of style.focus.width disabling the outline.
+    [[nodiscard]] bool focus_visible() const noexcept;
+
     [[nodiscard]] bool effectively_enabled() const noexcept;
 
     void append(const handle<>& child);
@@ -68,11 +78,12 @@ public:
 
     [[nodiscard]] handle<> parent() const;
 
-    /// \brief Requests focus; tree changes made during input callbacks are applied after dispatch.
+    /// Requests processing, not guaranteed ownership after callbacks. Detached/ineligible targets are rejected.
+    /// During dispatch requests are deferred and revalidated at commit.
     bool request_focus();
 
-    /// \brief Moves focus within the current scope; reverse walks the scope backward.
-    bool focus_next(bool reverse = false);
+    /// Queues current focus bounds for best-effort reveal after geometry settles.
+    void reveal();
 
     [[nodiscard]] bool effectively_visible() const noexcept;
 
@@ -111,6 +122,17 @@ protected:
 
     virtual void on_focus_changed(bool);
 
+    virtual void on_focus_activity_changed(bool active);
+
+    /// Read-only focus rectangle in document-logical coordinates, within the paintable area.
+    [[nodiscard]] virtual rect focus_bounds() const;
+
+    /// Translates descendant content; returns actual displacement in document-logical axes.
+    virtual vec2 reveal_descendant(rect target);
+
+    /// Queues logical coordinates relative to this widget's border-box origin.
+    void request_reveal(rect local_target);
+
     /// Rebuild geometry from current bounds; also called for explicit geometry requests.
     /// Hooks may edit widgets, but must converge. Intrinsic changes require invalidate_layout().
     virtual void on_geometry();
@@ -129,7 +151,8 @@ protected:
 
     [[nodiscard]] vec2 child_offset() const noexcept;
 
-    void set_focus_scope(bool value = true);
+    /// Built-in popup intent; registration is reconciled when mounted, without geometry.
+    void set_modal_open(bool value);
 
     void set_interactive(bool value = true);
 
@@ -155,6 +178,7 @@ private:
     friend class details::event_access;
     friend struct details::widget_access;
     friend struct details::invalidation_access;
+    friend class details::focus_controller;
 
     void interaction_changed();
 
@@ -187,7 +211,8 @@ private:
     std::weak_ptr<details::document_context> m_document;
     bool m_interactive = false;
     bool m_focusable = false;
-    bool m_focus_scope = false;
+    bool m_modal_open = false;
+    bool m_modal_pending = false;
     bool m_clip_children = false;
     vec2 m_child_offset{};
     bool m_enabled = true;
@@ -196,6 +221,7 @@ private:
     bool m_hovered = false;
     bool m_pressed = false;
     bool m_focused = false;
+    bool m_focus_active = false;
     bool m_layout_dirty = true;
     bool m_layout_descendants_dirty = true;
     bool m_geometry_dirty = true;

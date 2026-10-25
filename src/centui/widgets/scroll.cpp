@@ -3,6 +3,43 @@
 namespace centui
 {
 
+namespace
+{
+
+float reveal_delta(float start, float length, float viewport_start, float viewport_length)
+{
+    const auto end = start + length;
+    const auto viewport_end = viewport_start + viewport_length;
+    if(viewport_length <= 0 || (start >= viewport_start && end <= viewport_end) ||
+       (start <= viewport_start && end >= viewport_end))
+    {
+        return 0;
+    }
+    if(length <= viewport_length)
+    {
+        return start < viewport_start ? start - viewport_start : end - viewport_end;
+    }
+    return start > viewport_start ? start - viewport_start : end - viewport_end;
+}
+
+} // namespace
+
+vec2 scroll_widget::reveal_descendant(rect target)
+{
+    const auto previous = offset();
+    const auto area = content_bounds();
+    if(area.width <= 0 || area.height <= 0)
+    {
+        return {};
+    }
+    set_offset(
+        {previous.x + reveal_delta(target.x, target.width, area.x, area.width),
+         previous.y + reveal_delta(target.y, target.height, area.y, area.height)}
+    );
+    const auto applied = offset();
+    return {previous.x - applied.x, previous.y - applied.y};
+}
+
 scroll_widget::scroll_widget(centui::style_source appearance)
     : container_widget(std::move(appearance))
 {

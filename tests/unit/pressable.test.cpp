@@ -117,7 +117,8 @@ TEST_CASE("Noninteractive descendants inherit pressable visual states", "[widget
     const auto color = [&]
     {
         const auto& commands = document.prepare({200, 100}).commands;
-        REQUIRE(commands.size() == 1);
+        REQUIRE(commands.size() >= 1);
+        // The independent focus ring follows the inherited content drawing.
 
         return commands.front().color;
     };

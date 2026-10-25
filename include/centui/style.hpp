@@ -50,13 +50,24 @@
     X(display)                     \
     X(reference_baseline)          \
     X(forms_containing_block)      \
-    X(corner_radius)
+    X(corner_radius)               \
+    X(focus)
 
 #include <centui/font.hpp>
 #include <centui/types.hpp>
 
 namespace centui
 {
+
+/// Active focus outline, painted inside focus_bounds() in logical units.
+struct focus
+{
+    centui::color color = centui::color::from_hex(0x2684ff);
+    float width = 2.0f;
+    float inset = 1.0f;
+
+    bool operator==(const focus&) const = default;
+};
 
 namespace details
 {
@@ -96,6 +107,12 @@ void merge_nested(Target& target, const Source& source)
         CENTUI_MERGE_NESTED(shrink)
         CENTUI_MERGE_NESTED(basis)
     }
+    else if constexpr(std::is_same_v<Target, centui::focus>)
+    {
+        CENTUI_MERGE_NESTED(color)
+        CENTUI_MERGE_NESTED(width)
+        CENTUI_MERGE_NESTED(inset)
+    }
     else if constexpr(std::is_same_v<Target, states_color>)
     {
         CENTUI_MERGE_NESTED(normal)
@@ -117,7 +134,7 @@ void merge_value(Target& target, const Source& source)
         target = source;
     }
     else if constexpr((std::is_same_v<Target, edges> || std::is_same_v<Target, states_color> ||
-                       std::is_same_v<Target, centui::flex>) &&
+                       std::is_same_v<Target, centui::flex> || std::is_same_v<Target, centui::focus>) &&
                       std::is_class_v<Source>)
     {
         merge_nested(target, source);
@@ -227,6 +244,7 @@ public:
     bool reference_baseline = false;
     bool forms_containing_block = false;
     float corner_radius = 0;
+    centui::focus focus{};
 
     bool operator==(const style&) const = default;
 
@@ -292,6 +310,7 @@ struct style_patch
     std::optional<bool> reference_baseline = std::nullopt;
     std::optional<bool> forms_containing_block = std::nullopt;
     std::optional<float> corner_radius = std::nullopt;
+    std::optional<centui::focus> focus = std::nullopt;
 
     [[nodiscard]] style apply(style candidate) const;
 

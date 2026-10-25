@@ -10,6 +10,7 @@ if(EMSCRIPTEN)
 endif()
 
 add_subdirectory(getting_started)
+add_subdirectory(focus)
 add_subdirectory(hud_sfml)
 add_subdirectory(hud_sdl)
 add_subdirectory(hud_glfw)

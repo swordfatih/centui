@@ -51,6 +51,62 @@ auto save = centui::button<blue_button>{"Save"};
 
 You can combine style structs, use a `centui::style` value at runtime, or change a mounted widget with `patch_style({.height = centui::px(52)})`. The layout system handles width, height, padding, margins, gaps, alignment, and direction. State colors can vary for normal, hover, press, focus, and disabled states. Text inherits a font from its ancestors or the document's font service.
 
+The active focus ring is independent of state colors. Style
+`focus = centui::focus{.color = {38, 132, 255, 255}, .width = 2, .inset = 1}`
+to customize it; width zero disables it. Width and inset are finite, nonnegative
+logical units and affect paint only. The ring is painted after content and children
+inside the focused control, respects ancestor clipping, and remains visible under
+hover. Mouse presses hide it; keyboard interaction shows it. Child labels do not
+inherit a ring.
+
+Style composition can override just the fields it needs:
+
+```cpp
+struct action_style
+{
+    struct
+    {
+        float width = 3;
+    } focus;
+};
+```
+
+Unspecified fields retain their composed defaults. The `focus` style controls
+appearance; focus eligibility and ownership remain widget/document operations.
+
+Applications request `field->request_focus()`, query `document.focused_widget()`,
+call `document.focus_next()` (or `focus_next(true)` for reverse), and explicitly
+clear with `document.clear_focus()`. Tab follows eligible tree order and wraps.
+Detached, hidden, disabled, or out-of-modal controls cannot acquire focus;
+offscreen clipping alone does not disqualify a target. Losing window activation
+retains logical focus, pauses host text input, and hides the active ring.
+
+`focused()` reports logical ownership, `focus_active()` reports active keyboard
+ownership in this window, and `focus_visible()` reports whether that active focus
+should have a visual indication. Mouse-focused inputs retain their caret and text
+session even when their ring is hidden. Key presses and text entry show the ring;
+hover, mouse movement, scrolling, and releases preserve the current indication
+mode. Returning to the window restores the previous mode. Programmatic requests
+and modal restoration inherit it; before any mouse press a new document shows
+indication by default. Explicit `document.focus_next()` traversal enables it.
+
+Popups are modal by default. Opening restricts pointer and keyboard input to the
+popup subtree and selects its first eligible descendant, falling back to its root.
+Closing restores the recorded target if eligible. Nested popups must live inside
+the active popup tree. Closing a non-top modal unwinds its nested entries and
+restores once at the unwind boundary. Window deactivation retains the modal stack.
+Background capture is cancelled on entry, and bubbling stops at the active root.
+Custom modal roots use `document.enter_modal(root, initial)` and
+`document.leave_modal(root)`; closing modality alone does not hide a custom root.
+
+Focus transitions automatically queue best-effort reveal through explicit scroll
+containers. `field->reveal()` also requests reveal without changing focus. Nested
+scrollers compose their actual clamped movement; fixed clipping can still prevent
+visibility. Zero surfaces park requests until geometry is usable. Manually
+scrolling away from focus does not snap back on paint or window reactivation.
+See `examples/focus` for offscreen traversal, nested restoration, and a ring under
+hover.
+
 ## Document themes
 
 Widgets retain their ordered style types and cache the resolved appearance. Change defaults or patch a named style across a document without recreating its widgets:

@@ -34,6 +34,8 @@ protected:
 
     bool on_event(const input_event& event) override;
 
+    void on_focus_activity_changed(bool active) override;
+
 private:
     centui::callback<> m_on_click;
     bool m_armed = false;
