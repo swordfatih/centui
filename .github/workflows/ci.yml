@@ -44,7 +44,8 @@ jobs:
                   sudo apt-get update
                   sudo apt-get install --no-install-recommends -y \
                     ninja-build pkg-config g++-14 \
-                    libxrandr-dev libxcursor-dev libxi-dev libudev-dev \
+                    libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev \
+                    libxi-dev libxss-dev libxtst-dev libudev-dev \
                     libgl1-mesa-dev libflac-dev libogg-dev libvorbis-dev \
                     libfreetype-dev libharfbuzz-dev libxinerama-dev libwayland-dev libxkbcommon-dev xvfb
 
@@ -95,7 +96,8 @@ jobs:
                   sudo apt-get update
                   sudo apt-get install --no-install-recommends -y \
                     ninja-build pkg-config clang-20 libc++-20-dev libc++abi-20-dev \
-                    libxrandr-dev libxcursor-dev libxi-dev libudev-dev \
+                    libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev \
+                    libxi-dev libxss-dev libxtst-dev libudev-dev \
                     libgl1-mesa-dev libflac-dev libogg-dev libvorbis-dev \
                     libfreetype-dev libharfbuzz-dev libxinerama-dev libwayland-dev libxkbcommon-dev xvfb
 

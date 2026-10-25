@@ -33,6 +33,8 @@ add_library(centui::centui ALIAS centui)
 
 target_compile_features(centui PUBLIC cxx_std_20)
 
+include(cmake/centuiWeb.cmake)
+
 function(centui_sources target directory header_pattern)
     file(GLOB_RECURSE cpp_sources CONFIGURE_DEPENDS "${directory}/*.cpp")
     file(GLOB_RECURSE hpp_sources CONFIGURE_DEPENDS "${header_pattern}")

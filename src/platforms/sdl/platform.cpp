@@ -368,6 +368,11 @@ centui::native_window_handles platform::native_handles() const
         throw std::runtime_error(SDL_GetError());
     }
 
+    if(const auto canvas = SDL_GetStringProperty(properties, SDL_PROP_WINDOW_EMSCRIPTEN_CANVAS_ID_STRING, nullptr))
+    {
+        return {.system = native_window_system::web, .canvas = canvas};
+    }
+
     if(const auto window = SDL_GetPointerProperty(properties, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr))
     {
         return {window, nullptr, native_window_system::win32};

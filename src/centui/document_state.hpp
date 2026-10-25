@@ -118,7 +118,6 @@ struct document::data
     std::vector<std::function<void()>> edits;
     bool dispatching = false;
     input_state input;
-
 };
 
 } // namespace centui

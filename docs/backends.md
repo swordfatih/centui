@@ -20,6 +20,9 @@ Each linked example shows a supported pairing. A dash means CentUI does not prov
 
 `CENTUI_BUILD_SDL=ON` builds both the SDL platform and SDL renderer. `CENTUI_BUILD_SFML=ON` likewise builds both SFML adapters.
 
+The SDL + bgfx pairing also has an [Emscripten browser example](web.md), using
+an SDL canvas and bgfx's WebGL 2 context. Browser scheduling remains application-owned.
+
 For a window owned by CentUI's SDL adapter and drawn through bgfx:
 
 ```cpp

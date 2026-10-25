@@ -70,6 +70,9 @@ Run `centui_example_getting_started` from `build/examples/getting_started/`. The
 
 All optional platforms, renderers, examples, and tests are off by default. Enable only the pieces your application uses.
 
+For an Emscripten build with SDL and bgfx, see [Web](web.md). The browser example
+provides the browser callback and asset packaging while using `ui.frame(document)`.
+
 ## Meet the pieces
 
 ```cpp

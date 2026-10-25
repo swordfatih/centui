@@ -2,6 +2,12 @@ if(NOT CENTUI_BUILD_EXAMPLES)
     return()
 endif()
 
+add_subdirectory(web)
+
+if(EMSCRIPTEN)
+    return()
+endif()
+
 add_subdirectory(getting_started)
 add_subdirectory(hud_sfml)
 add_subdirectory(hud_sdl)

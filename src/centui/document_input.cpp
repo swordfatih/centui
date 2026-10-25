@@ -286,7 +286,8 @@ void document::synchronize_input()
     {
         m_data->input.hit_dirty = false;
         const bool inside = m_data->input.pointer_known && m_data->input.host_focused && m_data->input.pointer_x >= 0 &&
-                            m_data->input.pointer_y >= 0 && m_data->input.pointer_x < m_data->viewport.logical_width() &&
+                            m_data->input.pointer_y >= 0 &&
+                            m_data->input.pointer_x < m_data->viewport.logical_width() &&
                             m_data->input.pointer_y < m_data->viewport.logical_height();
         auto target = inside ? hit(m_data->input.pointer_x, m_data->input.pointer_y) : nullptr;
         set_hover(target);
