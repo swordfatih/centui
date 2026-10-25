@@ -75,7 +75,7 @@ Call `set_interactive()` if the widget should receive pointer events, and `set_f
 
 `pressable_widget` already implements ordinary button activation. Derive from it and override `activate()` for a specialized action; call the base method if you also want the registered `on_click` callback. Build composite controls from children when their content should stay reusable.
 
-Containers can call `set_clip_children(true)` or `set_child_offset({x, y})` when they need clipping or scrolling. The [scroll widget](https://github.com/swordfatih/centui/blob/main/src/core/widgets/scroll.cpp) shows how to clamp an offset and handle wheel and page keys.
+Containers can call `set_clip_children(true)` or `set_child_offset({x, y})` when they need clipping or scrolling. The [scroll widget](https://github.com/swordfatih/centui/blob/main/src/centui/widgets/scroll.cpp) shows how to clamp an offset and handle wheel and page keys.
 
 ## Vector painting
 
@@ -89,10 +89,15 @@ throws, preparation retries the notifications on its next call.
 ```cpp
 void paint(centui::painter& output) const override
 {
-    output.fill(m_shape, centui::linear_gradient{
-        {0, 0}, {120, 0},
-        {{0, centui::color::from_hex(0x38BDF8)},
-         {1, centui::color::from_hex(0x5EEAD4)}}
+    output.fill(
+        m_shape,
+        centui::linear_gradient{
+            {0, 0},
+            {120, 0},
+            {
+                {0, centui::color::from_hex(0x38BDF8)},
+                {1, centui::color::from_hex(0x5EEAD4)}
+            }
     });
     output.stroke(m_shape, centui::color::from_hex(0xFFFFFF), 2);
 }

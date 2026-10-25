@@ -1,5 +1,3 @@
-#include "test_font.hpp"
-
 #include <array>
 #include <limits>
 #include <optional>
@@ -516,7 +514,7 @@ TEST_CASE("Different text sizes align using font ascenders", "[yoga][baseline][f
     outer.align_items = centui::alignment::baseline;
     auto root = centui::container{{small, large}, outer};
     centui::document document{root};
-    centui::font face{test_font_path()};
+    centui::font face{CENTUI_FONT_PATH};
     document.set_font(face);
     (void)document.prepare({300, 100});
     REQUIRE(
@@ -1112,7 +1110,7 @@ TEST_CASE("Text inputs share the first-line baseline with text labels", "[yoga][
     outer.align_items = centui::alignment::baseline;
     auto root = centui::container{{label, input}, outer};
     centui::document document{root};
-    centui::font face{test_font_path()};
+    centui::font face{CENTUI_FONT_PATH};
     document.set_font(face);
     (void)document.prepare({400, 100});
     REQUIRE(

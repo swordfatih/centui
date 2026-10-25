@@ -1,4 +1,4 @@
-﻿name: CI
+name: CI
 
 on:
     push:
@@ -15,88 +15,261 @@ concurrency:
     cancel-in-progress: true
 
 jobs:
-    core-tests:
-        name: Core tests / ${{ matrix.name }} / C++20
-        runs-on: ${{ matrix.os }}
-        timeout-minutes: 45
-        strategy:
-            fail-fast: false
-            matrix:
-                include:
-                    - name: Linux GCC
-                      os: ubuntu-24.04
-                      cc: gcc-14
-                      cxx: g++-14
-                      cxxflags: -Wall -Wextra -Wpedantic
-                      configure: -G Ninja
-                      packages: g++-14
-                      build_type: Release
-
-                    - name: Linux Clang
-                      os: ubuntu-24.04
-                      cc: clang-20
-                      cxx: clang++-20
-                      cxxflags: -Wall -Wextra -Wpedantic -stdlib=libc++
-                      configure: -G Ninja
-                      packages: clang-20 libc++-20-dev libc++abi-20-dev
-                      build_type: Release
-
-                    - name: macOS Apple Clang
-                      os: macos-26
-                      cc: clang
-                      cxx: clang++
-                      cxxflags: -Wall -Wextra -Wpedantic
-                      configure: -G Ninja
-                      build_type: Release
-
-                    - name: Windows MSVC
-                      os: windows-2025
-                      cc: cl
-                      cxx: cl
-                      cxxflags: /W4 /Zc:__cplusplus /utf-8
-                      configure: -G "Visual Studio 18 2026" -A x64
-                      build_type: Release
-
-                    - name: Windows ClangCL Debug
-                      os: windows-2025
-                      cc: clang-cl
-                      cxx: clang-cl
-                      cxxflags: /W4 /Zc:__cplusplus /utf-8
-                      configure: -G "Visual Studio 18 2026" -A x64 -T ClangCL
-                      build_type: Debug
-
+    formatting:
+        name: C++ formatting
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
         steps:
             - name: Checkout
               uses: actions/checkout@v6
 
-            - name: Install Linux build tools
-              if: runner.os == 'Linux'
+            - name: Install clang-format
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install --no-install-recommends -y clang-format-20
+
+            - name: Check formatting
+              run: git ls-files -z -- '*.cpp' '*.hpp' '*.h' '*.cc' '*.cxx' '*.hxx' | xargs -0 -r clang-format-20 --dry-run --Werror
+
+    ubuntu-gcc-tests:
+        name: Ubuntu GCC tests
+        runs-on: ubuntu-24.04
+        timeout-minutes: 45
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v6
+
+            - name: Install build tools and graphics dependencies
               run: |
                   sudo apt-get update
                   sudo apt-get install --no-install-recommends -y \
-                    ninja-build pkg-config ${{ matrix.packages }}
+                    ninja-build pkg-config g++-14 \
+                    libxrandr-dev libxcursor-dev libxi-dev libudev-dev \
+                    libgl1-mesa-dev libflac-dev libogg-dev libvorbis-dev \
+                    libfreetype-dev libharfbuzz-dev libxinerama-dev libwayland-dev libxkbcommon-dev xvfb
 
             - name: Configure
               shell: bash
               env:
-                  CC: ${{ matrix.cc }}
-                  CXX: ${{ matrix.cxx }}
-                  CXXFLAGS: ${{ matrix.cxxflags }}
+                  CC: gcc-14
+                  CXX: g++-14
+                  CXXFLAGS: -Wall -Wextra -Wpedantic
               run: >-
-                  cmake -S . -B build ${{ matrix.configure }}
-                  -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+                  cmake -S . -B build -G Ninja
+                  -DCMAKE_BUILD_TYPE=Release
                   -DCMAKE_CXX_STANDARD=20
                   -DCMAKE_CXX_STANDARD_REQUIRED=ON
                   -DCMAKE_CXX_EXTENSIONS=OFF
-                  -DCENTUI_BUILD_SDL=OFF
-                  -DCENTUI_BUILD_SFML=OFF
-                  -DCENTUI_BUILD_GLFW=OFF
-                  -DCENTUI_BUILD_BGFX=OFF
-                  -DCENTUI_BUILD_EXAMPLES=OFF
+                  -DCENTUI_BUILD_SDL=ON
+                  -DCENTUI_BUILD_SFML=ON
+                  -DCENTUI_BUILD_GLFW=ON
+                  -DCENTUI_BUILD_BGFX=ON
+                  -DCENTUI_BUILD_EXAMPLES=ON
                   -DCENTUI_BUILD_TESTS=ON
 
             - name: Build
-              run: cmake --build build --config ${{ matrix.build_type }} --parallel 4
+              run: cmake --build build --config Release --parallel 4
 
             - name: Test
-              run: ctest --test-dir build --build-config ${{ matrix.build_type }} --parallel 4 --output-on-failure --no-tests=error
+              env:
+                  LIBGL_ALWAYS_SOFTWARE: 1
+              run: xvfb-run -a ctest --test-dir build --build-config Release --parallel 4 --output-on-failure --no-tests=error
+
+            - name: Upload test logs
+              uses: actions/upload-artifact@v4
+              if: failure()
+              with:
+                  name: test-logs-ubuntu-gcc-tests
+                  path: build/Testing/Temporary/
+
+    ubuntu-clang-tests:
+        name: Ubuntu Clang tests
+        runs-on: ubuntu-24.04
+        timeout-minutes: 45
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v6
+
+            - name: Install build tools and graphics dependencies
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install --no-install-recommends -y \
+                    ninja-build pkg-config clang-20 libc++-20-dev libc++abi-20-dev \
+                    libxrandr-dev libxcursor-dev libxi-dev libudev-dev \
+                    libgl1-mesa-dev libflac-dev libogg-dev libvorbis-dev \
+                    libfreetype-dev libharfbuzz-dev libxinerama-dev libwayland-dev libxkbcommon-dev xvfb
+
+            - name: Configure
+              shell: bash
+              env:
+                  CC: clang-20
+                  CXX: clang++-20
+                  CXXFLAGS: -Wall -Wextra -Wpedantic -stdlib=libc++
+              run: >-
+                  cmake -S . -B build -G Ninja
+                  -DCMAKE_BUILD_TYPE=Release
+                  -DCMAKE_CXX_STANDARD=20
+                  -DCMAKE_CXX_STANDARD_REQUIRED=ON
+                  -DCMAKE_CXX_EXTENSIONS=OFF
+                  -DCENTUI_BUILD_SDL=ON
+                  -DCENTUI_BUILD_SFML=ON
+                  -DCENTUI_BUILD_GLFW=ON
+                  -DCENTUI_BUILD_BGFX=ON
+                  -DCENTUI_BUILD_EXAMPLES=ON
+                  -DCENTUI_BUILD_TESTS=ON
+
+            - name: Build
+              run: cmake --build build --config Release --parallel 4
+
+            - name: Test
+              env:
+                  LIBGL_ALWAYS_SOFTWARE: 1
+              run: xvfb-run -a ctest --test-dir build --build-config Release --parallel 4 --output-on-failure --no-tests=error
+
+            - name: Upload test logs
+              uses: actions/upload-artifact@v4
+              if: failure()
+              with:
+                  name: test-logs-ubuntu-clang-tests
+                  path: build/Testing/Temporary/
+
+    macos-apple-clang-tests:
+        name: macOS Apple Clang tests
+        runs-on: macos-26
+        timeout-minutes: 45
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v6
+
+            - name: Configure
+              shell: bash
+              env:
+                  CC: clang
+                  CXX: clang++
+                  CXXFLAGS: -Wall -Wextra -Wpedantic
+              run: >-
+                  cmake -S . -B build -G Ninja
+                  -DCMAKE_BUILD_TYPE=Release
+                  -DCMAKE_CXX_STANDARD=20
+                  -DCMAKE_CXX_STANDARD_REQUIRED=ON
+                  -DCMAKE_CXX_EXTENSIONS=OFF
+                  -DCENTUI_BUILD_SDL=ON
+                  -DCENTUI_BUILD_SFML=ON
+                  -DCENTUI_BUILD_GLFW=ON
+                  -DCENTUI_BUILD_BGFX=ON
+                  -DCENTUI_BUILD_EXAMPLES=ON
+                  -DCENTUI_BUILD_TESTS=ON
+
+            - name: Build
+              run: cmake --build build --config Release --parallel 4
+
+            - name: Test
+              run: ctest --test-dir build --build-config Release --parallel 4 --output-on-failure --no-tests=error
+
+            - name: Upload test logs
+              uses: actions/upload-artifact@v4
+              if: failure()
+              with:
+                  name: test-logs-macos-apple-clang-tests
+                  path: build/Testing/Temporary/
+
+    windows-msvc-tests:
+        name: Windows MSVC tests
+        runs-on: windows-2025
+        timeout-minutes: 45
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v6
+
+            - name: Configure
+              shell: bash
+              env:
+                  CC: cl
+                  CXX: cl
+                  CXXFLAGS: /W4 /Zc:__cplusplus /utf-8
+              run: >-
+                  cmake -S . -B build -G "Visual Studio 18 2026" -A x64
+                  -DCMAKE_BUILD_TYPE=Release
+                  -DCMAKE_CXX_STANDARD=20
+                  -DCMAKE_CXX_STANDARD_REQUIRED=ON
+                  -DCMAKE_CXX_EXTENSIONS=OFF
+                  -DCENTUI_BUILD_SDL=ON
+                  -DCENTUI_BUILD_SFML=ON
+                  -DCENTUI_BUILD_GLFW=ON
+                  -DCENTUI_BUILD_BGFX=ON
+                  -DCENTUI_BUILD_EXAMPLES=ON
+                  -DCENTUI_BUILD_TESTS=ON
+
+            - name: Build
+              run: cmake --build build --config Release --parallel 4
+
+            - name: Test
+              run: ctest --test-dir build --build-config Release --parallel 4 --output-on-failure --no-tests=error
+
+            - name: Upload test logs
+              uses: actions/upload-artifact@v4
+              if: failure()
+              with:
+                  name: test-logs-windows-msvc-tests
+                  path: build/Testing/Temporary/
+
+    windows-clangcl-tests:
+        name: Windows ClangCL tests
+        runs-on: windows-2025
+        timeout-minutes: 45
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v6
+
+            - name: Configure
+              shell: bash
+              env:
+                  CC: clang-cl
+                  CXX: clang-cl
+                  CXXFLAGS: /W4 /Zc:__cplusplus /utf-8
+              run: >-
+                  cmake -S . -B build -G "Visual Studio 18 2026" -A x64 -T ClangCL
+                  -DCMAKE_BUILD_TYPE=Debug
+                  -DCMAKE_CXX_STANDARD=20
+                  -DCMAKE_CXX_STANDARD_REQUIRED=ON
+                  -DCMAKE_CXX_EXTENSIONS=OFF
+                  -DCENTUI_BUILD_SDL=ON
+                  -DCENTUI_BUILD_SFML=ON
+                  -DCENTUI_BUILD_GLFW=ON
+                  -DCENTUI_BUILD_BGFX=ON
+                  -DCENTUI_BUILD_EXAMPLES=ON
+                  -DCENTUI_BUILD_TESTS=ON
+
+            - name: Build
+              run: cmake --build build --config Debug --parallel 4
+
+            - name: Test
+              run: ctest --test-dir build --build-config Debug --parallel 4 --output-on-failure --no-tests=error
+
+            - name: Upload test logs
+              uses: actions/upload-artifact@v4
+              if: failure()
+              with:
+                  name: test-logs-windows-clangcl-tests
+                  path: build/Testing/Temporary/
+
+    ubuntu-consumers:
+        name: Ubuntu consumers
+        runs-on: ubuntu-24.04
+        timeout-minutes: 45
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v6
+
+            - name: Test FetchContent consumer
+              run: |
+                  cmake -S tests/consumer -B consumer-build/fetchcontent -DCENTUI_SOURCE="${{ github.workspace }}" -DCONSUMER_MODE=fetchcontent
+                  cmake --build consumer-build/fetchcontent --parallel 4
+                  ctest --test-dir consumer-build/fetchcontent --output-on-failure --no-tests=error
+
+            - name: Test add_subdirectory consumer
+              if: ${{ !cancelled() }}
+              run: |
+                  cmake -S tests/consumer -B consumer-build/subdirectory -DCENTUI_SOURCE="${{ github.workspace }}" -DCONSUMER_MODE=subdirectory
+                  cmake --build consumer-build/subdirectory --parallel 4
+                  ctest --test-dir consumer-build/subdirectory --output-on-failure --no-tests=error

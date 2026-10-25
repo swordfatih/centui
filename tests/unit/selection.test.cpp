@@ -1,5 +1,3 @@
-#include "test_font.hpp"
-
 #include <cstddef>
 #include <optional>
 #include <string>
@@ -24,7 +22,7 @@ TEST_CASE("Standalone selection header exposes items options and callbacks", "[w
         }
     };
     centui::document document{control};
-    document.set_font(centui::font{test_font_path()});
+    document.set_font(centui::font{CENTUI_FONT_PATH});
     (void)document.prepare({200, 100});
     REQUIRE(control->request_focus());
     document.process_event({.type = centui::input_event_type::key_pressed, .code = centui::key::down}, {200, 100});

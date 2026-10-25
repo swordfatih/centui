@@ -1,5 +1,3 @@
-#include "test_font.hpp"
-
 #include <cstddef>
 #include <filesystem>
 #include <initializer_list>
@@ -17,7 +15,7 @@
 
 TEST_CASE("Measure bundled font", "[font]")
 {
-    centui::font font{test_font_path()};
+    centui::font font{CENTUI_FONT_PATH};
 
     const auto short_text = font.measure("Hello", 16);
     const auto long_text = font.measure("Hello world", 16);
@@ -29,7 +27,7 @@ TEST_CASE("Measure bundled font", "[font]")
 
 TEST_CASE("Measure text at different sizes", "[font]")
 {
-    centui::font font{test_font_path()};
+    centui::font font{CENTUI_FONT_PATH};
 
     const auto small = font.measure("Hello", 12);
     const auto large = font.measure("Hello", 24);
@@ -40,7 +38,7 @@ TEST_CASE("Measure text at different sizes", "[font]")
 
 TEST_CASE("Text layout supplies measurement and glyph positions", "[font]")
 {
-    centui::font face{test_font_path()};
+    centui::font face{CENTUI_FONT_PATH};
 
     for(const auto text: {"", "Hello", "office", "\xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7"})
     {
@@ -64,7 +62,7 @@ TEST_CASE("Text layout supplies measurement and glyph positions", "[font]")
 
 TEST_CASE("Font operations reject invalid sizes", "[font]")
 {
-    centui::font face{test_font_path()};
+    centui::font face{CENTUI_FONT_PATH};
 
     for(const auto size:
         {0.0f,
@@ -83,11 +81,11 @@ TEST_CASE("Font operations reject invalid sizes", "[font]")
 
 TEST_CASE("Font resources remain usable after ownership transfer", "[font]")
 {
-    centui::font original{test_font_path()};
+    centui::font original{CENTUI_FONT_PATH};
     const auto expected = original.measure("Hello", 16);
     auto moved = std::move(original);
     REQUIRE(moved.measure("Hello", 16).width == expected.width);
-    centui::font replacement{test_font_path()};
+    centui::font replacement{CENTUI_FONT_PATH};
     replacement = std::move(moved);
     REQUIRE(replacement.measure("Hello", 16).width == expected.width);
     REQUIRE_THROWS_AS(centui::font(std::filesystem::path{"centui-missing-font-for-test.ttf"}), std::runtime_error);
@@ -97,7 +95,7 @@ TEST_CASE("Font copies share resources and styles retain ownership", "[font]")
 {
     auto appearance = []
     {
-        centui::font original{test_font_path()};
+        centui::font original{CENTUI_FONT_PATH};
         const auto copy = original;
         REQUIRE(copy == original);
         REQUIRE(copy.identity() == original.identity());
@@ -110,8 +108,8 @@ TEST_CASE("Font copies share resources and styles retain ownership", "[font]")
 
 TEST_CASE("Fonts inherit through containers and explicit styles override them", "[font]")
 {
-    const centui::font parent_font{test_font_path()};
-    const centui::font override_font{test_font_path()};
+    const centui::font parent_font{CENTUI_FONT_PATH};
+    const centui::font override_font{CENTUI_FONT_PATH};
     auto label = centui::text{"Inherited"};
     auto parent = centui::container{label};
     parent->patch_style({.font = parent_font});
@@ -140,13 +138,13 @@ TEST_CASE("Only text requires a font and document font changes invalidate layout
     centui::document document{centui::text{"Explicit font"}};
     REQUIRE_THROWS_AS(document.prepare({200, 100}), std::logic_error);
 
-    const centui::font face{test_font_path()};
+    const centui::font face{CENTUI_FONT_PATH};
     document.set_font(face);
     REQUIRE_NOTHROW(document.prepare({200, 100}));
     document.set_font(face);
     REQUIRE_FALSE(document.pending_changes().layout);
 
-    document.set_font(centui::font{test_font_path()});
+    document.set_font(centui::font{CENTUI_FONT_PATH});
     REQUIRE(document.pending_changes().layout);
     REQUIRE_NOTHROW(document.prepare({200, 100}));
 }

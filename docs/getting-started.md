@@ -29,7 +29,7 @@ FetchContent_Declare(centui
 FetchContent_MakeAvailable(centui)
 
 add_executable(my_app main.cpp)
-target_link_libraries(my_app PRIVATE centui::centui centui::sdl centui::bgfx)
+target_link_libraries(my_app PRIVATE centui::centui centui::platform::sdl centui::backend::bgfx)
 ```
 
 Use the [README's Hello world](../README.md#hello-world) as `main.cpp`. Configure and build from your application's directory:
@@ -48,12 +48,14 @@ Choose the targets for your integration:
 | CMake option | Targets |
 | --- | --- |
 | Core only (default) | `centui::centui` |
-| `CENTUI_BUILD_SDL=ON` | `centui::sdl`, `centui::sdl_renderer` |
-| `CENTUI_BUILD_BGFX=ON` | `centui::bgfx` |
-| `CENTUI_BUILD_SFML=ON` | `centui::sfml`, `centui::sfml_platform` |
-| `CENTUI_BUILD_GLFW=ON` | `centui::glfw` |
+| `CENTUI_BUILD_SDL=ON` | `centui::platform::sdl`, `centui::backend::sdl` |
+| `CENTUI_BUILD_BGFX=ON` | `centui::backend::bgfx` |
+| `CENTUI_BUILD_SFML=ON` | `centui::backend::sfml`, `centui::platform::sfml` |
+| `CENTUI_BUILD_GLFW=ON` | `centui::platform::glfw` |
 
 Examples and tests are off by default. Native dependencies are fetched automatically. Platform packages may also be required for your selected integration; see [Backends and Windows](backends.md).
+
+`CENTUI_BUILD_TESTS=ON` enables unit tests and integration tests for the enabled adapters: SDL, SFML, SDL + bgfx, and GLFW + bgfx. Run `ctest --test-dir build --output-on-failure` to run them together. Integration tests open native windows; use `-L integration` to select them or `-LE integration` to exclude them. CI runs the FetchContent and `add_subdirectory` consumer tests in a separate job.
 
 ## Build the first example
 

@@ -1,5 +1,3 @@
-#include "test_font.hpp"
-
 #include <array>
 #include <functional>
 #include <initializer_list>
@@ -184,7 +182,7 @@ TEST_CASE("Mutable callback state survives events and registration replacement",
         }
     };
     centui::document document{button};
-    document.set_font(centui::font{test_font_path()});
+    document.set_font(centui::font{CENTUI_FONT_PATH});
     click(document);
     click(document);
     REQUIRE(observed == 2);
@@ -225,7 +223,7 @@ TEST_CASE("Release outside, focus loss and disabled controls cancel activation",
         }
     };
     centui::document document{button};
-    document.set_font(centui::font{test_font_path()});
+    document.set_font(centui::font{CENTUI_FONT_PATH});
     document.process_event({centui::input_event_type::pointer_pressed, 5, 5}, {200, 100});
     document.process_event({centui::input_event_type::pointer_released, 150, 90}, {200, 100});
     REQUIRE(calls == 0);
@@ -248,7 +246,7 @@ TEST_CASE("Callback topology edits become visible before the next event", "[docu
     auto button = centui::button<button_style>{"Remove"};
     auto root = centui::container<panel_style>{button};
     centui::document document{root};
-    document.set_font(centui::font{test_font_path()});
+    document.set_font(centui::font{CENTUI_FONT_PATH});
     const auto weak = button.weak();
     button.set_on_click(
         [&document, &calls, weak]()
@@ -274,7 +272,7 @@ TEST_CASE("Callback exceptions release dispatch guards and preserve edits", "[do
     auto button = centui::button<button_style>{"Throw"};
     auto root = centui::container<panel_style>{button};
     centui::document document{root};
-    document.set_font(centui::font{test_font_path()});
+    document.set_font(centui::font{CENTUI_FONT_PATH});
     const auto weak = button.weak();
     button.set_on_click(
         [&document, weak]()
@@ -303,7 +301,7 @@ TEST_CASE("Root replacement reaches the next event in a batch", "[document][inpu
         }
     };
     centui::document document{first};
-    document.set_font(centui::font{test_font_path()});
+    document.set_font(centui::font{CENTUI_FONT_PATH});
     first.set_on_click(
         [&document, second]()
         {
@@ -334,7 +332,7 @@ TEST_CASE("Recursive dispatch is rejected without poisoning later input", "[docu
 {
     auto button = centui::button<button_style>{"Recursive"};
     centui::document document{button};
-    document.set_font(centui::font{test_font_path()});
+    document.set_font(centui::font{CENTUI_FONT_PATH});
     button.set_on_click(
         [&document]()
         {
@@ -524,7 +522,7 @@ TEST_CASE("Buttons activate only for a primary gesture ending inside", "[documen
         }
     };
     centui::document document{button};
-    document.set_font(centui::font{test_font_path()});
+    document.set_font(centui::font{CENTUI_FONT_PATH});
     document.process_event({centui::input_event_type::pointer_released, 5, 5}, {200, 100});
     document.process_event(
         {centui::input_event_type::pointer_pressed, 5, 5, centui::mouse_button::secondary},

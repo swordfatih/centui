@@ -1,5 +1,3 @@
-#include "test_font.hpp"
-
 #include <string>
 #include <string_view>
 
@@ -24,7 +22,7 @@ TEST_CASE("Standalone input header exposes edit and submit callbacks", "[widget]
 
     auto control = centui::input{"A", {.on_change = observe, .on_submit = submit}};
     centui::document document{control};
-    document.set_font(centui::font{test_font_path()});
+    document.set_font(centui::font{CENTUI_FONT_PATH});
     (void)document.prepare({200, 100});
     REQUIRE(control->request_focus());
     document.process_event({.type = centui::input_event_type::text_entered, .text = "B"}, {200, 100});

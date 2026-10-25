@@ -11,7 +11,7 @@ CentUI targets the public layout capabilities of pinned Yoga 3.2.1. Scalar Yoga
 Native allocation, tree cloning, logging hooks, callback context, and cache flags
 remain integration responsibilities rather than widget style properties.
 
-The added tests in `tests/layout.test.cpp` are grouped by the following tags. This
+The added tests in `tests/unit/layout.test.cpp` are grouped by the following tags. This
 matrix describes test intent, not an assertion that the suite has been executed.
 
 | Capability | Coverage |

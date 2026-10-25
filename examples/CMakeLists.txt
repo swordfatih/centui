@@ -1,3 +1,7 @@
+if(NOT CENTUI_BUILD_EXAMPLES)
+    return()
+endif()
+
 add_subdirectory(getting_started)
 add_subdirectory(hud_sfml)
 add_subdirectory(hud_sdl)
@@ -7,3 +11,4 @@ add_subdirectory(gui_dynamic)
 add_subdirectory(custom_backend)
 add_subdirectory(custom_primitive)
 add_subdirectory(pulse)
+add_subdirectory(benchmark)

@@ -1,0 +1,2 @@
+add_executable(centui_example_benchmark main.cpp)
+target_link_libraries(centui_example_benchmark PRIVATE centui::centui)

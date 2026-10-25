@@ -25,7 +25,7 @@ Nested boundaries may duplicate commands and should be used sparingly.
 `document.statistics()` reports cumulative layout allocations, paint visits,
 command-cache hits, and currently retained command bytes.
 
-Build with `-DCENTUI_BUILD_BENCHMARKS=ON` and run `centui_benchmark` for a static
+Build with `-DCENTUI_BUILD_EXAMPLES=ON` and run `centui_example_benchmark` from `build/examples/benchmark/` for a static
 panel beside an invalidating widget, with and without boundaries. This synthetic
 CPU preparation benchmark is not a GPU or application frame-time measurement.
 Use representative scrolling, resize, text-input, and topology workloads before
@@ -45,7 +45,7 @@ queued graphics work; callers must obey the existing renderer/thread lifetime ru
 ## Validation
 
 CI builds all adapters and examples on Linux, Windows, and macOS. Optional native
-smoke tests (`CENTUI_BUILD_INTEGRATION_TESTS`) render text/buttons, resize, and exit
+integration tests (`CENTUI_BUILD_TESTS`, with the corresponding adapters enabled) render text/buttons and exit
 after four frames. Linux uses Xvfb and software GL. Core sanitizer coverage is
 separate from graphics testing.
 

@@ -1,5 +1,3 @@
-#include "test_font.hpp"
-
 #include <cmath>
 #include <cstdint>
 #include <initializer_list>
@@ -16,7 +14,7 @@
 
 TEST_CASE("Display scale changes bitmap resolution without changing text metrics", "[dpi][font]")
 {
-    centui::text_service fonts{centui::font{test_font_path()}};
+    centui::text_service fonts{centui::font{CENTUI_FONT_PATH}};
     const auto original = fonts.prepare("Hello", {}, 16);
 
     fonts.set_scale(2);
@@ -48,7 +46,7 @@ TEST_CASE("Documents refresh text caches and hit test in logical coordinates", "
     auto root = centui::container{action};
     root->patch_style({.width = centui::percent(100), .height = centui::percent(100)});
     centui::document document{root};
-    document.set_font(centui::font{test_font_path()});
+    document.set_font(centui::font{CENTUI_FONT_PATH});
 
     (void)document.prepare({200, 100, 1});
     const auto& dense = document.prepare({400, 200, 2});

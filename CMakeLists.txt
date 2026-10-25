@@ -2,21 +2,17 @@ cmake_minimum_required(VERSION 3.28)
 
 project(centui LANGUAGES C CXX)
 
+if(APPLE)
+    enable_language(OBJC OBJCXX)
+endif()
+
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
 # ------------------------
 # Options
 # ------------------------
-function(project_option name description default)
-    string(TOUPPER "${PROJECT_NAME}" prefix)
-    option(${prefix}_${name} "${description}" ${default})
-    set(${name} "${${prefix}_${name}}" PARENT_SCOPE)
-endfunction()
-
-project_option(BUILD_EXAMPLES "Build enabled example executables" OFF)
-project_option(BUILD_TESTS "Build the test executable" OFF)
-option(CENTUI_BUILD_INTEGRATION_TESTS "Build native window smoke tests" OFF)
-option(CENTUI_BUILD_BENCHMARKS "Build preparation benchmark" OFF)
+option(CENTUI_BUILD_EXAMPLES "Build enabled example executables" OFF)
+option(CENTUI_BUILD_TESTS "Build unit tests and integrations for enabled adapters" OFF)
 
 option(CENTUI_BUILD_BGFX "Build the bgfx backend and shaders" OFF)
 option(CENTUI_BUILD_SFML "Build the SFML platform and renderer backend" OFF)
@@ -25,17 +21,17 @@ option(CENTUI_BUILD_GLFW "Build the GLFW platform" OFF)
 
 include(FetchContent)
 
-if(BUILD_TESTS OR CENTUI_BUILD_INTEGRATION_TESTS)
+if(CENTUI_BUILD_TESTS)
     enable_testing()
 endif()
 
 # ------------------------
 # Library
 # ------------------------
-add_library(${PROJECT_NAME} STATIC)
-add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+add_library(centui STATIC)
+add_library(centui::centui ALIAS centui)
 
-target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
+target_compile_features(centui PUBLIC cxx_std_20)
 
 function(centui_sources target directory header_pattern)
     file(GLOB_RECURSE cpp_sources CONFIGURE_DEPENDS "${directory}/*.cpp")
@@ -46,27 +42,20 @@ function(centui_sources target directory header_pattern)
         $<INSTALL_INTERFACE:include>)
 endfunction()
 
-include(src/core/Dependencies.cmake)
-centui_sources(centui "${PROJECT_SOURCE_DIR}/src/core" "${PROJECT_SOURCE_DIR}/include/centui/*.hpp")
-target_link_libraries(${PROJECT_NAME} PRIVATE yogacore freetype harfbuzz lunasvg::lunasvg plutovg::plutovg)
+include(src/centui/Dependencies.cmake)
+centui_sources(centui "${PROJECT_SOURCE_DIR}/src/centui" "${PROJECT_SOURCE_DIR}/include/centui/*.hpp")
+target_link_libraries(centui PRIVATE yogacore freetype harfbuzz lunasvg::lunasvg plutovg::plutovg)
 
-if(CENTUI_BUILD_BGFX)
-    add_subdirectory(src/backends/bgfx)
-endif()
-if(CENTUI_BUILD_SFML)
-    add_subdirectory(src/platforms/sfml)
-    add_subdirectory(src/backends/sfml)
-endif()
-if(CENTUI_BUILD_SDL)
-    add_subdirectory(src/platforms/sdl)
-    add_subdirectory(src/backends/sdl)
-endif()
-if(CENTUI_BUILD_GLFW)
-    add_subdirectory(src/platforms/glfw)
-endif()
+add_subdirectory(src/platforms/sfml)
+add_subdirectory(src/platforms/sdl)
+add_subdirectory(src/platforms/glfw)
+
+add_subdirectory(src/backends/bgfx)
+add_subdirectory(src/backends/sfml)
+add_subdirectory(src/backends/sdl)
 
 # ------------------------
-# Examples
+# Assets
 # ------------------------
 function(centui_font_asset target)
     # Font and license from https://github.com/rsms/inter/releases/tag/v4.1.
@@ -81,30 +70,13 @@ function(centui_font_asset target)
         VERBATIM)
 endfunction()
 
-if(BUILD_EXAMPLES)
-    add_subdirectory(examples)
-endif()
+# ------------------------
+# Examples
+# ------------------------
+add_subdirectory(examples)
 
 # ------------------------
 # Tests
 # ------------------------
-if(BUILD_TESTS)
-    file(GLOB test_sources CONFIGURE_DEPENDS "${PROJECT_SOURCE_DIR}/tests/*.test.cpp")
-    if(test_sources)
-        set(test_target "${PROJECT_NAME}_tests")
-        add_executable(${test_target} ${test_sources})
-        centui_font_asset(${test_target})
-        target_link_libraries(${test_target} PRIVATE ${PROJECT_NAME}::${PROJECT_NAME} Catch2::Catch2WithMain)
-        include(${catch2_SOURCE_DIR}/extras/Catch.cmake)
-        catch_discover_tests(${test_target})
-    endif()
-endif()
-
-if(CENTUI_BUILD_INTEGRATION_TESTS)
-    add_subdirectory(tests/integration)
-endif()
-if(CENTUI_BUILD_BENCHMARKS)
-    add_executable(centui_benchmark tests/benchmark.cpp)
-    target_link_libraries(centui_benchmark PRIVATE centui::centui)
-endif()
-
+add_subdirectory(tests/unit)
+add_subdirectory(tests/integration)

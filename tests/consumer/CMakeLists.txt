@@ -1,12 +1,12 @@
 cmake_minimum_required(VERSION 3.28)
+
 project(centui_consumer LANGUAGES C CXX)
+
 set(CENTUI_SOURCE "" CACHE PATH "CentUI checkout")
-set(CONSUMER_MODE "fetchcontent" CACHE STRING "fetchcontent, fetchcontent-git or subdirectory")
+
+set(CONSUMER_MODE "fetchcontent" CACHE STRING "fetchcontent or subdirectory")
+
 if(CONSUMER_MODE STREQUAL "fetchcontent")
-    include(FetchContent)
-    FetchContent_Declare(centui SOURCE_DIR "${CENTUI_SOURCE}")
-    FetchContent_MakeAvailable(centui)
-elseif(CONSUMER_MODE STREQUAL "fetchcontent-git")
     include(FetchContent)
     FetchContent_Declare(centui GIT_REPOSITORY "${CENTUI_SOURCE}" GIT_TAG HEAD)
     FetchContent_MakeAvailable(centui)
@@ -15,7 +15,10 @@ elseif(CONSUMER_MODE STREQUAL "subdirectory")
 else()
     message(FATAL_ERROR "Unknown consumer mode")
 endif()
+
 add_executable(consumer main.cpp)
 target_link_libraries(consumer PRIVATE centui::centui)
+
 enable_testing()
+
 add_test(NAME consumer COMMAND consumer)

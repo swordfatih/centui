@@ -58,7 +58,7 @@ FetchContent_Declare(centui
 FetchContent_MakeAvailable(centui)
 
 add_executable(my_app main.cpp)
-target_link_libraries(my_app PRIVATE centui::centui centui::sdl centui::bgfx)
+target_link_libraries(my_app PRIVATE centui::centui centui::platform::sdl centui::backend::bgfx)
 ```
 
 Link `centui::centui` for the core library and the targets for your chosen integrations. CMake fetches the dependencies and propagates the required include paths and C++20 support. Pin `GIT_TAG` to a commit for reproducible builds. See [window and renderer integration](docs/backends.md) for the available backends.

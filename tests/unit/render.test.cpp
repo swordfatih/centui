@@ -1,5 +1,3 @@
-#include "test_font.hpp"
-
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -84,7 +82,7 @@ TEST_CASE("Clipped or transparent glyph runs produce no drawing", "[render]")
 TEST_CASE("Draw resources survive CPU cache eviction and service destruction", "[font][render]")
 {
     centui::text_service fonts;
-    const centui::font face{test_font_path()};
+    const centui::font face{CENTUI_FONT_PATH};
     auto prepared = fonts.prepare("A", face, 20);
     REQUIRE_FALSE(prepared->glyphs.empty());
     auto image = prepared->glyphs.front().image;
@@ -124,7 +122,7 @@ TEST_CASE("Draw resources survive CPU cache eviction and service destruction", "
 TEST_CASE("Wrapping and CRLF retain original UTF-8 byte clusters", "[font][render]")
 {
     centui::text_service fonts;
-    const centui::font face{test_font_path()};
+    const centui::font face{CENTUI_FONT_PATH};
     const auto word = fonts.prepare("\xC3\xA9", face, 20);
     const auto layout = fonts.prepare("\xC3\xA9 \xC3\xA9\r\nZ", face, 20, word->bounds.width);
     REQUIRE(layout->lines.size() == 3);
