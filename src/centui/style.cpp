@@ -165,52 +165,80 @@ invalidation style::changes_from(const style& previous) const noexcept
 
 style style_patch::apply(style candidate) const
 {
-#define CENTUI_APPLY_PATCH(name) \
-    if(name)                     \
-    {                            \
-        candidate.name = *name;  \
-    }
-
-    CENTUI_APPLY_PATCH(padding)
-    CENTUI_APPLY_PATCH(margin)
-    CENTUI_APPLY_PATCH(inset)
-    CENTUI_APPLY_PATCH(gap)
-    CENTUI_APPLY_PATCH(position)
-    CENTUI_APPLY_PATCH(width)
-    CENTUI_APPLY_PATCH(height)
-    CENTUI_APPLY_PATCH(flex_direction)
-    CENTUI_APPLY_PATCH(align_items)
-    CENTUI_APPLY_PATCH(justify_content)
-    CENTUI_APPLY_PATCH(background_color)
-    CENTUI_APPLY_PATCH(text_color)
-    CENTUI_APPLY_PATCH(font_size)
-    CENTUI_APPLY_PATCH(font)
-    CENTUI_APPLY_PATCH(text_align)
-    CENTUI_APPLY_PATCH(visibility)
-    CENTUI_APPLY_PATCH(overflow)
-    CENTUI_APPLY_PATCH(border_width)
-    CENTUI_APPLY_PATCH(border_color)
-    CENTUI_APPLY_PATCH(flex)
-    CENTUI_APPLY_PATCH(min_width)
-    CENTUI_APPLY_PATCH(min_height)
-    CENTUI_APPLY_PATCH(max_width)
-    CENTUI_APPLY_PATCH(max_height)
-    CENTUI_APPLY_PATCH(aspect_ratio)
-    CENTUI_APPLY_PATCH(flex_wrap)
-    CENTUI_APPLY_PATCH(align_self)
-    CENTUI_APPLY_PATCH(align_content)
-    CENTUI_APPLY_PATCH(row_gap)
-    CENTUI_APPLY_PATCH(column_gap)
-    CENTUI_APPLY_PATCH(layout_direction)
-    CENTUI_APPLY_PATCH(box_sizing)
-    CENTUI_APPLY_PATCH(display)
-    CENTUI_APPLY_PATCH(reference_baseline)
-    CENTUI_APPLY_PATCH(forms_containing_block)
-    CENTUI_APPLY_PATCH(corner_radius)
-#undef CENTUI_APPLY_PATCH
+    apply_to(candidate);
     candidate.validate();
-
     return candidate;
 }
+
+#define CENTUI_PATCH_PROPERTIES(X) \
+    X(padding)                     \
+    X(margin)                      \
+    X(inset)                       \
+    X(gap)                         \
+    X(position)                    \
+    X(width)                       \
+    X(height)                      \
+    X(flex_direction)              \
+    X(align_items)                 \
+    X(justify_content)             \
+    X(background_color)            \
+    X(text_color)                  \
+    X(font_size)                   \
+    X(font)                        \
+    X(text_align)                  \
+    X(visibility)                  \
+    X(overflow)                    \
+    X(border_width)                \
+    X(border_color)                \
+    X(flex)                        \
+    X(min_width)                   \
+    X(min_height)                  \
+    X(max_width)                   \
+    X(max_height)                  \
+    X(aspect_ratio)                \
+    X(flex_wrap)                   \
+    X(align_self)                  \
+    X(align_content)               \
+    X(row_gap)                     \
+    X(column_gap)                  \
+    X(layout_direction)            \
+    X(box_sizing)                  \
+    X(display)                     \
+    X(reference_baseline)          \
+    X(forms_containing_block)      \
+    X(corner_radius)
+
+void style_patch::apply_to(style& candidate) const
+{
+#define CENTUI_APPLY_PROPERTY(name) \
+    if(name)                        \
+    {                               \
+        candidate.name = *name;     \
+    }
+    CENTUI_PATCH_PROPERTIES(CENTUI_APPLY_PROPERTY)
+#undef CENTUI_APPLY_PROPERTY
+}
+
+void style_patch::merge(const style_patch& patch)
+{
+#define CENTUI_MERGE_PROPERTY(name) \
+    if(patch.name)                  \
+    {                               \
+        name = patch.name;          \
+    }
+    CENTUI_PATCH_PROPERTIES(CENTUI_MERGE_PROPERTY)
+#undef CENTUI_MERGE_PROPERTY
+}
+
+style_patch style_patch::replacement(const style& value)
+{
+    style_patch result;
+#define CENTUI_REPLACE_PROPERTY(name) result.name.emplace(value.name);
+    CENTUI_PATCH_PROPERTIES(CENTUI_REPLACE_PROPERTY)
+#undef CENTUI_REPLACE_PROPERTY
+    return result;
+}
+
+#undef CENTUI_PATCH_PROPERTIES
 
 } // namespace centui

@@ -3,7 +3,7 @@
 namespace centui
 {
 
-input_widget::input_widget(std::string value, input_options options, centui::style appearance)
+input_widget::input_widget(std::string value, input_options options, centui::style_source appearance)
     : widget(std::move(appearance)),
       m_multiline(options.multiline)
 {
@@ -51,13 +51,13 @@ std::pair<std::size_t, std::size_t> input_widget::selection() const noexcept
     return std::minmax(m_anchor, m_caret);
 }
 
-void input_widget::set_on_change(std::function<void(std::string_view)> callback)
+void input_widget::set_on_change(centui::callback<std::string_view> callback)
 {
     check_mutation();
     m_on_change.set(std::move(callback));
 }
 
-void input_widget::set_on_submit(std::function<void()> callback)
+void input_widget::set_on_submit(centui::callback<> callback)
 {
     check_mutation();
     m_on_submit.set(std::move(callback));
@@ -371,7 +371,7 @@ bool input_widget::on_event(const input_event& event)
         }
         else if(!event.repeat)
         {
-            m_on_submit();
+            m_on_submit(*this);
         }
 
         return true;
@@ -518,7 +518,7 @@ void input_widget::changed_layout()
 void input_widget::notify_change()
 {
     const auto value = m_value;
-    m_on_change(value);
+    m_on_change(*this, value);
 }
 
 void input_widget::replace_selection(std::string replacement)

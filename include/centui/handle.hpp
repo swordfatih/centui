@@ -85,6 +85,11 @@ public:
         get().patch_style(patch);
     }
 
+    void clear_style_overrides()
+    {
+        get().clear_style_overrides();
+    }
+
     [[nodiscard]] weak_handle<T> weak() const noexcept
     {
         return weak_handle<T>{*this};

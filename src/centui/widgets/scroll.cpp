@@ -3,7 +3,7 @@
 namespace centui
 {
 
-scroll_widget::scroll_widget(centui::style appearance)
+scroll_widget::scroll_widget(centui::style_source appearance)
     : container_widget(std::move(appearance))
 {
     patch_style({.overflow = overflow::scroll});

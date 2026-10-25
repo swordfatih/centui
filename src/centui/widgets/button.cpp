@@ -3,9 +3,9 @@
 namespace centui
 {
 
-button_widget::button_widget(std::string value, button_options options, centui::style appearance)
+button_widget::button_widget(std::string value, button_options options, centui::style_source appearance)
     : pressable_widget(std::move(options), std::move(appearance)),
-      m_text(make_widget<text_widget>(std::move(value), centui::style{}, true))
+      m_text(make_widget<text_widget>(std::move(value), centui::style_source{}, true))
 {
     set_clip_children(true);
     append(m_text);

@@ -39,6 +39,23 @@ public:
 
     void set_font(const centui::font& face);
 
+    /// \brief Replaces document defaults and immediately resolves mounted widgets.
+    void set_style(const style_patch& defaults);
+
+    /// \brief Merges a document override for an exact composed style type.
+    template <typename Style>
+    void patch_style(const style_patch& patch)
+    {
+        patch_style_type(typeid(Style), patch);
+    }
+
+    /// \brief Removes the document override for an exact composed style type.
+    template <typename Style>
+    void clear_style_patch()
+    {
+        clear_style_type(typeid(Style));
+    }
+
     /// \brief Validates layout configuration and requests fresh geometry.
     void set_layout_options(layout_options options);
 
@@ -82,6 +99,29 @@ public:
 
 private:
     friend class widget;
+    friend class details::event_access;
+
+    void patch_style_type(details::style_type_id type, const style_patch& patch);
+
+    void clear_style_type(details::style_type_id type);
+
+    using style_updates = std::vector<std::pair<std::shared_ptr<widget>, centui::style>>;
+
+    static void stage_styles(
+        style_updates& updates,
+        const std::shared_ptr<widget>& root,
+        const style_patch& defaults,
+        const details::style_patch_map& patches,
+        std::optional<details::style_type_id> type = std::nullopt
+    );
+
+    static bool commit_styles(style_updates& updates);
+
+    void update_styles(
+        style_patch defaults,
+        details::style_patch_map patches,
+        std::optional<details::style_type_id> type
+    );
 
     void interaction_changed();
 

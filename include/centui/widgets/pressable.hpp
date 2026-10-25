@@ -16,18 +16,18 @@ namespace centui
 struct pressable_options
 {
     bool enabled = true;
-    std::function<void()> on_click{};
+    centui::callback<> on_click{};
 };
 
 /// \brief Activates from pointer or keyboard input and owns its content.
 class pressable_widget : public container_widget
 {
 public:
-    explicit pressable_widget(pressable_options options = {}, centui::style appearance = {});
+    explicit pressable_widget(pressable_options options = {}, centui::style_source appearance = {});
 
-    explicit pressable_widget(handle<> content, pressable_options options = {}, centui::style appearance = {});
+    explicit pressable_widget(handle<> content, pressable_options options = {}, centui::style_source appearance = {});
 
-    void set_on_click(std::function<void()> callback);
+    void set_on_click(centui::callback<> callback);
 
 protected:
     virtual void activate();
@@ -35,7 +35,7 @@ protected:
     bool on_event(const input_event& event) override;
 
 private:
-    details::callback<> m_on_click;
+    centui::callback<> m_on_click;
     bool m_armed = false;
 };
 
@@ -49,23 +49,24 @@ public:
     {
     }
 
-    explicit pressable(
-        handle<> content,
-        pressable_options options = {},
-        centui::style appearance = centui::style::resolve<Styles...>()
-    )
-        : handle<pressable_widget>(
-              make_widget<pressable_widget>(std::move(content), std::move(options), std::move(appearance))
-          )
+    explicit pressable(handle<> content, pressable_options options = {}, centui::style_source appearance = {})
+        : handle<pressable_widget>(make_widget<pressable_widget>(
+              std::move(content),
+              std::move(options),
+              centui::style_source::with_composition<Styles...>(std::move(appearance))
+          ))
     {
     }
 
     explicit pressable(
         std::initializer_list<handle<>> children,
         pressable_options options = {},
-        centui::style appearance = centui::style::resolve<Styles...>()
+        centui::style_source appearance = {}
     )
-        : handle<pressable_widget>(make_widget<pressable_widget>(std::move(options), std::move(appearance)))
+        : handle<pressable_widget>(make_widget<pressable_widget>(
+              std::move(options),
+              centui::style_source::with_composition<Styles...>(std::move(appearance))
+          ))
     {
         this->get().append(std::span{children.begin(), children.size()});
     }
@@ -80,7 +81,7 @@ public:
         return this->get().enabled();
     }
 
-    void set_on_click(std::function<void()> callback)
+    void set_on_click(centui::callback<> callback)
     {
         this->get().set_on_click(std::move(callback));
     }

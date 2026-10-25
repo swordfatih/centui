@@ -13,7 +13,7 @@ namespace centui
 class container_widget : public widget
 {
 public:
-    explicit container_widget(centui::style value = {}, std::span<const handle<>> children = {});
+    explicit container_widget(centui::style_source value = {}, std::span<const handle<>> children = {});
 };
 
 /// \brief A container handle with compile-time style composition.
@@ -26,19 +26,19 @@ public:
     {
     }
 
-    explicit container(centui::style appearance)
-        : handle<container_widget>(make_widget<container_widget>(std::move(appearance)))
+    explicit container(centui::style_source appearance)
+        : handle<container_widget>(
+              make_widget<container_widget>(centui::style_source::with_composition<Styles...>(std::move(appearance)))
+          )
     {
     }
 
     // List initialization intentionally nests a single container of the same type.
-    explicit container(
-        std::initializer_list<handle<>> children,
-        centui::style appearance = centui::style::resolve<Styles...>()
-    )
-        : handle<container_widget>(
-              make_widget<container_widget>(std::move(appearance), std::span{children.begin(), children.size()})
-          )
+    explicit container(std::initializer_list<handle<>> children, centui::style_source appearance = {})
+        : handle<container_widget>(make_widget<container_widget>(
+              centui::style_source::with_composition<Styles...>(std::move(appearance)),
+              std::span{children.begin(), children.size()}
+          ))
     {
     }
 };

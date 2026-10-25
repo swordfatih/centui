@@ -1,11 +1,16 @@
 #pragma once
 
+#include <array>
 #include <cmath>
 #include <cstdint>
+#include <functional>
 #include <limits>
 #include <optional>
+#include <span>
 #include <stdexcept>
 #include <type_traits>
+#include <typeindex>
+#include <unordered_map>
 #include <utility>
 
 // Properties accepted by compile-time style composition.
@@ -231,7 +236,7 @@ public:
 
     [[nodiscard]] invalidation changes_from(const style& previous) const noexcept;
 
-private:
+    /// \brief Merges declared properties without validating intermediate layers.
     template <typename Source>
     static void merge(style& target, const Source& source)
     {
@@ -289,6 +294,84 @@ struct style_patch
     std::optional<float> corner_radius = std::nullopt;
 
     [[nodiscard]] style apply(style candidate) const;
+
+    /// \brief Applies a layer without validating the intermediate result.
+    void apply_to(style& candidate) const;
+
+    /// \brief Retains supplied fields, including explicit empty optional values.
+    void merge(const style_patch& patch);
+
+    [[nodiscard]] static style_patch replacement(const style& value);
+};
+
+namespace details
+{
+
+using style_type_id = std::type_index;
+using style_patch_reference = std::optional<std::reference_wrapper<const style_patch>>;
+using style_applicator = void(centui::style&);
+using style_patch_map = std::unordered_map<style_type_id, style_patch>;
+
+struct composed_style
+{
+    style_type_id id;
+    std::reference_wrapper<style_applicator> apply;
+};
+
+struct style_recipe
+{
+    std::span<const composed_style> composition;
+};
+
+template <typename Style>
+void apply_style(centui::style& value)
+{
+    style::merge(value, Style{});
+}
+
+template <typename... Styles>
+const style_recipe& recipe()
+{
+    static const std::array<composed_style, sizeof...(Styles)> layers{
+        composed_style{typeid(Styles), std::ref(apply_style<Styles>)}...
+    };
+    static const style_recipe value{layers};
+    return value;
+}
+
+} // namespace details
+
+/// \brief Construction appearance: a shared type recipe or an explicit full replacement.
+class style_source
+{
+public:
+    style_source() = default;
+
+    style_source(centui::style value)
+        : m_replacement(std::move(value))
+    {
+    }
+
+    /// \brief Retains named types for custom widget construction and document patches.
+    template <typename... Styles>
+    static style_source composed()
+    {
+        return with_composition<Styles...>({});
+    }
+
+    /// \brief Binds a typed handle composition while retaining an explicit replacement.
+    template <typename... Styles>
+    static style_source with_composition(style_source value)
+    {
+        value.m_recipe = std::cref(details::recipe<Styles...>());
+        return value;
+    }
+
+private:
+    friend class widget;
+
+    std::reference_wrapper<const details::style_recipe> m_recipe = std::cref(details::recipe<>());
+    std::optional<centui::style> m_replacement;
 };
 
 } // namespace centui

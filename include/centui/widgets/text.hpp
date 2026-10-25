@@ -15,7 +15,7 @@ namespace centui
 class text_widget : public widget
 {
 public:
-    explicit text_widget(std::string value, centui::style appearance = {}, bool inherit_text_style = false);
+    explicit text_widget(std::string value, centui::style_source appearance = {}, bool inherit_text_style = false);
 
     void set_text(std::string value);
 
@@ -43,8 +43,11 @@ template <typename... Styles>
 class text : public handle<text_widget>
 {
 public:
-    explicit text(std::string value, centui::style appearance = centui::style::resolve<Styles...>())
-        : handle<text_widget>(make_widget<text_widget>(std::move(value), std::move(appearance)))
+    explicit text(std::string value, centui::style_source appearance = {})
+        : handle<text_widget>(make_widget<text_widget>(
+              std::move(value),
+              centui::style_source::with_composition<Styles...>(std::move(appearance))
+          ))
     {
     }
 

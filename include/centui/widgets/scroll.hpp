@@ -16,7 +16,7 @@ namespace centui
 class scroll_widget : public container_widget
 {
 public:
-    explicit scroll_widget(centui::style appearance = {});
+    explicit scroll_widget(centui::style_source appearance = {});
 
     [[nodiscard]] vec2 offset() const noexcept;
 
@@ -44,11 +44,10 @@ public:
     {
     }
 
-    explicit scroll(
-        std::initializer_list<handle<>> children,
-        centui::style appearance = centui::style::resolve<Styles...>()
-    )
-        : handle<scroll_widget>(make_widget<scroll_widget>(std::move(appearance)))
+    explicit scroll(std::initializer_list<handle<>> children, centui::style_source appearance = {})
+        : handle<scroll_widget>(
+              make_widget<scroll_widget>(centui::style_source::with_composition<Styles...>(std::move(appearance)))
+          )
     {
         this->get().append(std::span{children.begin(), children.size()});
     }

@@ -3,7 +3,11 @@
 namespace centui
 {
 
-selection_widget::selection_widget(std::vector<std::string> items, selection_options options, centui::style appearance)
+selection_widget::selection_widget(
+    std::vector<std::string> items,
+    selection_options options,
+    centui::style_source appearance
+)
     : widget(std::move(appearance)),
       m_items(std::move(items))
 {
@@ -39,7 +43,7 @@ std::optional<std::size_t> selection_widget::selected() const noexcept
     return m_selected;
 }
 
-void selection_widget::set_on_change(std::function<void(std::size_t)> callback)
+void selection_widget::set_on_change(centui::callback<std::size_t> callback)
 {
     check_mutation();
     m_on_change.set(std::move(callback));
@@ -143,7 +147,7 @@ bool selection_widget::on_event(const input_event& event)
     if(m_selected != next)
     {
         set_selected(next);
-        m_on_change(*next);
+        m_on_change(*this, *next);
     }
 
     return true;

@@ -23,7 +23,7 @@ struct selection_options
 {
     std::optional<std::size_t> selected{};
 
-    std::function<void(std::size_t)> on_change{};
+    centui::callback<std::size_t> on_change{};
 };
 
 /// \brief Selects one text item from a list using pointer or keyboard input.
@@ -33,7 +33,7 @@ public:
     explicit selection_widget(
         std::vector<std::string> items,
         selection_options options = {},
-        centui::style appearance = {}
+        centui::style_source appearance = {}
     );
 
     void set_items(std::vector<std::string> items);
@@ -42,7 +42,7 @@ public:
 
     [[nodiscard]] std::optional<std::size_t> selected() const noexcept;
 
-    void set_on_change(std::function<void(std::size_t)> callback);
+    void set_on_change(centui::callback<std::size_t> callback);
 
 protected:
     size measure(const measure_context& context) override;
@@ -56,7 +56,7 @@ private:
 
     std::vector<std::string> m_items;
     std::optional<std::size_t> m_selected;
-    details::callback<std::size_t> m_on_change;
+    centui::callback<std::size_t> m_on_change;
 };
 
 /// \brief A selection list handle with compile-time style composition.
@@ -67,11 +67,13 @@ public:
     explicit selection(
         std::vector<std::string> items,
         selection_options options = {},
-        centui::style appearance = centui::style::resolve<Styles...>()
+        centui::style_source appearance = {}
     )
-        : handle<selection_widget>(
-              make_widget<selection_widget>(std::move(items), std::move(options), std::move(appearance))
-          )
+        : handle<selection_widget>(make_widget<selection_widget>(
+              std::move(items),
+              std::move(options),
+              centui::style_source::with_composition<Styles...>(std::move(appearance))
+          ))
     {
     }
 };

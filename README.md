@@ -44,6 +44,15 @@ int main()
 
 Run this from the repository root so the font path resolves. For a styled counter you can build immediately, see [getting_started](examples/getting_started/main.cpp).
 
+Document themes update existing widgets without rebuilding the tree:
+
+```cpp
+document.set_style({.font_size = 18});
+document.patch_style<my_button_style>({.corner_radius = 8});
+```
+
+Style composition preserves order and final widget overrides. Callbacks can optionally take `centui::event&` for document, target, and input access. See [widgets and styles](docs/widgets-and-styles.md) and the [Pulse dark/light theme example](examples/pulse/main.cpp).
+
 ## Installation
 
 Requires CMake 3.28+ and a compiler and standard library with C++20 support. Add CentUI with CMake FetchContent and enable the integrations your application needs:

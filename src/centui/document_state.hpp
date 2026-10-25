@@ -90,6 +90,8 @@ struct document::data
 {
     handle<> root;
     std::shared_ptr<details::document_context> context;
+    style_patch style_defaults;
+    details::style_patch_map style_patches;
     text_service fonts;
     details::paint_service drawings;
     std::shared_ptr<const void> font_revision;
@@ -118,6 +120,7 @@ struct document::data
     std::vector<std::function<void()>> edits;
     bool dispatching = false;
     input_state input;
+    event::input_reference active_input;
 };
 
 } // namespace centui

@@ -18,7 +18,7 @@ using button_options = pressable_options;
 class button_widget : public pressable_widget
 {
 public:
-    explicit button_widget(std::string value, button_options options = {}, centui::style appearance = {});
+    explicit button_widget(std::string value, button_options options = {}, centui::style_source appearance = {});
 
     void set_text(std::string value);
 
@@ -33,12 +33,12 @@ template <typename... Styles>
 class button : public handle<button_widget>
 {
 public:
-    explicit button(
-        std::string value,
-        button_options options = {},
-        centui::style appearance = centui::style::resolve<Styles...>()
-    )
-        : handle<button_widget>(make_widget<button_widget>(std::move(value), std::move(options), std::move(appearance)))
+    explicit button(std::string value, button_options options = {}, centui::style_source appearance = {})
+        : handle<button_widget>(make_widget<button_widget>(
+              std::move(value),
+              std::move(options),
+              centui::style_source::with_composition<Styles...>(std::move(appearance))
+          ))
     {
     }
 
@@ -67,7 +67,7 @@ public:
         return this->get().enabled();
     }
 
-    void set_on_click(std::function<void()> callback)
+    void set_on_click(centui::callback<> callback)
     {
         this->get().set_on_click(std::move(callback));
     }

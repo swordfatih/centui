@@ -51,6 +51,75 @@ auto save = centui::button<blue_button>{"Save"};
 
 You can combine style structs, use a `centui::style` value at runtime, or change a mounted widget with `patch_style({.height = centui::px(52)})`. The layout system handles width, height, padding, margins, gaps, alignment, and direction. State colors can vary for normal, hover, press, focus, and disabled states. Text inherits a font from its ancestors or the document's font service.
 
+## Document themes
+
+Widgets retain their ordered style types and cache the resolved appearance. Change defaults or patch a named style across a document without recreating its widgets:
+
+```cpp
+struct base
+{
+    float font_size = 16;
+};
+
+struct secondary
+{
+    float font_size = 14;
+};
+
+auto save = centui::button<base, secondary>{"Save"};
+centui::document document{centui::container{save}};
+
+document.set_style({.text_color = centui::states_color::all({30, 40, 50, 255})});
+document.patch_style<base>({.font_size = 20}); // Secondary still wins: 14.
+save.patch_style({.font_size = 18});          // Final local override: 18.
+save.clear_style_overrides();               // Back to 14.
+document.clear_style_patch<base>();         // Restore the original Base definition.
+```
+
+Resolution applies built-in defaults, document defaults, then each composed type immediately followed by its document patch, and finally widget-local overrides. A patch matches an exact type, including when that type is used by different widget kinds or compositions. C++ base classes are not separately matched.
+
+Document `set_style()` replaces the default override layer; `{}` clears it. Document defaults apply to every node, including controls' internal children, so box properties such as padding affect those children too. Document defaults are fallback values rather than inherited theme tokens.
+
+Successive patches merge supplied fields into one current override; no patch history is retained. Widget patches remain explicit even when their values equal current defaults. `widget.set_style(style)` and explicit full-style constructor arguments make every property locally explicit; clearing local overrides restores the retained composition. Runtime nested patches replace entire supplied properties, as described below.
+
+Changes resolve and validate affected widgets before committing the document settings and cached styles. Unchanged results do not invalidate anything; changes request layout or paint as appropriate. Rendering reads the cache. Patches also apply to widgets mounted later. Removal resolves without document layers; mounting in another document uses that document's settings. Style constructors used by retained recipes must be deterministic and side-effect-free.
+
+The [Pulse example](../examples/pulse/main.cpp) switches between dark and light appearances using document patches. For custom widgets, accept a `centui::style_source` construction argument and pass it to `widget`; use `style_source::composed<Styles...>()` with `make_widget()` to retain named styles.
+
+## Callback events
+
+Callbacks can take an optional leading `centui::event&`; callback-specific values follow it:
+
+```cpp
+auto toggle = centui::toggle{
+    "Dark mode",
+    {.on_change = [](centui::event& event, bool dark)
+    {
+        event.document().set_style({
+            .text_color = centui::states_color::all(
+                dark ? centui::color{240, 240, 240, 255} : centui::color{30, 30, 30, 255}
+            )
+        });
+
+        auto parent = event.target()->parent();
+        if(parent.valid())
+        {
+            // Common widget operations are available through this handle.
+        }
+
+        if(auto input = event.input())
+        {
+            const auto& source = input->get();
+            // Inspect source.type, source.mods, or source.code.
+        }
+    }}
+};
+```
+
+`target()` is the widget emitting the semantic callback, such as the button rather than its internal label. It returns a `handle<>` with parent and child navigation through `->parent()` and `->children()`; widget-specific operations require a typed handle. `document()` borrows the owning document. `input()` returns an optional borrowed reference and is empty for programmatic callbacks outside input dispatch. Do not retain the event or its borrowed references after invocation; retain a handle or weak handle when needed.
+
+Callbacks without context, such as `[](bool checked) { ... }`, are convenient when document access is unnecessary. Detection occurs at assignment before type erasure, preferring the context form when a callable accepts both. Running callbacks may safely replace themselves. Context-aware callbacks require a mounted widget; invoking one on a detached widget throws `std::logic_error`. Context-free callbacks can still run detached.
+
 ## Flexible sizing
 
 CentUI exposes Yoga 3.2.1 layout through ordinary style values. Flex sizing is a

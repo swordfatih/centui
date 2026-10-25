@@ -14,9 +14,9 @@ namespace centui
 class image_widget : public widget
 {
 public:
-    explicit image_widget(bitmap value, image_options options = {}, centui::style appearance = {});
+    explicit image_widget(bitmap value, image_options options = {}, centui::style_source appearance = {});
 
-    explicit image_widget(image_source value, image_options options = {}, centui::style appearance = {});
+    explicit image_widget(image_source value, image_options options = {}, centui::style_source appearance = {});
 
     void set_image(bitmap value);
 
@@ -42,21 +42,21 @@ template <typename... Styles>
 class image : public handle<image_widget>
 {
 public:
-    explicit image(
-        image_source value,
-        image_options options = {},
-        centui::style appearance = centui::style::resolve<Styles...>()
-    )
-        : handle<image_widget>(make_widget<image_widget>(std::move(value), options, std::move(appearance)))
+    explicit image(image_source value, image_options options = {}, centui::style_source appearance = {})
+        : handle<image_widget>(make_widget<image_widget>(
+              std::move(value),
+              options,
+              centui::style_source::with_composition<Styles...>(std::move(appearance))
+          ))
     {
     }
 
-    explicit image(
-        bitmap value,
-        image_options options = {},
-        centui::style appearance = centui::style::resolve<Styles...>()
-    )
-        : image(image_source::from_bitmap(std::move(value)), options, std::move(appearance))
+    explicit image(bitmap value, image_options options = {}, centui::style_source appearance = {})
+        : image(
+              image_source::from_bitmap(std::move(value)),
+              options,
+              centui::style_source::with_composition<Styles...>(std::move(appearance))
+          )
     {
     }
 

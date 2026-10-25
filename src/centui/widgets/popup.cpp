@@ -3,7 +3,7 @@
 namespace centui
 {
 
-popup_widget::popup_widget(handle<> content, centui::style appearance)
+popup_widget::popup_widget(handle<> content, centui::style_source appearance)
     : container_widget(std::move(appearance))
 {
     patch_style({
@@ -61,10 +61,10 @@ void popup_widget::close()
         previous->request_focus();
     }
 
-    m_on_close();
+    m_on_close(*this);
 }
 
-void popup_widget::set_on_close(std::function<void()> callback)
+void popup_widget::set_on_close(centui::callback<> callback)
 {
     check_mutation();
     m_on_close.set(std::move(callback));

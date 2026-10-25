@@ -17,6 +17,16 @@ void document::process_events(std::span<const input_event> events, centui::viewp
 
             for(const auto& event: events)
             {
+                struct input_scope
+                {
+                    centui::event::input_reference& slot;
+                    centui::event::input_reference previous;
+                    ~input_scope()
+                    {
+                        slot = previous;
+                    }
+                } scope{m_data->active_input, m_data->active_input};
+                m_data->active_input = std::cref(event);
                 dispatch(event);
                 settle_input(viewport);
             }

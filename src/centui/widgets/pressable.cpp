@@ -3,7 +3,7 @@
 namespace centui
 {
 
-pressable_widget::pressable_widget(pressable_options options, centui::style appearance)
+pressable_widget::pressable_widget(pressable_options options, centui::style_source appearance)
     : container_widget(std::move(appearance))
 {
     set_interactive();
@@ -12,13 +12,13 @@ pressable_widget::pressable_widget(pressable_options options, centui::style appe
     set_on_click(std::move(options.on_click));
 }
 
-pressable_widget::pressable_widget(handle<> content, pressable_options options, centui::style appearance)
+pressable_widget::pressable_widget(handle<> content, pressable_options options, centui::style_source appearance)
     : pressable_widget(std::move(options), std::move(appearance))
 {
     append(content);
 }
 
-void pressable_widget::set_on_click(std::function<void()> callback)
+void pressable_widget::set_on_click(centui::callback<> callback)
 {
     check_mutation();
     m_on_click.set(std::move(callback));
@@ -26,7 +26,7 @@ void pressable_widget::set_on_click(std::function<void()> callback)
 
 void pressable_widget::activate()
 {
-    m_on_click();
+    m_on_click(*this);
 }
 
 bool pressable_widget::on_event(const input_event& event)

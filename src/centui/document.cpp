@@ -1,5 +1,7 @@
 #include "document_state.hpp"
 
+#include <algorithm>
+
 namespace centui
 {
 
@@ -41,6 +43,26 @@ document::document(handle<> root)
 document::~document()
 {
     associate(m_data->root.m_value, {});
+    const auto reset = [&](auto&& self, const std::shared_ptr<widget>& value) noexcept -> void
+    {
+        if(!value)
+        {
+            return;
+        }
+        try
+        {
+            value->commit_style(value->resolve_style({}, {}, value->local_style()), false);
+        }
+        catch(...)
+        {
+            // A destructor cannot report a throwing style definition; retain the last valid cache.
+        }
+        for(const auto& child: value->m_children)
+        {
+            self(self, child);
+        }
+    };
+    reset(reset, m_data->root.m_value);
 }
 
 bool document::empty() const noexcept
@@ -68,6 +90,81 @@ void document::set_font(const centui::font& face)
     {
         dirty_tree();
     }
+}
+
+void document::stage_styles(
+    style_updates& updates,
+    const std::shared_ptr<widget>& root,
+    const style_patch& defaults,
+    const details::style_patch_map& patches,
+    std::optional<details::style_type_id> type
+)
+{
+    if(!root)
+    {
+        return;
+    }
+    const auto layers = root->m_style_recipe.get().composition;
+    if(!type || std::ranges::any_of(
+                    layers,
+                    [&](const auto& layer)
+                    {
+                        return layer.id == *type;
+                    }
+                ))
+    {
+        updates.emplace_back(root, root->resolve_style(defaults, patches, root->local_style()));
+    }
+    for(const auto& child: root->m_children)
+    {
+        stage_styles(updates, child, defaults, patches, type);
+    }
+}
+
+bool document::commit_styles(style_updates& updates)
+{
+    bool targeting_changed = false;
+    for(auto& [value, appearance]: updates)
+    {
+        targeting_changed |= value->commit_style(std::move(appearance), false);
+    }
+    return targeting_changed;
+}
+
+void document::update_styles(
+    style_patch defaults,
+    details::style_patch_map patches,
+    std::optional<details::style_type_id> type
+)
+{
+    m_data->context->check_mutation();
+    style_updates updates;
+    stage_styles(updates, m_data->root.m_value, defaults, patches, type);
+    m_data->style_defaults = std::move(defaults);
+    m_data->style_patches.swap(patches);
+    if(commit_styles(updates))
+    {
+        interaction_changed();
+    }
+}
+
+void document::set_style(const style_patch& defaults)
+{
+    update_styles(defaults, m_data->style_patches, std::nullopt);
+}
+
+void document::patch_style_type(details::style_type_id type, const style_patch& patch)
+{
+    auto patches = m_data->style_patches;
+    patches[type].merge(patch);
+    update_styles(m_data->style_defaults, std::move(patches), type);
+}
+
+void document::clear_style_type(details::style_type_id type)
+{
+    auto patches = m_data->style_patches;
+    patches.erase(type);
+    update_styles(m_data->style_defaults, std::move(patches), type);
 }
 
 void document::set_host_services(std::shared_ptr<const host_services> services)
@@ -108,12 +205,18 @@ void document::set_root(handle<> value)
                 return;
             }
 
+            style_updates detached;
+            style_updates mounted;
+            stage_styles(detached, m_data->root.m_value, {}, {});
+            stage_styles(mounted, value.m_value, m_data->style_defaults, m_data->style_patches);
             clear_input();
             m_data->geometry.viewport_layout.reset();
             m_data->geometry.tree.reset();
             associate(m_data->root.m_value, {});
             m_data->root = value;
             associate(m_data->root.m_value, m_data->context);
+            commit_styles(detached);
+            commit_styles(mounted);
             dirty_tree();
         }
     );
@@ -144,13 +247,18 @@ void document::append(const handle<>& parent, std::span<const handle<>> children
         {
             validate_append(parent, batch);
             auto target = checked(parent);
+            style_updates mounted;
+            for(const auto& child: batch)
+            {
+                stage_styles(mounted, child.m_value, m_data->style_defaults, m_data->style_patches);
+            }
             target->insert_children(batch);
 
             for(const auto& child: batch)
             {
                 associate(child.m_value, m_data->context);
             }
-
+            commit_styles(mounted);
             dirty_tree();
         }
     );
@@ -164,6 +272,8 @@ void document::remove(const handle<>& child)
         [this, child]
         {
             auto target = checked(child);
+            style_updates detached;
+            stage_styles(detached, target, {}, {});
             // Layout callbacks retain widgets; release them when the edit commits,
             // even when a zero-sized viewport prevents the next layout pass.
             if(target == m_data->root.m_value)
@@ -206,6 +316,7 @@ void document::remove(const handle<>& child)
             }
 
             associate(target, {});
+            commit_styles(detached);
             dirty_tree();
             synchronize_input();
         }

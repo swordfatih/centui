@@ -3,7 +3,7 @@
 namespace centui
 {
 
-container_widget::container_widget(centui::style value, std::span<const handle<>> children)
+container_widget::container_widget(centui::style_source value, std::span<const handle<>> children)
     : widget(std::move(value))
 {
     append(children);

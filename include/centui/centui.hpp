@@ -4,6 +4,7 @@
 /// \brief Complete core widget, document, style, and rendering API.
 
 #include <centui/document.hpp>
+#include <centui/event.hpp>
 #include <centui/font.hpp>
 #include <centui/image.hpp>
 #include <centui/input.hpp>

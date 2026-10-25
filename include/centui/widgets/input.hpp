@@ -24,16 +24,16 @@ namespace centui
 struct input_options
 {
     bool multiline = false;
-    std::function<void(std::string_view)> on_change{};
+    centui::callback<std::string_view> on_change{};
 
-    std::function<void()> on_submit{};
+    centui::callback<> on_submit{};
 };
 
 /// \brief Editable UTF-8 text with selection, composition, and undo history.
 class input_widget : public widget
 {
 public:
-    explicit input_widget(std::string value = {}, input_options options = {}, centui::style appearance = {});
+    explicit input_widget(std::string value = {}, input_options options = {}, centui::style_source appearance = {});
 
     [[nodiscard]] std::string_view value() const noexcept;
 
@@ -44,9 +44,9 @@ public:
 
     [[nodiscard]] std::pair<std::size_t, std::size_t> selection() const noexcept;
 
-    void set_on_change(std::function<void(std::string_view)> callback);
+    void set_on_change(centui::callback<std::string_view> callback);
 
-    void set_on_submit(std::function<void()> callback);
+    void set_on_submit(centui::callback<> callback);
 
 protected:
     size measure(const measure_context& context) override;
@@ -108,8 +108,8 @@ private:
     std::vector<snapshot> m_undo;
     std::vector<snapshot> m_redo;
 
-    details::callback<std::string_view> m_on_change;
-    details::callback<> m_on_submit;
+    centui::callback<std::string_view> m_on_change;
+    centui::callback<> m_on_submit;
 
     mutable std::shared_ptr<const text_layout> m_layout;
     mutable text_cache m_cache;
@@ -120,12 +120,12 @@ template <typename... Styles>
 class input : public handle<input_widget>
 {
 public:
-    explicit input(
-        std::string value = {},
-        input_options options = {},
-        centui::style appearance = centui::style::resolve<Styles...>()
-    )
-        : handle<input_widget>(make_widget<input_widget>(std::move(value), std::move(options), std::move(appearance)))
+    explicit input(std::string value = {}, input_options options = {}, centui::style_source appearance = {})
+        : handle<input_widget>(make_widget<input_widget>(
+              std::move(value),
+              std::move(options),
+              centui::style_source::with_composition<Styles...>(std::move(appearance))
+          ))
     {
     }
 };

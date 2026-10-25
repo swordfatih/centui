@@ -71,6 +71,8 @@ scrolling input content does not change the input's layout baseline.
 
 ## Input and focus
 
+Custom widget constructors should accept `centui::style_source appearance = {}` and forward it to the base `widget` constructor. `make_widget<meter>(..., centui::style_source::composed<meter_style>())` retains named styles so document patches can reach them. A full `centui::style` converts to a complete local replacement. Style recipes reconstruct their definitions during updates, so keep style constructors deterministic and side-effect-free.
+
 Call `set_interactive()` if the widget should receive pointer events, and `set_focusable()` if it can take keyboard focus. Override `on_event(const centui::input_event&)` and return `true` for events you handle. `on_focus_changed(bool)` lets you react to focus transitions. Read `hovered()`, `pressed()`, `focused()`, and `effectively_enabled()` when painting an interaction state.
 
 `pressable_widget` already implements ordinary button activation. Derive from it and override `activate()` for a specialized action; call the base method if you also want the registered `on_click` callback. Build composite controls from children when their content should stay reusable.

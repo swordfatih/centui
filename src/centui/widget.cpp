@@ -76,21 +76,58 @@ bool widget::effectively_visible() const noexcept
     return true;
 }
 
+centui::style widget::resolve_style(
+    const style_patch& defaults,
+    const details::style_patch_map& patches,
+    details::style_patch_reference local
+) const
+{
+    centui::style result;
+    defaults.apply_to(result);
+    for(const auto& layer: m_style_recipe.get().composition)
+    {
+        layer.apply(result);
+        if(auto patch = patches.find(layer.id); patch != patches.end())
+        {
+            patch->second.apply_to(result);
+        }
+    }
+    if(local)
+    {
+        local->get().apply_to(result);
+    }
+    result.validate();
+    return result;
+}
+
+details::style_patch_reference widget::local_style() const noexcept
+{
+    if(m_style_overrides)
+    {
+        return std::cref(*m_style_overrides);
+    }
+    return std::nullopt;
+}
+
 void widget::set_style(centui::style replacement)
 {
     check_mutation();
     replacement.validate();
+    auto overrides = std::make_unique<style_patch>(style_patch::replacement(replacement));
+    m_style_overrides = std::move(overrides);
+    commit_style(std::move(replacement));
+}
+
+bool widget::commit_style(centui::style replacement, bool notify)
+{
     const auto changes = replacement.changes_from(m_style);
-
-    if(!changes.layout && !changes.paint)
+    if(!changes.any())
     {
-        return;
+        return false;
     }
-
     const bool targeting_changed = m_style.visibility != replacement.visibility ||
                                    m_style.overflow != replacement.overflow || m_style.display != replacement.display;
     m_style = std::move(replacement);
-
     if(changes.layout)
     {
         invalidate_layout();
@@ -99,16 +136,39 @@ void widget::set_style(centui::style replacement)
     {
         invalidate_paint();
     }
-
-    if(targeting_changed)
+    if(notify && targeting_changed)
     {
         interaction_changed();
     }
+    return targeting_changed;
 }
 
 void widget::patch_style(const style_patch& patch)
 {
-    set_style(patch.apply(m_style));
+    check_mutation();
+    auto overrides = std::make_unique<style_patch>(m_style_overrides ? *m_style_overrides : style_patch{});
+    overrides->merge(patch);
+    auto context = m_document.lock();
+    auto candidate = context ? resolve_style(
+                                   context->owner.m_data->style_defaults,
+                                   context->owner.m_data->style_patches,
+                                   std::cref(*overrides)
+                               )
+                             : resolve_style({}, {}, std::cref(*overrides));
+    m_style_overrides = std::move(overrides);
+    commit_style(std::move(candidate));
+}
+
+void widget::clear_style_overrides()
+{
+    check_mutation();
+    auto context = m_document.lock();
+    auto candidate =
+        context
+            ? resolve_style(context->owner.m_data->style_defaults, context->owner.m_data->style_patches, std::nullopt)
+            : resolve_style({}, {}, std::nullopt);
+    m_style_overrides.reset();
+    commit_style(std::move(candidate));
 }
 
 const layout_metrics& widget::metrics() const noexcept
@@ -152,10 +212,14 @@ void widget::set_enabled(bool value)
     interaction_changed();
 }
 
-widget::widget(centui::style value)
-    : m_style(std::move(value))
+widget::widget(centui::style_source value)
+    : m_style_recipe(value.m_recipe)
 {
-    m_style.validate();
+    if(value.m_replacement)
+    {
+        m_style_overrides = std::make_unique<style_patch>(style_patch::replacement(*value.m_replacement));
+    }
+    m_style = resolve_style({}, {}, local_style());
 }
 
 size widget::measure(const measure_context&)

@@ -3,7 +3,7 @@
 namespace centui
 {
 
-text_widget::text_widget(std::string value, centui::style appearance, bool inherit_text_style)
+text_widget::text_widget(std::string value, centui::style_source appearance, bool inherit_text_style)
     : widget(std::move(appearance)),
       m_value(std::move(value)),
       m_inherit_text_style(inherit_text_style)

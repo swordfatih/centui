@@ -279,6 +279,8 @@ struct chartstyle
 {
     length width = percent(100);
     length height = px(228);
+    states_color background_color = solid(0x141820);
+    states_color border_color = solid(0x303644);
 };
 
 struct progress_bg
@@ -296,7 +298,7 @@ struct progress_fg
 class chart_widget : public widget
 {
 public:
-    explicit chart_widget(centui::style appearance)
+    explicit chart_widget(centui::style_source appearance)
         : widget(std::move(appearance))
     {
     }
@@ -361,9 +363,9 @@ protected:
         const auto bounds = output.bounds();
         output.rectangle(
             {bounds.x + m_offset.x, bounds.y + m_offset.y, 900 * m_scale, 260 * m_scale},
-            color::from_hex(0x141820)
+            output.resolve(style().background_color)
         );
-        output.fill(m_grid, color::from_hex(0x303644), m_offset);
+        output.fill(m_grid, output.resolve(style().border_color), m_offset);
         output.fill(m_area, m_area_brush, m_offset);
         output.stroke(m_primary, color::from_hex(0x9A83FA), 3 * m_scale, m_offset);
         output.stroke(m_secondary, color::from_hex(0x325E73), 3 * m_scale, m_offset);
@@ -381,10 +383,7 @@ private:
 
 inline handle<chart_widget> chart()
 {
-    style appearance;
-    appearance.width = percent(100);
-    appearance.height = px(228);
-    return make_widget<chart_widget>(appearance);
+    return make_widget<chart_widget>(style_source::composed<chartstyle>());
 }
 
 inline auto statcard(std::string label, std::string number, std::string delta, std::string note)
@@ -413,6 +412,42 @@ inline auto activity(std::string dot, std::string titletext, std::string subtitl
     };
 }
 
+// Dark colors live in the style types; light mode overrides those definitions.
+template <typename... Styles>
+void theme_style(document& document, bool dark, const style_patch& light)
+{
+    if(dark)
+    {
+        (document.clear_style_patch<Styles>(), ...);
+    }
+    else
+    {
+        (document.patch_style<Styles>(light), ...);
+    }
+}
+
+void apply_theme(document& document, bool dark)
+{
+    document.set_style({.text_color = solid(dark ? 0xE5E7EE : 0x202638)});
+    theme_style<screen>(document, dark, {.background_color = solid(0xF3F5FA)});
+    theme_style<side>(document, dark, {.background_color = solid(0xFFFFFF), .border_color = solid(0xDDE2EC)});
+    theme_style<panel, stat>(document, dark, {.background_color = solid(0xFFFFFF), .border_color = solid(0xDDE2EC)});
+    theme_style<logo, heading, title, metric, white>(document, dark, {.text_color = solid(0x202638)});
+    theme_style<muted>(document, dark, {.text_color = solid(0x59657A)});
+    theme_style<faint>(document, dark, {.text_color = solid(0x67738A)});
+    theme_style<green>(document, dark, {.text_color = solid(0x147D5B)});
+    theme_style<purple, eyebrow>(document, dark, {.text_color = solid(0x6950C8)});
+    auto neutral = solid(0xFFFFFF);
+    neutral.hover = color::from_hex(0xE8ECF4);
+    neutral.pressed = color::from_hex(0xDDE2EC);
+    neutral.focused = neutral.hover;
+    theme_style<nav, action>(document, dark, {.background_color = neutral, .text_color = solid(0x344158)});
+    theme_style<nav_active>(document, dark, {.background_color = solid(0xE9E2FC), .text_color = solid(0x593DB1)});
+    theme_style<inputstyle>(document, dark, {.background_color = solid(0xF3F5FA), .border_color = solid(0xCCD4E2)});
+    theme_style<separator, progress_bg>(document, dark, {.background_color = solid(0xDDE2EC)});
+    theme_style<chartstyle>(document, dark, {.background_color = solid(0xFFFFFF), .border_color = solid(0xCCD4E2)});
+}
+
 } // namespace ui
 
 int main()
@@ -428,272 +463,246 @@ int main()
     auto short_period = std::make_shared<bool>(false);
     auto search = std::make_shared<std::string>();
 
-    auto root = centui::container<screen>{
-        centui::container<shell>{
-            centui::container<side>{
-                centui::container<row>{
-                    centui::text<purple>{"◆"},
-                    centui::text<logo>{"pulse."}
+    auto sidebar = centui::container<side>{
+        centui::container<row>{centui::text<purple>{"◆"}, centui::text<logo>{"pulse."}},
+        centui::text<faint>{"WORKSPACE"},
+        centui::button<nav_active>{
+            "◈   Overview",
+            {.on_click =
+                 [selected, toast]() mutable
+             {
+                 *selected = "Overview";
+                 toast.set_text("Viewing Overview");
+             }}
+        },
+        centui::button<nav>{
+            "▥   Analytics",
+            {.on_click =
+                 [selected, toast]() mutable
+             {
+                 *selected = "Analytics";
+                 toast.set_text("Analytics selected");
+             }}
+        },
+        centui::button<nav>{
+            "◇   Audience",
+            {.on_click =
+                 [selected, toast]() mutable
+             {
+                 *selected = "Audience";
+                 toast.set_text("Audience selected");
+             }}
+        },
+        centui::button<nav>{
+            "▤   Campaigns",
+            {.on_click =
+                 [selected, toast]() mutable
+             {
+                 *selected = "Campaigns";
+                 toast.set_text("Campaigns selected");
+             }}
+        },
+        centui::button<nav>{
+            "◷   Activity",
+            {.on_click =
+                 [selected, toast]() mutable
+             {
+                 *selected = "Activity";
+                 toast.set_text("Activity selected");
+             }}
+        },
+        centui::container<spacer>{},
+        centui::text<faint>{"PREFERENCES"},
+        centui::toggle<nav>{
+            "Dark mode",
+            {
+                .checked = true,
+                .on_change =
+                    [](centui::event& event, bool dark)
+                {
+                    apply_theme(event.document(), dark);
                 },
-                centui::text<faint>{"WORKSPACE"},
-                centui::button<nav_active>{
-                    "◈   Overview",
-                    {
-                        .on_click = [selected, toast]() mutable
-                        {
-                            *selected = "Overview";
-                            toast.set_text("Viewing Overview");
-                        }
-                    }
-                },
-                centui::button<nav>{
-                    "▥   Analytics",
-                    {
-                        .on_click = [selected, toast]() mutable
-                        {
-                            *selected = "Analytics";
-                            toast.set_text("Analytics selected");
-                        }
-                    }
-                },
-                centui::button<nav>{
-                    "◇   Audience",
-                    {
-                        .on_click = [selected, toast]() mutable
-                        {
-                            *selected = "Audience";
-                            toast.set_text("Audience selected");
-                        }
-                    }
-                },
-                centui::button<nav>{
-                    "▤   Campaigns",
-                    {
-                        .on_click = [selected, toast]() mutable
-                        {
-                            *selected = "Campaigns";
-                            toast.set_text("Campaigns selected");
-                        }
-                    }
-                },
-                centui::button<nav>{
-                    "◷   Activity",
-                    {
-                        .on_click = [selected, toast]() mutable
-                        {
-                            *selected = "Activity";
-                            toast.set_text("Activity selected");
-                        }
-                    }
-                },
-                centui::container<spacer>{},
-                centui::text<faint>{"PREFERENCES"},
-                centui::button<nav>{
-                    "⚙   Settings",
-                    {
-                        .on_click = [toast]() mutable
-                        {
-                            toast.set_text("Settings selected");
-                        }
-                    }
-                },
-                centui::button<nav>{
-                    "?   Help & support",
-                    {
-                        .on_click = [toast]() mutable
-                        {
-                            toast.set_text("Support: hello@pulse.example");
-                        }
-                    }
-                },
-                centui::container<spacer>{},
-                centui::container<separator>{},
-                centui::container<stack>{
-                    centui::text<white>{"●  Acme Studio"},
-                    centui::text<faint>{"Pro workspace  ·  Active"}
-                }
+            }
+        },
+        centui::button<nav>{
+            "⚙   Settings",
+            {.on_click =
+                 [toast]() mutable
+             {
+                 toast.set_text("Settings selected");
+             }}
+        },
+        centui::button<nav>{
+            "?   Help & support",
+            {.on_click =
+                 [toast]() mutable
+             {
+                 toast.set_text("Support: hello@pulse.example");
+             }}
+        },
+        centui::container<spacer>{},
+        centui::container<separator>{},
+        centui::container<stack>{centui::text<white>{"●  Acme Studio"}, centui::text<faint>{"Pro workspace  ·  Active"}}
+    };
+
+    auto header = centui::container<spread>{
+        centui::container<stack>{
+            centui::text<eyebrow>{"WORKSPACE / OVERVIEW"},
+            centui::text<heading>{"Good morning, Fatih  ✦"},
+            centui::text<muted>{"Here's what's happening with your business today."}
+        },
+        centui::container<row>{
+            centui::button<action>{
+                "↻  Refresh",
+                {.on_click =
+                     [toast]() mutable
+                 {
+                     toast.set_text("Dashboard refreshed successfully");
+                 }}
             },
-            centui::scroll<dashboard_viewport>{
-                centui::container<body>{
-                    centui::container<spread>{
-                        centui::container<stack>{
-                            centui::text<eyebrow>{"WORKSPACE / OVERVIEW"},
-                            centui::text<heading>{"Good morning, Fatih  ✦"},
-                            centui::text<muted>{"Here's what's happening with your business today."}
-                        },
-                        centui::container<row>{
-                            centui::button<action>{
-                                "↻  Refresh",
-                                {
-                                    .on_click = [toast]() mutable
-                                    {
-                                        toast.set_text("Dashboard refreshed successfully");
-                                    }
-                                }
-                            },
-                            centui::button<primary>{
-                                "↗  Export report",
-                                {
-                                    .on_click = [toast]() mutable
-                                    {
-                                        toast.set_text("Report export is a demo action");
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    centui::container<spread>{
-                        centui::text<title>{"Performance overview"},
-                        centui::button<action>{
-                            "◷  Last 30 days   ▾",
-                            {
-                                .on_click = [period, short_period]() mutable
-                                {
-                                    *short_period = !*short_period;
-                                    period.set_text(*short_period ? "Last 7 days" : "Last 30 days");
-                                }
-                            }
-                        }
-                    },
-                    period,
-                    centui::container<stats>{
-                        statcard("Total revenue", "$128,430", "↗  12.8%", "vs. previous period"),
-                        statcard("Active users", "24,892", "↗  8.2%", "vs. previous period"),
-                        statcard("Conversion rate", "4.86%", "↗  2.4%", "vs. previous period"),
-                        statcard("Total orders", "1,429", "↗  16.3%", "vs. previous period")
-                    },
-                    centui::container<columns>{
-                        centui::container<panel, wide>{
-                            centui::container<spread>{
-                                centui::container<tight>{
-                                    centui::text<title>{"Revenue analytics"},
-                                    centui::text<muted>{"Track your earnings over time"}
-                                },
-                                centui::text<green>{"● +12.8% this month"}
-                            },
-                            centui::container<row>{
-                                centui::text<heading>{"$128,430"},
-                                centui::text<muted>{"USD   /   +$14,590"}
-                            },
-                            chart(),
-                            centui::container<spread>{
-                                centui::text<faint>{"SEP 25"},
-                                centui::text<faint>{"OCT 01"},
-                                centui::text<faint>{"OCT 08"},
-                                centui::text<faint>{"OCT 15"},
-                                centui::text<faint>{"OCT 24"}
-                            },
-                            centui::container<row>{
-                                centui::text<purple>{"● Revenue"},
-                                centui::text<muted>{"● Previous period"}
-                            }
-                        },
-                        centui::container<panel, narrow>{
-                            centui::container<stack>{
-                                centui::text<title>{"Traffic sources"},
-                                centui::text<muted>{"Where visitors come from"}
-                            },
-                            centui::container<stack>{
-                                centui::container<spread>{
-                                    centui::text<white>{"●  Direct"},
-                                    centui::text<white>{"42.6%"}
-                                },
-                                traffic_bar(42.6f)
-                            },
-                            centui::container<stack>{
-                                centui::container<spread>{
-                                    centui::text<white>{"●  Organic search"},
-                                    centui::text<white>{"28.4%"}
-                                },
-                                traffic_bar(28.4f)
-                            },
-                            centui::container<stack>{
-                                centui::container<spread>{
-                                    centui::text<white>{"●  Social media"},
-                                    centui::text<white>{"18.2%"}
-                                },
-                                traffic_bar(18.2f)
-                            },
-                            centui::container<stack>{
-                                centui::container<spread>{
-                                    centui::text<white>{"●  Referral"},
-                                    centui::text<white>{"10.8%"}
-                                },
-                                traffic_bar(10.8f)
-                            },
-                            centui::container<separator>{},
-                            centui::text<green>{"↗  Traffic is up 18.6%"},
-                            centui::text<faint>{"Compared to the previous 30 days"}
-                        }
-                    },
-                    centui::container<columns>{
-                        centui::container<panel, wide>{
-                            centui::container<spread>{
-                                centui::text<title>{"Recent transactions"},
-                                centui::button<action>{
-                                    "View all  →",
-                                    {
-                                        .on_click = [toast]() mutable
-                                        {
-                                            toast.set_text("Transactions: showing the latest four");
-                                        }
-                                    }
-                                }
-                            },
-                            centui::container<spread>{
-                                centui::text<faint>{"CUSTOMER / REFERENCE"},
-                                centui::text<faint>{"AMOUNT / STATUS"}
-                            },
-                            centui::container<separator>{},
-                            activity("◉", "Olivia Martin", "Order #PL-2048  ·  Premium plan", "+$2,499   ✓ Paid"),
-                            centui::container<separator>{},
-                            activity("◉", "Jackson Lee", "Order #PL-2047  ·  Team plan", "+$1,290   ✓ Paid"),
-                            centui::container<separator>{},
-                            activity("◉", "Sophia Brown", "Order #PL-2046  ·  Starter plan", "+$399   ✓ Paid")
-                        },
-                        centui::container<panel, narrow>{
-                            centui::text<title>{"Quick actions"},
-                            centui::text<muted>{"Manage your workspace"},
-                            centui::input<inputstyle>{
-                                "Search workspace",
-                                {
-                                    .on_change = [search, toast](std::string_view value) mutable
-                                    {
-                                        *search = value;
-                                        toast.set_text(value.empty() ? "Search cleared" : "Searching: " + std::string(value));
-                                    }
-                                }
-                            },
-                            centui::button<primary>{
-                                "+  New campaign",
-                                {
-                                    .on_click = [toast]() mutable
-                                    {
-                                        toast.set_text("New campaign clicked");
-                                    }
-                                }
-                            },
-                            centui::button<action>{
-                                "↗  Open analytics",
-                                {
-                                    .on_click = [toast]() mutable
-                                    {
-                                        toast.set_text("Analytics selected");
-                                    }
-                                }
-                            },
-                            centui::container<separator>{},
-                            centui::text<green>{"●  Everything looks good"},
-                            centui::text<faint>{"Your workspace is running smoothly."}
-                        }
-                    },
-                    toast
-                }
+            centui::button<primary>{
+                "↗  Export report",
+                {.on_click = [toast]() mutable
+                 {
+                     toast.set_text("Report export is a demo action");
+                 }}
             }
         }
     };
 
+    auto overview = centui::container<spread>{
+        centui::text<title>{"Performance overview"},
+        centui::button<action>{
+            "◷  Last 30 days   ▾",
+            {.on_click = [period, short_period]() mutable
+             {
+                 *short_period = !*short_period;
+                 period.set_text(*short_period ? "Last 7 days" : "Last 30 days");
+             }}
+        }
+    };
+
+    auto metrics = centui::container<stats>{
+        statcard("Total revenue", "$128,430", "↗  12.8%", "vs. previous period"),
+        statcard("Active users", "24,892", "↗  8.2%", "vs. previous period"),
+        statcard("Conversion rate", "4.86%", "↗  2.4%", "vs. previous period"),
+        statcard("Total orders", "1,429", "↗  16.3%", "vs. previous period")
+    };
+
+    auto analytics = centui::container<columns>{
+        centui::container<panel, wide>{
+            centui::container<spread>{
+                centui::container<tight>{
+                    centui::text<title>{"Revenue analytics"},
+                    centui::text<muted>{"Track your earnings over time"}
+                },
+                centui::text<green>{"● +12.8% this month"}
+            },
+            centui::container<row>{centui::text<heading>{"$128,430"}, centui::text<muted>{"USD   /   +$14,590"}},
+            chart(),
+            centui::container<spread>{
+                centui::text<faint>{"SEP 25"},
+                centui::text<faint>{"OCT 01"},
+                centui::text<faint>{"OCT 08"},
+                centui::text<faint>{"OCT 15"},
+                centui::text<faint>{"OCT 24"}
+            },
+            centui::container<row>{centui::text<purple>{"● Revenue"}, centui::text<muted>{"● Previous period"}}
+        },
+        centui::container<panel, narrow>{
+            centui::container<stack>{
+                centui::text<title>{"Traffic sources"},
+                centui::text<muted>{"Where visitors come from"}
+            },
+            centui::container<stack>{
+                centui::container<spread>{centui::text<white>{"●  Direct"}, centui::text<white>{"42.6%"}},
+                traffic_bar(42.6f)
+            },
+            centui::container<stack>{
+                centui::container<spread>{centui::text<white>{"●  Organic search"}, centui::text<white>{"28.4%"}},
+                traffic_bar(28.4f)
+            },
+            centui::container<stack>{
+                centui::container<spread>{centui::text<white>{"●  Social media"}, centui::text<white>{"18.2%"}},
+                traffic_bar(18.2f)
+            },
+            centui::container<stack>{
+                centui::container<spread>{centui::text<white>{"●  Referral"}, centui::text<white>{"10.8%"}},
+                traffic_bar(10.8f)
+            },
+            centui::container<separator>{},
+            centui::text<green>{"↗  Traffic is up 18.6%"},
+            centui::text<faint>{"Compared to the previous 30 days"}
+        }
+    };
+
+    auto transactions = centui::container<columns>{
+        centui::container<panel, wide>{
+            centui::container<spread>{
+                centui::text<title>{"Recent transactions"},
+                centui::button<action>{
+                    "View all  →",
+                    {.on_click =
+                         [toast]() mutable
+                     {
+                         toast.set_text("Transactions: showing the latest four");
+                     }}
+                }
+            },
+            centui::container<spread>{
+                centui::text<faint>{"CUSTOMER / REFERENCE"},
+                centui::text<faint>{"AMOUNT / STATUS"}
+            },
+            centui::container<separator>{},
+            activity("◉", "Olivia Martin", "Order #PL-2048  ·  Premium plan", "+$2,499   ✓ Paid"),
+            centui::container<separator>{},
+            activity("◉", "Jackson Lee", "Order #PL-2047  ·  Team plan", "+$1,290   ✓ Paid"),
+            centui::container<separator>{},
+            activity("◉", "Sophia Brown", "Order #PL-2046  ·  Starter plan", "+$399   ✓ Paid")
+        },
+        centui::container<panel, narrow>{
+            centui::text<title>{"Quick actions"},
+            centui::text<muted>{"Manage your workspace"},
+            centui::input<inputstyle>{
+                "Search workspace",
+                {.on_change =
+                     [search, toast](std::string_view value) mutable
+                 {
+                     *search = value;
+                     toast.set_text(value.empty() ? "Search cleared" : "Searching: " + std::string(value));
+                 }}
+            },
+            centui::button<primary>{
+                "+  New campaign",
+                {.on_click =
+                     [toast]() mutable
+                 {
+                     toast.set_text("New campaign clicked");
+                 }}
+            },
+            centui::button<action>{
+                "↗  Open analytics",
+                {.on_click =
+                     [toast]() mutable
+                 {
+                     toast.set_text("Analytics selected");
+                 }}
+            },
+            centui::container<separator>{},
+            centui::text<green>{"●  Everything looks good"},
+            centui::text<faint>{"Your workspace is running smoothly."}
+        }
+    };
+
+    auto root = centui::container<screen>{centui::container<shell>{
+        sidebar,
+        centui::scroll<dashboard_viewport>{
+            centui::container<body>{header, overview, period, metrics, analytics, transactions, toast}
+        }
+    }};
+
     centui::document document{root};
+    apply_theme(document, true);
     document.set_font(centui::font{CENTUI_FONT_PATH});
     centui::ui ui{window, renderer};
 

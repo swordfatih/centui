@@ -106,3 +106,5 @@ errors, the button updates the counter, and the input accepts keyboard editing.
 Resize the browser and check layout, pointer alignment, and crisp text at different
 display scales. Test touch input on mobile browsers separately. The desktop HUD
 examples continue to manage their own frame and draw through `ui.render()`.
+
+The Pulse browser example also includes the Dark mode toggle: it updates document style definitions in place, including the custom chart, without rebuilding the widget tree.

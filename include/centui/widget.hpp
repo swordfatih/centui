@@ -3,6 +3,7 @@
 #include <chrono>
 #include <span>
 
+#include <centui/event.hpp>
 #include <centui/handle.hpp>
 #include <centui/layout.hpp>
 #include <centui/painter.hpp>
@@ -74,9 +75,14 @@ public:
 
     [[nodiscard]] bool effectively_visible() const noexcept;
 
+    /// \brief Makes every property locally explicit, retaining the composition for reset.
     void set_style(centui::style replacement);
 
+    /// \brief Retains supplied properties as final local overrides.
     void patch_style(const style_patch& patch);
+
+    /// \brief Removes final local overrides and resolves the retained composition.
+    void clear_style_overrides();
 
     [[nodiscard]] rect bounds() const noexcept;
 
@@ -88,7 +94,7 @@ public:
     void set_paint_boundary(bool value);
 
 protected:
-    explicit widget(centui::style value = {});
+    explicit widget(centui::style_source value = {});
 
     /// \brief Measures content without mutating the document or its widgets.
     virtual size measure(const measure_context&);
@@ -140,6 +146,7 @@ protected:
 
 private:
     friend class document;
+    friend class details::event_access;
     friend struct details::widget_access;
 
     void interaction_changed();
@@ -148,7 +155,19 @@ private:
 
     void insert_children(std::span<const handle<>> children);
 
+    [[nodiscard]] centui::style resolve_style(
+        const style_patch& defaults,
+        const details::style_patch_map& patches,
+        details::style_patch_reference local
+    ) const;
+
+    [[nodiscard]] details::style_patch_reference local_style() const noexcept;
+
+    bool commit_style(centui::style value, bool notify = true);
+
     centui::style m_style;
+    std::reference_wrapper<const details::style_recipe> m_style_recipe;
+    std::unique_ptr<style_patch> m_style_overrides;
     rect m_bounds{};
     rect m_content{};
     layout_metrics m_metrics{};

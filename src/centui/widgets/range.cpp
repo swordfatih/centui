@@ -3,7 +3,7 @@
 namespace centui
 {
 
-range_widget::range_widget(range_options options, centui::style appearance)
+range_widget::range_widget(range_options options, centui::style_source appearance)
     : widget(std::move(appearance))
 {
     set_range(options.minimum, options.maximum, options.step);
@@ -58,7 +58,7 @@ float range_widget::value() const noexcept
     return m_value;
 }
 
-void range_widget::set_on_change(std::function<void(float)> callback)
+void range_widget::set_on_change(centui::callback<float> callback)
 {
     check_mutation();
     m_on_change.set(std::move(callback));
@@ -161,7 +161,7 @@ void range_widget::change(float value)
 
     if(previous != m_value)
     {
-        m_on_change(m_value);
+        m_on_change(*this, m_value);
     }
 }
 
