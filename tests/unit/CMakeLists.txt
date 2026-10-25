@@ -11,6 +11,8 @@ FetchContent_Declare(Catch2
 )
 FetchContent_MakeAvailable(Catch2)
 
+target_compile_features(Catch2 PUBLIC cxx_std_20)
+
 file(GLOB test_sources CONFIGURE_DEPENDS "${PROJECT_SOURCE_DIR}/tests/unit/*.test.cpp")
 if(test_sources)
     set(test_target "centui_tests")
