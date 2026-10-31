@@ -41,7 +41,7 @@ cmake --build build --target my_app
 
 Use the same supported compiler for your application and CentUI. The linked targets propagate the C++20 requirement and public include directory. Include `<centui/centui.hpp>` for the core API, or individual headers such as `<centui/widgets/button.hpp>`. Replace `GIT_TAG main` with a specific commit to pin your dependency.
 
-The Hello world program loads `assets/fonts/Inter-Regular.ttf` relative to its working directory. Supply that font (or change the path to your own font) and launch the program from the directory containing `assets/`. FetchContent does not copy font assets into your application.
+The native Hello world program uses system fonts automatically. Font files under `tests/assets/` support the repository's tests and web examples; applications do not need them for native system font discovery.
 
 Choose the targets for your integration:
 
@@ -66,7 +66,7 @@ cmake -S . -B build -G Ninja -DCENTUI_BUILD_EXAMPLES=ON -DCENTUI_BUILD_SDL=ON -D
 cmake --build build --target centui_example_getting_started
 ```
 
-Run `centui_example_getting_started` from `build/examples/getting_started/`. The example copies its font beside the executable. To build the SFML overlay too, configure with `-DCENTUI_BUILD_SFML=ON` and build `centui_example_hud_sfml`.
+Run `centui_example_getting_started` from `build/tests/examples/getting_started/`. To build the SFML overlay too, configure with `-DCENTUI_BUILD_SFML=ON` and build `centui_example_hud_sfml`.
 
 All optional platforms, renderers, examples, and tests are off by default. Enable only the pieces your application uses.
 
@@ -86,11 +86,14 @@ auto root = centui::container{
 };
 
 centui::document document{root};
-document.set_font(centui::font{"assets/fonts/Inter-Regular.ttf"});
 ```
 
-`container` arranges its children. `text` paints the label. `button` responds to pointer and keyboard activation. The label variable is a handle to the same widget inside the tree, so the callback can update it. `document` owns the root while it is mounted and prepares layout, input, and drawing. Text needs a font; this path assumes you launch from the repository root.
+`container` arranges its children. `text` paints the label. `button` responds to pointer and keyboard activation. The label variable is a handle to the same widget inside the tree, so the callback can update it. `document` owns the root while it is mounted and prepares layout, input, and drawing. Native builds use system fonts automatically.
 
 Create `centui::ui ui{platform, renderer}`, then call `ui.frame(document)` after each successful `platform.poll_events()`. Each frame processes input, calculates elapsed time, advances widgets, and renders. Your application controls the event loop. For drawing over an existing scene, use the separate event and rendering methods. [Backends and Windows](backends.md) shows both arrangements.
 
 When you want more than text, put arbitrary children inside a `pressable`. The [widgets guide](widgets-and-styles.md) shows that pattern and explains styling.
+
+Native text uses system fonts by default. Use document style defaults for font
+requests and `document.register_font` for application files or bytes; see
+[native text layout](native-text-layout.md).

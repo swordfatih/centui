@@ -11,13 +11,13 @@ set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 # ------------------------
 # Options
 # ------------------------
-option(CENTUI_BUILD_EXAMPLES "Build enabled example executables" OFF)
-option(CENTUI_BUILD_TESTS "Build unit tests and integrations for enabled adapters" OFF)
+option(CENTUI_BUILD_EXAMPLES "Build enabled example executables" ON)
+option(CENTUI_BUILD_TESTS "Build unit tests and integrations for enabled adapters" ON)
 
-option(CENTUI_BUILD_BGFX "Build the bgfx backend and shaders" OFF)
-option(CENTUI_BUILD_SFML "Build the SFML platform and renderer backend" OFF)
-option(CENTUI_BUILD_SDL "Build the SDL platform and renderer backend" OFF)
-option(CENTUI_BUILD_GLFW "Build the GLFW platform" OFF)
+option(CENTUI_BUILD_BGFX "Build the bgfx backend and shaders" ON)
+option(CENTUI_BUILD_SFML "Build the SFML platform and renderer backend" ON)
+option(CENTUI_BUILD_SDL "Build the SDL platform and renderer backend" ON)
+option(CENTUI_BUILD_GLFW "Build the GLFW platform" ON)
 
 include(FetchContent)
 
@@ -33,7 +33,12 @@ add_library(centui::centui ALIAS centui)
 
 target_compile_features(centui PUBLIC cxx_std_20)
 
-include(cmake/centuiWeb.cmake)
+if(EMSCRIPTEN)
+    # Keep dependencies and consumers on the same C++ exception model.
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fexceptions>)
+    target_compile_options(centui PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-fexceptions>)
+    target_link_options(centui PUBLIC -fexceptions)
+endif()
 
 function(centui_sources target directory header_pattern)
     file(GLOB_RECURSE cpp_sources CONFIGURE_DEPENDS "${directory}/*.cpp")
@@ -45,8 +50,11 @@ function(centui_sources target directory header_pattern)
 endfunction()
 
 include(src/centui/Dependencies.cmake)
+add_subdirectory(src/centypo)
 centui_sources(centui "${PROJECT_SOURCE_DIR}/src/centui" "${PROJECT_SOURCE_DIR}/include/centui/*.hpp")
-target_link_libraries(centui PRIVATE yogacore freetype harfbuzz lunasvg::lunasvg plutovg::plutovg)
+target_link_libraries(centui
+    PUBLIC centypo::centypo
+    PRIVATE yogacore lunasvg::lunasvg plutovg::plutovg)
 
 add_subdirectory(src/platforms/sfml)
 add_subdirectory(src/platforms/sdl)
@@ -66,8 +74,8 @@ function(centui_font_asset target)
     add_custom_command(TARGET ${target} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory "${font_directory}"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${PROJECT_SOURCE_DIR}/assets/fonts/Inter-Regular.ttf"
-            "${PROJECT_SOURCE_DIR}/assets/fonts/LICENSE.txt"
+            "${PROJECT_SOURCE_DIR}/tests/assets/fonts/Inter-Regular.ttf"
+            "${PROJECT_SOURCE_DIR}/tests/assets/fonts/LICENSE.txt"
             "${font_directory}"
         VERBATIM)
 endfunction()
@@ -75,7 +83,7 @@ endfunction()
 # ------------------------
 # Examples
 # ------------------------
-add_subdirectory(examples)
+add_subdirectory(tests/examples)
 
 # ------------------------
 # Tests

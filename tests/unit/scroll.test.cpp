@@ -13,6 +13,8 @@ TEST_CASE("Standalone scroll header retains children and clamps offsets", "[widg
     auto control = centui::scroll{content};
     control.patch_style({.width = centui::px(100), .height = centui::px(50)});
     centui::document document{control};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     (void)document.prepare({200, 100});
     REQUIRE(content->parent() == centui::handle<>{control});
     REQUIRE(control->limit().y > 0);
@@ -45,6 +47,8 @@ TEST_CASE("Flex scroll viewport fills the space beside a fixed sidebar across re
     shell_style.flex_direction = centui::direction::row;
     auto shell = centui::container{{sidebar, viewport}, shell_style};
     centui::document document{shell};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
 
     for(auto surface: {centui::viewport{1440, 100}, centui::viewport{1100, 100}, centui::viewport{1440, 200, 2}})
     {

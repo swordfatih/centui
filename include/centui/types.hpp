@@ -7,6 +7,8 @@
 #include <string>
 #include <string_view>
 
+#include <centypo/types.hpp>
+
 namespace centui
 {
 
@@ -149,15 +151,7 @@ struct input_event
 };
 
 /// \brief An axis-aligned rectangle in logical units.
-struct rect
-{
-    float x = 0;
-    float y = 0;
-    float width = 0;
-    float height = 0;
-
-    constexpr bool operator==(const rect&) const = default;
-};
+using rect = centypo::rect;
 
 /// \brief Width and height in logical units.
 struct size
@@ -167,13 +161,7 @@ struct size
 };
 
 /// \brief A position or offset in logical units.
-struct vec2
-{
-    float x = 0;
-    float y = 0;
-
-    constexpr bool operator==(const vec2&) const = default;
-};
+using vec2 = centypo::vec2;
 
 /// \brief Optional clipboard and text-input integration supplied by a platform.
 struct host_services
@@ -352,13 +340,6 @@ enum class alignment
     space_between,
     space_around,
     space_evenly
-};
-
-enum class text_alignment
-{
-    left,
-    center,
-    right
 };
 
 } // namespace centui

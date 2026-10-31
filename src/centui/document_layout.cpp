@@ -69,7 +69,7 @@ void document::sync_layout(
                 [this, value](axis_constraint width, axis_constraint height)
                 {
                     ++m_data->statistics.measurement_calls;
-                    return value->measure({width, height, m_data->fonts});
+                    return value->measure({width, height, m_data->typography});
                 }
             );
         }
@@ -195,8 +195,7 @@ void document::update_layout(centui::viewport viewport)
         throw std::invalid_argument("Viewport dimensions must be finite and nonnegative; scale must be positive");
     }
 
-    m_data->fonts.set_scale(viewport.scale);
-    if(m_data->font_revision != m_data->fonts.identity())
+    if(m_data->font_revision != m_data->typography.revision())
     {
         m_data->geometry.measure_all = true;
         dirty_tree();
@@ -280,7 +279,7 @@ void document::update_layout(centui::viewport viewport)
     context.placement_dirty = false;
     m_data->geometry.measure_all = false;
     details::invalidation_access::geometry_applied(context);
-    m_data->font_revision = m_data->fonts.identity();
+    m_data->font_revision = m_data->typography.revision();
     const auto schedule = [&](auto&& self, const std::shared_ptr<widget>& value) -> void
     {
         if(!value)

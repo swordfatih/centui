@@ -106,6 +106,8 @@ TEST_CASE("Document removal and destruction detach surviving handles", "[documen
     {
         auto root = centui::container<panel_style>{child};
         centui::document document{root};
+        document.set_system_font_discovery(false);
+        document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
         REQUIRE(document.children(root).size() == 1);
         document.remove(child);
         REQUIRE(document.children(root).empty());
@@ -116,6 +118,8 @@ TEST_CASE("Document removal and destruction detach surviving handles", "[documen
 
     REQUIRE(child.valid());
     centui::document next{child};
+    next.set_system_font_discovery(false);
+    next.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     REQUIRE(next.root() == centui::handle<>{child});
 }
 
@@ -125,6 +129,8 @@ TEST_CASE("Committed removals release widgets with a zero-sized viewport", "[doc
     centui::handle<> child = centui::container<button_style>{};
     root->append(child);
     centui::document document{root};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     (void)document.prepare({200, 100});
     (void)document.prepare({0, 0});
 
@@ -155,6 +161,8 @@ TEST_CASE("Idle preparation reuses paint and equal patches do no work", "[docume
     int paints = 0;
     auto child = centui::make_widget<counted_widget>(paints);
     centui::document document{child};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     const auto first = std::span{document.prepare({200, 100}).commands};
     REQUIRE(paints == 1);
     REQUIRE(document.prepare({200, 100}).commands.data() == first.data());
@@ -182,7 +190,9 @@ TEST_CASE("Mutable callback state survives events and registration replacement",
         }
     };
     centui::document document{button};
-    document.set_font(centui::font{CENTUI_FONT_PATH});
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
+
     click(document);
     click(document);
     REQUIRE(observed == 2);
@@ -223,7 +233,9 @@ TEST_CASE("Release outside, focus loss and disabled controls cancel activation",
         }
     };
     centui::document document{button};
-    document.set_font(centui::font{CENTUI_FONT_PATH});
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
+
     document.process_event({centui::input_event_type::pointer_pressed, 5, 5}, {200, 100});
     document.process_event({centui::input_event_type::pointer_released, 150, 90}, {200, 100});
     REQUIRE(calls == 0);
@@ -246,7 +258,9 @@ TEST_CASE("Callback topology edits become visible before the next event", "[docu
     auto button = centui::button<button_style>{"Remove"};
     auto root = centui::container<panel_style>{button};
     centui::document document{root};
-    document.set_font(centui::font{CENTUI_FONT_PATH});
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
+
     const auto weak = button.weak();
     button.set_on_click(
         [&document, &calls, weak]()
@@ -272,7 +286,9 @@ TEST_CASE("Callback exceptions release dispatch guards and preserve edits", "[do
     auto button = centui::button<button_style>{"Throw"};
     auto root = centui::container<panel_style>{button};
     centui::document document{root};
-    document.set_font(centui::font{CENTUI_FONT_PATH});
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
+
     const auto weak = button.weak();
     button.set_on_click(
         [&document, weak]()
@@ -301,7 +317,9 @@ TEST_CASE("Root replacement reaches the next event in a batch", "[document][inpu
         }
     };
     centui::document document{first};
-    document.set_font(centui::font{CENTUI_FONT_PATH});
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
+
     first.set_on_click(
         [&document, second]()
         {
@@ -320,6 +338,8 @@ TEST_CASE("Preparation mutations are rejected and failed measurement is retryabl
     auto root = centui::container<panel_style>{child};
     root.patch_style({.align_items = centui::alignment::start});
     centui::document document{root};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     REQUIRE_THROWS_AS(document.prepare({200, 100}), std::logic_error);
     REQUIRE(document.pending_changes().layout);
     child->mutate = false;
@@ -332,7 +352,9 @@ TEST_CASE("Recursive dispatch is rejected without poisoning later input", "[docu
 {
     auto button = centui::button<button_style>{"Recursive"};
     centui::document document{button};
-    document.set_font(centui::font{CENTUI_FONT_PATH});
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
+
     button.set_on_click(
         [&document]()
         {
@@ -358,6 +380,8 @@ TEST_CASE("Captured widgets receive outside movement and release for each mouse 
     {
         auto probe = centui::make_widget<pointer_probe>();
         centui::document document{probe};
+        document.set_system_font_discovery(false);
+        document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
         document.process_event({centui::input_event_type::pointer_pressed, 5, 5, button}, {200, 100});
         document.process_event({centui::input_event_type::pointer_left}, {200, 100});
         document.process_event({centui::input_event_type::pointer_moved, -20, 150}, {200, 100});
@@ -379,6 +403,8 @@ TEST_CASE("External capture cancellation guards callbacks and settles their edit
     auto probe = centui::make_widget<pointer_probe>();
     auto root = centui::container<panel_style>{probe};
     centui::document document{root};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     bool throw_callback = false;
     SECTION("Successful cancellation")
     {
@@ -434,6 +460,8 @@ TEST_CASE("Stationary pointer hover follows layout and topology changes", "[docu
     second.patch_style({.background_color = colors});
     auto root = centui::container<panel_style>{first, second};
     centui::document document{root};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     const auto color_at = [&](std::size_t index)
     {
         return document.prepare({200, 100}).commands.at(index).color;
@@ -466,6 +494,8 @@ TEST_CASE("Another mouse button cannot steal or end an active capture", "[docume
 {
     auto probe = centui::make_widget<pointer_probe>();
     centui::document document{probe};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     document.process_event(
         {centui::input_event_type::pointer_pressed, 5, 5, centui::mouse_button::secondary},
         {200, 100}
@@ -493,6 +523,8 @@ TEST_CASE("Focus loss cancels a secondary capture without synthesizing release",
 {
     auto probe = centui::make_widget<pointer_probe>();
     centui::document document{probe};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     document.process_event(
         {centui::input_event_type::pointer_pressed, 5, 5, centui::mouse_button::secondary},
         {200, 100}
@@ -522,7 +554,9 @@ TEST_CASE("Buttons activate only for a primary gesture ending inside", "[documen
         }
     };
     centui::document document{button};
-    document.set_font(centui::font{CENTUI_FONT_PATH});
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
+
     document.process_event({centui::input_event_type::pointer_released, 5, 5}, {200, 100});
     document.process_event(
         {centui::input_event_type::pointer_pressed, 5, 5, centui::mouse_button::secondary},

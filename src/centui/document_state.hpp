@@ -88,13 +88,20 @@ struct document::input_state
 
 struct document::data
 {
+    explicit data(bool discover)
+        : typography({.system_fonts = discover}),
+          discover_system_fonts(discover)
+    {
+    }
+
     handle<> root;
     std::shared_ptr<details::document_context> context;
     style_patch style_defaults;
     details::style_patch_map style_patches;
-    text_service fonts;
+    centypo::engine typography;
+    bool discover_system_fonts = true;
     details::paint_service drawings;
-    std::shared_ptr<const void> font_revision;
+    std::uint64_t font_revision = 0;
     draw_list draw;
 
     struct command_entry

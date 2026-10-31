@@ -19,6 +19,10 @@ endif()
 add_executable(consumer main.cpp)
 target_link_libraries(consumer PRIVATE centui::centui)
 
+if(EMSCRIPTEN)
+    target_link_options(consumer PRIVATE "SHELL:--preload-file \"${CENTUI_SOURCE}/tests/assets/fonts/Inter-Regular.ttf@/assets/fonts/Inter-Regular.ttf\"")
+endif()
+
 enable_testing()
 
 add_test(NAME consumer COMMAND consumer)

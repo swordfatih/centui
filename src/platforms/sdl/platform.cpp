@@ -1,5 +1,7 @@
 #include <centui/platforms/sdl.hpp>
 
+#include <centypo/unicode.hpp>
+
 namespace centui::detail
 {
 
@@ -236,26 +238,11 @@ std::optional<input_event> platform::translate(const SDL_Event& event)
     if(event.type == SDL_EVENT_TEXT_EDITING && event.edit.windowID == SDL_GetWindowID(std::addressof(m_window)))
     {
         const std::string text = event.edit.text ? event.edit.text : "";
-        const auto byte_offset = [&](int characters)
-        {
-            std::size_t offset = 0;
-
-            while(characters > 0 && offset < text.size())
-            {
-                ++offset;
-
-                while(offset < text.size() && (static_cast<unsigned char>(text[offset]) & 0xC0) == 0x80)
-                {
-                    ++offset;
-                }
-
-                --characters;
-            }
-
-            return offset;
-        };
-        const auto start = byte_offset(std::max(0, event.edit.start));
-        const auto end = byte_offset(std::max(0, event.edit.start) + std::max(0, event.edit.length));
+        const auto start =
+            centypo::text_byte_offset_from_codepoints(text, static_cast<std::size_t>(std::max(0, event.edit.start)));
+        const auto count = static_cast<std::size_t>(std::max(0, event.edit.start)) +
+                           static_cast<std::size_t>(std::max(0, event.edit.length));
+        const auto end = centypo::text_byte_offset_from_codepoints(text, count);
 
         return input_event{
             .type = input_event_type::composition,

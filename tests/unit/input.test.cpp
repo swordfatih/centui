@@ -3,6 +3,7 @@
 #include <string_view>
 
 #include <centui/document.hpp>
+#include <centui/widgets/container.hpp>
 #include <centui/widgets/input.hpp>
 
 #include <catch2/catch_test_macros.hpp>
@@ -23,7 +24,9 @@ TEST_CASE("Standalone input header exposes edit and submit callbacks", "[widget]
 
     auto control = centui::input{"A", {.on_change = observe, .on_submit = submit}};
     centui::document document{control};
-    document.set_font(centui::font{CENTUI_FONT_PATH});
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
+
     (void)document.prepare({200, 100});
     REQUIRE(control->request_focus());
     document.process_event({.type = centui::input_event_type::text_entered, .text = "B"}, {200, 100});
@@ -33,18 +36,86 @@ TEST_CASE("Standalone input header exposes edit and submit callbacks", "[widget]
     REQUIRE(submits == 1);
 }
 
+TEST_CASE("Multiline Tab edits text while single-line and modified Tab navigate", "[widget][input][focus]")
+{
+    std::string observed;
+    auto multiline = centui::input{"ABC", {.multiline = true, .on_change = [&](std::string_view value)
+                                         {
+                                             observed = value;
+                                         }}};
+    auto single = centui::input{"single"};
+    centui::document document{centui::container{multiline, single}};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
+    (void)document.prepare({200, 100});
+    REQUIRE(multiline->request_focus());
+
+    SECTION("Tab replaces the selection, retains focus, and supports undo")
+    {
+        multiline->set_selection(1, 2);
+        document.process_event({.type = centui::input_event_type::key_pressed, .code = centui::key::tab}, {200, 100});
+        REQUIRE(multiline->value() == "A\tC");
+        REQUIRE(observed == "A\tC");
+        REQUIRE(multiline->selection() == std::pair<std::size_t, std::size_t>{2, 2});
+        REQUIRE(multiline->focused());
+        document.process_event(
+            {.type = centui::input_event_type::key_pressed, .code = centui::key::z, .mods = {.control = true}},
+            {200, 100}
+        );
+        REQUIRE(multiline->value() == "ABC");
+        REQUIRE(multiline->selection() == std::pair<std::size_t, std::size_t>{1, 2});
+    }
+
+    SECTION("Modified Tab leaves the text unchanged and moves focus")
+    {
+        centui::modifiers mods{};
+        SECTION("Shift")
+        {
+            mods.shift = true;
+        }
+        SECTION("Control")
+        {
+            mods.control = true;
+        }
+        SECTION("Alt")
+        {
+            mods.alt = true;
+        }
+        SECTION("System")
+        {
+            mods.system = true;
+        }
+        document.process_event(
+            {.type = centui::input_event_type::key_pressed, .code = centui::key::tab, .mods = mods},
+            {200, 100}
+        );
+        REQUIRE(multiline->value() == "ABC");
+        REQUIRE(single->focused());
+    }
+
+    SECTION("Single-line Tab moves focus without inserting text")
+    {
+        REQUIRE(single->request_focus());
+        document.process_event({.type = centui::input_event_type::key_pressed, .code = centui::key::tab}, {200, 100});
+        REQUIRE(single->value() == "single");
+        REQUIRE(multiline->focused());
+    }
+}
+
 TEST_CASE("Input activity loss cancels composition while retaining logical focus", "[widget][input][focus]")
 {
     auto control = centui::input{"A"};
     std::optional<centui::rect> host_area;
     centui::document document{control};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     auto services = std::make_shared<centui::host_services>();
     services->text_input = [&](auto area)
     {
         host_area = area;
     };
     document.set_host_services(services);
-    document.set_font(centui::font{CENTUI_FONT_PATH});
+
     (void)document.prepare({200, 100});
     REQUIRE(control->request_focus());
     const auto initial_area = host_area;
@@ -76,13 +147,15 @@ TEST_CASE("Mouse-focused input retains its caret and host session with no focus 
     );
     std::optional<centui::rect> host_area;
     centui::document document{control};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     auto services = std::make_shared<centui::host_services>();
     services->text_input = [&](auto area)
     {
         host_area = area;
     };
     document.set_host_services(services);
-    document.set_font(centui::font{CENTUI_FONT_PATH});
+
     document.process_event({centui::input_event_type::pointer_pressed, 5, 5}, {200, 100});
     document.process_event({centui::input_event_type::pointer_released, 5, 5}, {200, 100});
     REQUIRE(control->focused());

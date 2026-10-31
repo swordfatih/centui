@@ -20,12 +20,17 @@ struct preparation_statistics
     std::size_t command_cache_bytes = 0;
 };
 
+struct document_options
+{
+    bool system_font_discovery = true;
+};
+
 class document
 {
 public:
-    document();
+    explicit document(document_options options = {});
 
-    explicit document(handle<> root);
+    explicit document(handle<> root, document_options options = {});
 
     ~document();
 
@@ -41,9 +46,19 @@ public:
 
     [[nodiscard]] handle<> root() const noexcept;
 
-    [[nodiscard]] text_service& fonts() noexcept;
+    /// Layout and rasterization use Centypo directly; font mutation goes through the document.
+    [[nodiscard]] const centypo::engine& typography() const noexcept;
 
-    void set_font(const centui::font& face);
+    void clear_text_cache();
+    void set_text_cache_budgets(centypo::text_cache_budgets budgets);
+
+    /// \brief Snapshots application font data; later equivalent registrations win.
+    /// Collection changes are rejected during measurement/painting and publish atomically.
+    void register_font(const std::filesystem::path& path);
+    void register_font(std::span<const std::byte> bytes);
+    void refresh_fonts();
+    void set_system_font_discovery(bool enabled);
+    void set_font_alias(std::string alias, std::vector<std::string> families);
 
     /// \brief Replaces document defaults and immediately resolves mounted widgets.
     void set_style(const style_patch& defaults);

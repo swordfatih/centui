@@ -18,7 +18,9 @@ TEST_CASE("Standalone toggle header preserves composed label and activation", "[
         }
     };
     centui::document document{control};
-    document.set_font(centui::font{CENTUI_FONT_PATH});
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
+
     (void)document.prepare({200, 100});
     REQUIRE(control->children().size() == 1);
     REQUIRE(control->request_focus());

@@ -43,18 +43,20 @@ namespace details
 
 painter::painter(
     draw_list& output,
-    text_service& fonts,
+    const centypo::engine& fonts,
     details::paint_service& drawings,
     rect content,
     rect clip,
     const centui::style& style,
-    details::visual_state state
+    details::visual_state state,
+    std::optional<rect> text_clip
 )
     : m_output(output),
-      m_fonts(fonts),
+      m_typography(fonts),
       m_drawings(drawings),
       m_bounds(content),
       m_clip(clip),
+      m_text_clip(text_clip.value_or(clip)),
       m_style(style),
       m_state(state)
 {
@@ -70,9 +72,9 @@ float painter::scale() const noexcept
     return m_output.viewport.scale;
 }
 
-text_service& painter::fonts() const noexcept
+const centypo::engine& painter::typography() const noexcept
 {
-    return m_fonts;
+    return m_typography;
 }
 
 centui::color painter::foreground() const noexcept
@@ -100,9 +102,9 @@ void painter::rectangle(rect bounds, centui::color color)
     }
 }
 
-void painter::text(std::shared_ptr<const text_layout> layout)
+void painter::text(centypo::layout layout)
 {
-    text(std::move(layout), bounds(), details::state_color(m_style.text_color, m_state), m_style.text_align);
+    text(std::move(layout), bounds(), details::state_color(m_style.text_color, m_state));
 }
 
 void painter::image(std::shared_ptr<const bitmap> value, rect bounds, centui::color tint, image_sampling sampling)
@@ -127,27 +129,36 @@ void painter::text(std::string_view value)
 {
     if(!value.empty())
     {
-        text(m_fonts.prepare(value, m_style.font, m_style.font_size, std::max(0.0f, m_bounds.width)));
+        const auto layout = m_typography.layout(
+            value,
+            {.size = m_style.font_size,
+             .width = std::max(0.0f, m_bounds.width),
+             .font = m_style.font.value_or(centypo::font{}),
+             .paragraph = m_style.paragraph.value_or(centypo::text_options{}),
+             .alignment = m_style.text_align}
+        );
+
+        text(m_typography.rasterize(layout, scale()));
     }
 }
 
 void painter::text(
-    std::shared_ptr<const text_layout> layout,
+    centypo::layout layout,
     rect bounds,
     centui::color color,
-    text_alignment alignment
+    bool clip_to_content
 )
 {
     bounds.x += m_bounds.x;
     bounds.y += m_bounds.y;
     const auto clip = intersection(
-        intersection(bounds, m_clip),
+        clip_to_content ? m_clip : m_text_clip,
         {0, 0, m_output.viewport.logical_width(), m_output.viewport.logical_height()}
     );
 
-    if(layout && color.a != 0 && clip.width > 0 && clip.height > 0)
+    if(color.a != 0 && clip.width > 0 && clip.height > 0)
     {
-        const text_command command{bounds, color, std::move(layout), alignment, clip};
+        const text_command command{bounds, color, std::move(layout), clip};
         details::for_each_glyph(
             command,
             {0, 0, m_output.viewport.logical_width(), m_output.viewport.logical_height()},

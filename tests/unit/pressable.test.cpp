@@ -58,6 +58,8 @@ TEST_CASE("Pressables activate through nested content and multiple children", "[
     }
 
     centui::document document{action};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     click(document, 5);
     click(document, 25);
     REQUIRE(calls == 2);
@@ -82,6 +84,8 @@ TEST_CASE("Pressable keyboard activation ignores repeats and disabled state", "[
         }
     };
     centui::document document{action};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     (void)document.prepare({200, 100});
     REQUIRE(action->request_focus());
 
@@ -114,6 +118,8 @@ TEST_CASE("Noninteractive descendants inherit pressable visual states", "[widget
     content.patch_style({.height = centui::px(20), .background_color = colors});
     auto action = centui::pressable<action_style>{centui::container{content}};
     centui::document document{action};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     const auto color = [&]
     {
         const auto& commands = document.prepare({200, 100}).commands;

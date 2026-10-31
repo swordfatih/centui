@@ -30,6 +30,7 @@
     X(font_size)                   \
     X(font)                        \
     X(text_align)                  \
+    X(paragraph)                   \
     X(visibility)                  \
     X(overflow)                    \
     X(border_width)                \
@@ -53,8 +54,9 @@
     X(corner_radius)               \
     X(focus)
 
-#include <centui/font.hpp>
 #include <centui/types.hpp>
+
+#include <centypo/engine.hpp>
 
 namespace centui
 {
@@ -219,8 +221,9 @@ public:
     states_color text_color = states_color::all({255, 255, 255, 255});
 
     float font_size = 16.0f;
-    std::optional<centui::font> font = std::nullopt;
-    text_alignment text_align = text_alignment::left;
+    std::optional<centypo::font> font = std::nullopt;
+    centypo::text_alignment text_align = centypo::text_alignment::left;
+    std::optional<centypo::text_options> paragraph;
     centui::visibility visibility = centui::visibility::visible;
     centui::overflow overflow = centui::overflow::visible;
     edges border_width{};
@@ -286,8 +289,9 @@ struct style_patch
     std::optional<states_color> background_color = std::nullopt;
     std::optional<states_color> text_color = std::nullopt;
     std::optional<float> font_size = std::nullopt;
-    std::optional<std::optional<centui::font>> font = std::nullopt;
-    std::optional<text_alignment> text_align = std::nullopt;
+    std::optional<std::optional<centypo::font>> font = std::nullopt;
+    std::optional<centypo::text_alignment> text_align = std::nullopt;
+    std::optional<std::optional<centypo::text_options>> paragraph;
     std::optional<centui::visibility> visibility = std::nullopt;
     std::optional<centui::overflow> overflow = std::nullopt;
     std::optional<edges> border_width = std::nullopt;

@@ -47,7 +47,7 @@ jobs:
                     libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev \
                     libxi-dev libxss-dev libxtst-dev libudev-dev \
                     libgl1-mesa-dev libflac-dev libogg-dev libvorbis-dev \
-                    libfreetype-dev libharfbuzz-dev libxinerama-dev libwayland-dev libxkbcommon-dev xvfb
+                    libfreetype-dev libharfbuzz-dev libfontconfig1-dev libxinerama-dev libwayland-dev libxkbcommon-dev xvfb
 
             - name: Configure
               shell: bash
@@ -99,7 +99,7 @@ jobs:
                     libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev \
                     libxi-dev libxss-dev libxtst-dev libudev-dev \
                     libgl1-mesa-dev libflac-dev libogg-dev libvorbis-dev \
-                    libfreetype-dev libharfbuzz-dev libxinerama-dev libwayland-dev libxkbcommon-dev xvfb
+                    libfreetype-dev libharfbuzz-dev libfontconfig1-dev libxinerama-dev libwayland-dev libxkbcommon-dev xvfb
 
             - name: Configure
               shell: bash
@@ -262,6 +262,9 @@ jobs:
         steps:
             - name: Checkout
               uses: actions/checkout@v6
+
+            - name: Install native font discovery headers
+              run: sudo apt-get update && sudo apt-get install -y libfontconfig1-dev
 
             - name: Test FetchContent consumer
               run: |

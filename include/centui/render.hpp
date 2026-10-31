@@ -14,79 +14,13 @@
 
 #include <centui/types.hpp>
 
+#include <centypo/layout.hpp>
+
 namespace centui
 {
 
-/// \brief A positioned glyph and its original UTF-8 byte offset.
-struct shaped_glyph
-{
-    std::uint32_t id;
-    float x;
-    float y;
-    // UTF-8 byte offset, independent of the number and order of output glyphs.
-    std::uint32_t cluster = 0;
-    std::shared_ptr<const struct glyph_bitmap> image = nullptr;
-    float advance = 0;
-    float origin = 0;
-};
-
-/// \brief Prepared glyphs, line metrics, and caret positions in logical units.
-struct text_layout
-{
-    struct line
-    {
-        std::size_t begin;
-        std::size_t end;
-        float width;
-        std::size_t text_begin = 0;
-        std::size_t text_end = 0;
-    };
-
-    std::vector<shaped_glyph> glyphs;
-    rect bounds{};
-    float ascender = 0;
-    std::vector<line> lines;
-
-    struct caret
-    {
-        std::size_t offset;
-        vec2 position;
-    };
-
-    float line_height = 0;
-    float raster_scale = 1;
-    std::vector<caret> carets;
-};
-
-[[nodiscard]] rect caret_bounds(const text_layout& layout, std::size_t offset);
-
-[[nodiscard]] std::size_t text_hit(const text_layout& layout, vec2 point);
-
-[[nodiscard]] std::vector<rect> selection_bounds(const text_layout& layout, std::size_t begin, std::size_t end);
-
-enum class pixel_format
-{
-    alpha,
-    rgba
-};
-
-/// \brief CPU image pixels stored in row-major order.
-struct bitmap
-{
-    int width = 0;
-    int height = 0;
-    std::vector<std::uint8_t> pixels;
-    pixel_format format = pixel_format::rgba;
-};
-
-/// \brief A rasterized glyph with its baseline bearing.
-struct glyph_bitmap : bitmap
-{
-    glyph_bitmap(int width, int height, int left, int top, std::vector<std::uint8_t> pixels);
-
-    int left = 0;
-    int top = 0;
-};
+using pixel_format = centypo::pixel_format;
+using bitmap = centypo::bitmap;
 
 void validate_bitmap(const bitmap& image);
 
@@ -96,8 +30,7 @@ struct text_command
 {
     rect bounds;
     centui::color color;
-    std::shared_ptr<const text_layout> shaped;
-    text_alignment alignment = text_alignment::left;
+    centypo::layout shaped;
     rect clip{};
 };
 
@@ -157,7 +90,7 @@ struct glyph_quad
 {
     rect bounds;
     rect uv;
-    std::shared_ptr<const glyph_bitmap> image;
+    std::shared_ptr<const centypo::glyph_bitmap> image;
     centui::color color;
 };
 
@@ -194,35 +127,30 @@ void draw_image(const image_command& command, rect viewport, Draw&& draw)
 template <typename draw_function>
 void for_each_glyph(const text_command& command, rect viewport, draw_function&& draw)
 {
-    if(!command.shaped || command.color.a == 0)
+    if(command.shaped.glyphs().empty() || command.color.a == 0)
     {
         return;
     }
 
-    const auto clip = intersection(intersection(command.bounds, command.clip), viewport);
+    const auto clip = intersection(command.clip, viewport);
 
     if(clip.width <= 0 || clip.height <= 0)
     {
         return;
     }
 
-    const auto& shaped = *command.shaped;
+    const auto& shaped = command.shaped;
 
-    for(const auto& line: shaped.lines)
+    for(const auto& line: shaped.lines())
     {
-        if(line.begin > line.end || line.end > shaped.glyphs.size())
+        if(line.begin > line.end || line.end > shaped.glyphs().size())
         {
             throw std::invalid_argument("Glyph line is outside its prepared run");
         }
 
-        const auto spare = std::max(0.0f, command.bounds.width - line.width);
-        const auto offset = command.alignment == text_alignment::center  ? spare / 2
-                            : command.alignment == text_alignment::right ? spare
-                                                                         : 0;
-
         for(auto i = line.begin; i < line.end; ++i)
         {
-            const auto& glyph = shaped.glyphs[i];
+            const auto& glyph = shaped.glyphs()[i];
 
             if(!glyph.image || glyph.image->width <= 0 || glyph.image->height <= 0)
             {
@@ -233,15 +161,17 @@ void for_each_glyph(const text_command& command, rect viewport, draw_function&& 
             const auto width = static_cast<std::size_t>(image.width);
             const auto height = static_cast<std::size_t>(image.height);
 
-            if(width > std::numeric_limits<std::size_t>::max() / height || image.pixels.size() != width * height)
+            const auto channels = image.format == pixel_format::rgba ? std::size_t{4} : std::size_t{1};
+            if(width > std::numeric_limits<std::size_t>::max() / height / channels ||
+               image.pixels.size() != width * height * channels)
             {
                 throw std::invalid_argument("Glyph pixels do not match their image dimensions");
             }
 
-            const auto scale = shaped.raster_scale;
+            const auto scale = shaped.raster_scale();
             const rect original{
-                std::round((command.bounds.x + offset + glyph.x) * scale + image.left) / scale,
-                std::round((command.bounds.y + shaped.ascender - glyph.y) * scale - image.top) / scale,
+                std::round((command.bounds.x + glyph.x) * scale + image.left) / scale,
+                std::round((command.bounds.y + shaped.baseline() - glyph.y) * scale - image.top) / scale,
                 image.width / scale,
                 image.height / scale
             };
@@ -261,7 +191,7 @@ void for_each_glyph(const text_command& command, rect viewport, draw_function&& 
                      bounds.width / original.width,
                      bounds.height / original.height},
                     glyph.image,
-                    command.color
+                    image.format == pixel_format::rgba ? centui::color{255, 255, 255, command.color.a} : command.color
                 }
             );
         }

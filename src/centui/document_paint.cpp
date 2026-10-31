@@ -80,7 +80,7 @@ void document::paint_tree_uncached(
     }
 
     const auto appearance = value.resolved_style();
-    painter background{output, m_data->fonts, m_data->drawings, value.m_bounds, clip, appearance, state};
+    painter background{output, m_data->typography, m_data->drawings, value.m_bounds, clip, appearance, state};
     background.rounded_rectangle(
         background.bounds(),
         value.m_style.corner_radius,
@@ -111,12 +111,13 @@ void document::paint_tree_uncached(
 
     painter content{
         output,
-        m_data->fonts,
+        m_data->typography,
         m_data->drawings,
         value.m_content,
         intersection(clip, value.m_content),
         appearance,
-        state
+        state,
+        value.m_style.overflow == overflow::visible ? clip : intersection(clip, value.m_content)
     };
     value.paint(content);
     const auto child_clip = value.m_clip_children || value.m_style.overflow != overflow::visible

@@ -39,7 +39,9 @@ TEST_CASE("Button labels retain their child and invalidate layout when edited", 
     auto root = centui::container{button};
     root.patch_style({.align_items = centui::alignment::start});
     centui::document document{root};
-    document.set_font(centui::font{CENTUI_FONT_PATH});
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
+
     const auto children = button->children();
     REQUIRE(children.size() == 1);
     REQUIRE(children.front()->parent() == centui::handle<>{button});
@@ -69,19 +71,23 @@ TEST_CASE("Button labels follow parent typography and padding changes", "[widget
         .width = centui::px(180),
         .height = centui::px(80),
         .font_size = 12,
-        .text_align = centui::text_alignment::right,
+        .text_align = centypo::text_alignment::right,
     });
     centui::document document{button};
-    document.set_font(centui::font{CENTUI_FONT_PATH});
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
+
     const auto small = label_command(document);
-    centui::text_service fonts{centui::font{CENTUI_FONT_PATH}};
-    const auto small_layout = fonts.prepare("Label", {}, 12);
+    centui::document fonts_document{centui::document_options{.system_font_discovery = false}};
+    fonts_document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
+    auto& fonts = fonts_document.typography();
+    const auto small_layout = fonts.layout("Label", {.size = 12});
     const auto small_right = small.glyphs.back().bounds.x + small.glyphs.back().bounds.width;
     const auto content = button->content_bounds();
-    REQUIRE(small.glyphs.front().bounds.x >= content.x + content.width - small_layout->bounds.width - 1);
+    REQUIRE(small.glyphs.front().bounds.x >= content.x + content.width - small_layout.bounds().width - 1);
     REQUIRE(small_right <= content.x + content.width + 1);
 
-    button.patch_style({.font_size = 24, .text_align = centui::text_alignment::center});
+    button.patch_style({.font_size = 24, .text_align = centypo::text_alignment::center});
     const auto large = label_command(document);
     const auto large_left = large.glyphs.front().bounds.x;
     const auto large_right = large.glyphs.back().bounds.x + large.glyphs.back().bounds.width;
@@ -100,7 +106,9 @@ TEST_CASE("Button labels paint normal hover pressed focused and disabled colors"
     auto button = centui::button{"Label"};
     button.patch_style({.width = centui::px(120), .height = centui::px(40), .text_color = colors});
     centui::document document{button};
-    document.set_font(centui::font{CENTUI_FONT_PATH});
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
+
     REQUIRE(label_command(document).color == colors.normal);
     document.process_event({centui::input_event_type::pointer_moved, 5, 5}, {400, 200});
     REQUIRE(label_command(document).color == colors.hover);

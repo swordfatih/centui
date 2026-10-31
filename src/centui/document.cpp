@@ -28,15 +28,15 @@ void document_context::check_mutation() const
 
 } // namespace details
 
-document::document()
-    : m_data(std::make_unique<data>())
+document::document(document_options options)
+    : m_data(std::make_unique<data>(options.system_font_discovery))
 {
     m_data->context = std::make_shared<details::document_context>(*this);
     m_data->focus = std::make_unique<details::focus_controller>(*this);
 }
 
-document::document(handle<> root)
-    : document()
+document::document(handle<> root, document_options options)
+    : document(options)
 {
     set_root(std::move(root));
 }
@@ -77,18 +77,61 @@ handle<> document::root() const noexcept
     return m_data->root;
 }
 
-text_service& document::fonts() noexcept
+const centypo::engine& document::typography() const noexcept
 {
-    return m_data->fonts;
+    return m_data->typography;
 }
 
-void document::set_font(const centui::font& face)
+void document::clear_text_cache()
+{
+    m_data->typography.clear_cache();
+}
+
+void document::set_text_cache_budgets(centypo::text_cache_budgets budgets)
+{
+    m_data->typography.set_cache_budgets(budgets);
+}
+
+void document::register_font(const std::filesystem::path& path)
 {
     m_data->context->check_mutation();
-    const auto revision = m_data->fonts.identity();
-    m_data->fonts.set_font(face);
+    m_data->typography.register_font(path);
+    dirty_tree();
+}
 
-    if(revision != m_data->fonts.identity())
+void document::register_font(std::span<const std::byte> bytes)
+{
+    m_data->context->check_mutation();
+    m_data->typography.register_font(bytes);
+    dirty_tree();
+}
+
+void document::refresh_fonts()
+{
+    m_data->context->check_mutation();
+    m_data->typography.refresh_fonts();
+    dirty_tree();
+}
+
+void document::set_system_font_discovery(bool enabled)
+{
+    m_data->context->check_mutation();
+    if(enabled == m_data->discover_system_fonts)
+    {
+        return;
+    }
+    m_data->typography.set_system_font_discovery(enabled);
+    m_data->discover_system_fonts = enabled;
+    dirty_tree();
+}
+
+void document::set_font_alias(std::string alias, std::vector<std::string> families)
+{
+    m_data->context->check_mutation();
+    const auto revision = m_data->typography.revision();
+    m_data->typography.set_font_alias(std::move(alias), std::move(families));
+
+    if(revision != m_data->typography.revision())
     {
         dirty_tree();
     }
@@ -140,6 +183,10 @@ void document::update_styles(
 )
 {
     m_data->context->check_mutation();
+    const auto before_defaults = m_data->style_defaults.apply(centui::style{});
+    const auto after_defaults = defaults.apply(centui::style{});
+    const bool text_defaults_changed =
+        before_defaults.font != after_defaults.font || before_defaults.paragraph != after_defaults.paragraph;
     style_updates updates;
     stage_styles(updates, m_data->root.m_value, defaults, patches, type);
     m_data->style_defaults = std::move(defaults);
@@ -147,6 +194,10 @@ void document::update_styles(
     if(commit_styles(updates))
     {
         interaction_changed();
+    }
+    if(text_defaults_changed)
+    {
+        dirty_tree();
     }
 }
 
@@ -359,7 +410,7 @@ const draw_list& document::prepare(centui::viewport viewport)
         }
 
         m_data->draw = std::move(candidate);
-        m_data->font_revision = m_data->fonts.identity();
+        m_data->font_revision = m_data->typography.revision();
         m_data->context->paint_dirty = false;
     }
 

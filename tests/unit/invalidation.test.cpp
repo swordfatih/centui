@@ -132,6 +132,8 @@ TEST_CASE("Local metrics synchronize one branch and retain clean native inputs",
     auto root = centui::container{left, right};
     root->patch_style({.flex_direction = centui::direction::row, .align_items = centui::alignment::start});
     centui::document document{root};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     (void)document.prepare({200, 100});
     auto before = document.statistics();
     (void)document.prepare({200, 100});
@@ -159,6 +161,8 @@ TEST_CASE("Explicit geometry coalesces, includes paint, and preserves sibling bo
     auto root = centui::container{a, b};
     root->set_paint_boundary(true);
     centui::document document{root};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     (void)document.prepare({200, 100});
     const auto before = document.statistics();
     const auto b_geometries = b->geometries;
@@ -181,6 +185,8 @@ TEST_CASE("Geometry retries unfinished hooks and requests made by hooks", "[inva
     auto a = centui::make_widget<probe>();
     auto b = centui::make_widget<probe>();
     centui::document document{centui::container{a, b}};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     (void)document.prepare({200, 100});
     const auto before = document.statistics();
     a->geometry = []
@@ -215,6 +221,8 @@ TEST_CASE("Geometry hooks settle offsets before descendant geometry and targetin
     root->append(child);
     root->patch_style({.width = centui::px(100), .height = centui::px(100)});
     centui::document document{root};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     (void)document.prepare({200, 100});
     document.process_event({centui::input_event_type::pointer_moved, 5, 5}, {200, 100});
     REQUIRE(child->hovered());
@@ -241,6 +249,8 @@ TEST_CASE("Detached geometry survives mounting and removal releases pending widg
     child->geometry_changed();
     auto root = centui::container{};
     centui::document first{root};
+    first.set_system_font_discovery(false);
+    first.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     first.append(root, child);
     (void)first.prepare({200, 100});
     REQUIRE(child->geometries == 1);
@@ -251,6 +261,8 @@ TEST_CASE("Detached geometry survives mounting and removal releases pending widg
     (void)first.prepare({200, 100});
     REQUIRE(child->geometries == before);
     centui::document second{child};
+    second.set_system_font_discovery(false);
+    second.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     (void)second.prepare({200, 100});
     REQUIRE(child->geometries == before + 1);
     auto weak = child.weak();
@@ -270,6 +282,8 @@ TEST_CASE("Interactive changes refresh inherited appearance without an input tra
     parent->append(child);
     parent->patch_style({.width = centui::px(100), .height = centui::px(100)});
     centui::document document{parent};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     document.process_event({centui::input_event_type::pointer_moved, 80, 80}, {200, 100});
     REQUIRE(parent->hovered());
     (void)document.prepare({200, 100});
@@ -299,6 +313,8 @@ TEST_CASE("Hover focus capture and disable preserve an unrelated boundary", "[in
     a->focusable(true);
     b->set_paint_boundary(true);
     centui::document document{centui::container{a, b}};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     (void)document.prepare({200, 100});
     const auto before = document.statistics();
     document.process_event({centui::input_event_type::pointer_moved, 5, 5}, {200, 100});
@@ -326,6 +342,8 @@ TEST_CASE("Scale-only changes refresh commands without layout or geometry callba
 {
     auto child = centui::make_widget<probe>();
     centui::document document{child};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     (void)document.prepare({200, 100});
     const auto bounds = child->bounds();
     const auto before = document.statistics();
@@ -347,7 +365,9 @@ TEST_CASE("Input caret selection and wheel scrolling refresh host bounds without
     control->patch_style({.width = centui::px(80), .height = centui::px(30)});
     std::optional<centui::rect> host_area;
     centui::document document{control};
-    document.set_font(centui::font{CENTUI_FONT_PATH});
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
+
     auto services = std::make_shared<centui::host_services>();
     services->text_input = [&](std::optional<centui::rect> area)
     {
@@ -392,7 +412,9 @@ TEST_CASE("Fixed input and scroll bounds refresh geometry when their contents ch
     auto scroll = centui::scroll{content};
     scroll->patch_style({.width = centui::px(80), .height = centui::px(30)});
     centui::document document{centui::container{input, scroll}};
-    document.set_font(centui::font{CENTUI_FONT_PATH});
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
+
     (void)document.prepare({200, 100});
     const auto input_bounds = input->bounds();
     const auto scroll_bounds = scroll->bounds();
@@ -410,7 +432,9 @@ TEST_CASE("Fixed input and scroll bounds refresh geometry when their contents ch
     auto fresh_scroll = centui::scroll{fresh_content};
     fresh_scroll->set_style(scroll->style());
     centui::document reference{centui::container{fresh_input, fresh_scroll}};
-    reference.set_font(centui::font{CENTUI_FONT_PATH});
+    reference.set_system_font_discovery(false);
+    reference.register_font(std::filesystem::path{CENTUI_FONT_PATH});
+
     same_drawing(actual, reference.prepare({200, 100}));
     REQUIRE(scroll->limit() == fresh_scroll->limit());
 }
@@ -419,13 +443,15 @@ TEST_CASE("Inherited metric changes synchronize dependents and match fresh text 
 {
     auto text = centui::make_widget<centui::text_widget>("Inherited font", centui::style_source{}, true);
     auto explicit_text = centui::text{"Explicit font"};
-    const centui::font original{CENTUI_FONT_PATH};
-    const centui::font replacement{CENTUI_FONT_PATH};
+    const centypo::font original{{"Inter"}};
+    const centypo::font replacement{{"serif"}};
     explicit_text->patch_style({.font = original});
     auto root = centui::container{text, explicit_text};
     root->patch_style({.font = original});
     centui::document document{root};
-    document.set_font(original);
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
+    document.set_style({.font = original});
     (void)document.prepare({300, 100});
     const auto before = document.statistics();
     root->patch_style({.font_size = 24, .font = replacement});
@@ -438,11 +464,13 @@ TEST_CASE("Inherited metric changes synchronize dependents and match fresh text 
     auto fresh_root = centui::container{fresh_text, fresh_explicit};
     fresh_root->set_style(root->style());
     centui::document reference{fresh_root};
-    reference.set_font(original);
+    reference.set_system_font_discovery(false);
+    reference.register_font(std::filesystem::path{CENTUI_FONT_PATH});
+    reference.set_style({.font = original});
     same_drawing(actual, reference.prepare({300, 100}));
     REQUIRE(text->bounds() == fresh_text->bounds());
     REQUIRE(explicit_text->bounds() == fresh_explicit->bounds());
-    document.set_font(replacement);
+    document.set_style({.font = replacement});
     const auto calculations = document.statistics().layout_calculations;
     (void)document.prepare({300, 100});
     REQUIRE(document.statistics().layout_calculations == calculations + 1);
@@ -454,7 +482,9 @@ TEST_CASE("Popup focus settles on opening and reopening", "[invalidation][geomet
     auto content = centui::input{"Popup input"};
     auto popup = centui::popup{centui::container{content}};
     centui::document document{centui::container{previous, popup}};
-    document.set_font(centui::font{CENTUI_FONT_PATH});
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
+
     (void)document.prepare({200, 100});
     REQUIRE(previous->request_focus());
     for(int opening = 0; opening != 2; ++opening)
@@ -478,7 +508,9 @@ TEST_CASE("Popup focus falls back to the popup when content is ineligible", "[in
     content->set_enabled(false);
     auto popup = centui::popup{centui::container{content}};
     centui::document document{centui::container{popup}};
-    document.set_font(centui::font{CENTUI_FONT_PATH});
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
+
     (void)document.prepare({200, 100});
     for(int opening = 0; opening != 2; ++opening)
     {
@@ -502,6 +534,8 @@ TEST_CASE(
     child->interactive(true);
     child->patch_style({.width = centui::px(20), .height = centui::px(20)});
     centui::document document{child};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     document.process_event({centui::input_event_type::pointer_moved, 30, 5}, {200, 100});
     REQUIRE_FALSE(child->hovered());
     const auto options = document.options();
@@ -528,6 +562,8 @@ TEST_CASE("Child clipping refreshes targeting and paint without intrinsic measur
     parent->patch_style({.width = centui::px(20), .height = centui::px(20)});
     parent->append(child);
     centui::document document{parent};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     document.process_event({centui::input_event_type::pointer_moved, 40, 5}, {200, 100});
     REQUIRE(child->hovered());
     (void)document.prepare({200, 100});
@@ -545,6 +581,8 @@ TEST_CASE("Leaf transitions and zero viewport retain pending preparation", "[inv
     // A maximum width requires intrinsic sizing; a viewport-sized root can skip measurement.
     root->patch_style({.align_items = centui::alignment::start, .max_width = centui::px(200)});
     centui::document document{root};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     (void)document.prepare({200, 100});
     auto child = centui::make_widget<probe>();
     document.append(root, child);
@@ -568,6 +606,8 @@ TEST_CASE("Leaf transitions and zero viewport retain pending preparation", "[inv
     fresh->natural_width = 60;
     fresh->set_style(root->style());
     centui::document reference{fresh};
+    reference.set_system_font_discovery(false);
+    reference.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     same_drawing(document.prepare({200, 100}), reference.prepare({200, 100}));
     REQUIRE(root->bounds() == fresh->bounds());
 }
@@ -579,6 +619,8 @@ TEST_CASE("Measurement and baseline failures retry after native inputs were sync
     auto root = centui::container{a, b};
     root->patch_style({.flex_direction = centui::direction::row, .align_items = centui::alignment::baseline});
     centui::document document{root};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     (void)document.prepare({200, 100});
     SECTION("measurement")
     {
@@ -605,6 +647,8 @@ TEST_CASE("Failed paint retains published drawing and retries nested boundaries"
     auto root = centui::container{a, b};
     root->set_paint_boundary(true);
     centui::document document{root};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     const auto& published = document.prepare({200, 100});
     const auto previous = published;
     b->fail_paint = true;
@@ -651,6 +695,8 @@ TEST_CASE("Incremental Yoga dependencies match a fresh final tree", "[invalidati
             branch->patch_style({.display = centui::display::contents});
         }
         centui::document document{root};
+        document.set_system_font_discovery(false);
+        document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
         (void)document.prepare({200, 100});
         a->natural_width = 90;
         a->metrics_changed();
@@ -665,6 +711,8 @@ TEST_CASE("Incremental Yoga dependencies match a fresh final tree", "[invalidati
         auto fresh_root = centui::container{fresh_branch, fresh_b};
         fresh_root->set_style(appearance);
         centui::document reference{fresh_root};
+        reference.set_system_font_discovery(false);
+        reference.register_font(std::filesystem::path{CENTUI_FONT_PATH});
         const auto expected = reference.prepare({200, 100});
         REQUIRE(root->bounds() == fresh_root->bounds());
         REQUIRE(branch->bounds() == fresh_branch->bounds());

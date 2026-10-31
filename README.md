@@ -7,7 +7,7 @@ CentUI is a small C++20 library for building interfaces from ordinary widgets. C
 <p align="center">
   <img src="docs/assets/showcase.png" alt="CentUI Studio showcase" width="600">
   <br>
-  <em><a href="examples/pulse/main.cpp">pulse example</a> (SDL platform, bgfx rendering backend)</em>
+  <em><a href="tests/examples/pulse/main.cpp">pulse example</a> (SDL platform, bgfx rendering backend)</em>
 </p>
 
 ## Hello world
@@ -32,7 +32,6 @@ int main()
     };
 
     centui::document document{root};
-    document.set_font(centui::font{"assets/fonts/Inter-Regular.ttf"});
     centui::ui ui{window, renderer};
 
     while(window.poll_events())
@@ -42,7 +41,10 @@ int main()
 }
 ```
 
-Run this from the repository root so the font path resolves. For a styled counter you can build immediately, see [getting_started](examples/getting_started/main.cpp).
+Fonts are available automatically; no font setup or working-directory convention is required. For a styled counter you can build immediately, see [getting_started](tests/examples/getting_started/main.cpp).
+
+See [native text layout](docs/native-text-layout.md) for font requests, registration,
+Unicode layout, editing, cache budgets and the declared font/language coverage.
 
 Document themes update existing widgets without rebuilding the tree:
 
@@ -51,7 +53,7 @@ document.set_style({.font_size = 18});
 document.patch_style<my_button_style>({.corner_radius = 8});
 ```
 
-Style composition preserves order and final widget overrides. Callbacks can optionally take `centui::event&` for document, target, and input access. See [widgets and styles](docs/widgets-and-styles.md) and the [Pulse dark/light theme example](examples/pulse/main.cpp).
+Style composition preserves order and final widget overrides. Callbacks can optionally take `centui::event&` for document, target, and input access. See [widgets and styles](docs/widgets-and-styles.md) and the [Pulse dark/light theme example](tests/examples/pulse/main.cpp).
 
 ## Installation
 
@@ -93,15 +95,22 @@ cmake -S . -B build -G Ninja -DCENTUI_BUILD_EXAMPLES=ON -DCENTUI_BUILD_SDL=ON -D
 cmake --build build --target centui_example_getting_started
 ```
 
-The executable is in `build/examples/getting_started/`. Other examples include a [complete interface built as a nested tree](examples/gui_static/main.cpp), [the same interface built with helpers](examples/gui_dynamic/main.cpp), and SDL, SFML, and GLFW overlays in [hud_sdl](examples/hud_sdl/main.cpp), [hud_sfml](examples/hud_sfml/main.cpp), and [hud_glfw](examples/hud_glfw/main.cpp).
+The executable is in `build/tests/examples/getting_started/`. Other examples include a [complete interface built as a nested tree](tests/examples/gui_static/main.cpp), [the same interface built with helpers](tests/examples/gui_dynamic/main.cpp), and SDL, SFML, and GLFW overlays in [hud_sdl](tests/examples/hud_sdl/main.cpp), [hud_sfml](tests/examples/hud_sfml/main.cpp), and [hud_glfw](tests/examples/hud_glfw/main.cpp).
 
 For an SDL + bgfx browser example built with Emscripten, see [Web](docs/web.md).
 
-The [custom primitive example](examples/custom_primitive/main.cpp) demonstrates
+The [custom primitive example](tests/examples/custom_primitive/main.cpp) demonstrates
 an animated gradient widget controlled by a slider, with retained vector paths,
 and rounded corners. Build `centui_example_custom_primitive` with SDL
 and bgfx enabled.
-The [Pulse dashboard](examples/pulse/main.cpp) demonstrates a vector chart with
+The [Pulse dashboard](tests/examples/pulse/main.cpp) demonstrates a vector chart with
 a gradient area fill and proportional traffic bars.
+
+Typography is provided by [Centypo](src/centypo/README.md), a C++20 component
+with public headers in `include/centypo`, immutable value layouts, and its own build target.
+Text styles use Centypo types directly, such as `centypo::font` and
+`centypo::text_options`. `document.typography()` exposes the document's engine
+for layout and rasterization; font registration and discovery changes go through
+the document to invalidate affected widgets.
 
 CentUI is still evolving. Start with the [getting started guide](docs/getting-started.md), then explore [widgets and styles](docs/widgets-and-styles.md), [custom widgets](docs/extending.md), or [window and renderer integration](docs/backends.md).

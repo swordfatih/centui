@@ -52,7 +52,7 @@ is not a browser test harness.
 Serve the output over HTTP:
 
 ```sh
-python -m http.server 8000 --directory build/web/examples/web
+python -m http.server 8000 --directory build/web/tests/examples/web
 ```
 
 Open `http://localhost:8000/centui_example_web.html`. Deploy its HTML, JavaScript,
@@ -61,18 +61,18 @@ WebAssembly, and asset data files together. Opening the HTML directly through
 
 ## Pulse dashboard
 
-`examples/pulse_web` copies the desktop Pulse dashboard, preserving its widget
+`tests/examples/pulse_web` copies the desktop Pulse dashboard, preserving its widget
 tree, styles, charts, and callbacks. Its window, renderer, document, and UI remain
 alive after `main()`, and a browser animation callback drives `ui.frame()`.
 It uses the same HTML shell as the smaller web example. Each example's
 `CMakeLists.txt` defines its own font packaging and web link settings.
-The desktop `examples/pulse` is unchanged.
+The desktop `tests/examples/pulse` is unchanged.
 
 With the same Emscripten configuration, build and serve it with:
 
 ```sh
 cmake --build build/web --target centui_example_pulse_web --parallel 4
-python -m http.server 8000 --directory build/web/examples/pulse_web
+python -m http.server 8000 --directory build/web/tests/examples/pulse_web
 ```
 
 Open `http://localhost:8000/centui_example_pulse_web.html`. Use a desktop-sized
@@ -89,8 +89,8 @@ The bgfx adapter uses that selector to create an OpenGL ES/WebGL 2 context. Web
 builds embed ESSL 3.00 shaders and run bgfx without a rendering thread. SDL supplies
 browser input, window size, and display scaling through the existing adapter.
 
-`examples/web` supplies the HTML shell, focusable canvas, full-window CSS, font
-preloading, memory-growth settings, and a browser animation callback. These are
+`tests/examples/web` supplies the HTML shell, focusable canvas, full-window CSS,
+memory-growth settings and a browser animation callback. These are
 application choices and are not imposed on consumers by the adapter targets.
 The callback's objects have static storage duration so they survive `main()`.
 
@@ -108,3 +108,9 @@ display scales. Test touch input on mobile browsers separately. The desktop HUD
 examples continue to manage their own frame and draw through `ui.render()`.
 
 The Pulse browser example also includes the Dark mode toggle: it updates document style definitions in place, including the custom chart, without rebuilding the widget tree.
+
+Web applications must register font files or byte spans explicitly: browser CSS
+fonts are not available to Wasm. The examples preload Inter and call
+`document.register_font("/assets/fonts/Inter-Regular.ttf")`. CentUI itself embeds
+no fonts. The text path needs no pthreads, worker pool, or cross-origin-isolation
+headers. See [native text layout](native-text-layout.md).

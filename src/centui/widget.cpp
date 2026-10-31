@@ -12,9 +12,29 @@ centui::style widget::resolved_style() const
 {
     auto result = m_style;
 
-    for(auto ancestor = m_parent.lock(); !result.font && ancestor; ancestor = ancestor->m_parent.lock())
+    for(auto ancestor = m_parent.lock(); (!result.font || !result.paragraph) && ancestor;
+        ancestor = ancestor->m_parent.lock())
     {
-        result.font = ancestor->m_style.font;
+        if(!result.font)
+        {
+            result.font = ancestor->m_style.font;
+        }
+        if(!result.paragraph)
+        {
+            result.paragraph = ancestor->m_style.paragraph;
+        }
+    }
+    if(auto context = m_document.lock())
+    {
+        const auto defaults = context->owner.m_data->style_defaults.apply(centui::style{});
+        if(!result.font)
+        {
+            result.font = defaults.font;
+        }
+        if(!result.paragraph)
+        {
+            result.paragraph = defaults.paragraph;
+        }
     }
 
     return result;
@@ -84,6 +104,10 @@ centui::style widget::resolve_style(
 {
     centui::style result;
     defaults.apply_to(result);
+    // Font requests and paragraph options inherit through ancestors before
+    // falling back to document defaults in resolved_style().
+    result.font.reset();
+    result.paragraph.reset();
     for(const auto& layer: m_style_recipe.get().composition)
     {
         layer.apply(result);
@@ -121,6 +145,7 @@ void widget::set_style(centui::style replacement)
 bool widget::commit_style(centui::style replacement, bool notify)
 {
     const auto changes = details::classify_style(replacement, m_style);
+    const bool text_placement = replacement.text_align != m_style.text_align;
     if(!changes.paint && !changes.layout && !changes.interaction)
     {
         return false;
@@ -130,6 +155,10 @@ bool widget::commit_style(centui::style replacement, bool notify)
     if(changes.layout)
     {
         invalidate_layout();
+    }
+    else if(text_placement)
+    {
+        invalidate_geometry();
     }
     else
     {
@@ -668,14 +697,14 @@ const host_services& widget::host() const
     return empty;
 }
 
-text_service& widget::fonts()
+const centypo::engine& widget::typography() const
 {
     if(auto context = m_document.lock())
     {
-        return context->owner.fonts();
+        return context->owner.typography();
     }
 
-    throw std::logic_error("A detached widget has no document text service");
+    throw std::logic_error("A detached widget has no document typography engine");
 }
 
 void widget::on_frame(frame_duration)

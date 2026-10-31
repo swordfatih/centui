@@ -75,7 +75,7 @@ visits, command-cache hits, and currently retained command bytes. Requests alone
 do not increment counters. Idle preparation and equal effective mutations do no
 synchronization, measurement, calculation or paint work.
 
-Build with `-DCENTUI_BUILD_EXAMPLES=ON` and run `centui_example_benchmark` from `build/examples/benchmark/` for a static
+Build with `-DCENTUI_BUILD_EXAMPLES=ON` and run `centui_example_benchmark` from `build/tests/examples/benchmark/` for a static
 panel beside an invalidating widget, with and without boundaries. This synthetic
 CPU preparation benchmark is not a GPU or application frame-time measurement.
 Use representative scrolling, resize, text-input, and topology workloads before
@@ -107,3 +107,12 @@ only `centui::centui` and executes a prepared-drawing check. Installed
 Layout, input, and frame scheduling now have separate internal state owners. The
 scheduler owns request coalescing. Document
 continues to own phase guards, deferred edits, and exception ordering. Further subsystem API narrowing and GPU batching/atlases remain separate improvements.
+
+
+The native text service exposes `set_cache_budgets` and `statistics` for separate
+analysis/shaping, logical-layout and glyph-image budgets. Zero disables admission.
+Statistics report shape/hit counts, cache reservations, retained consumer storage
+and font snapshots. Opaque native allocator usage is not represented as an exact
+measured total. See
+[native text layout](native-text-layout.md) and the
+[execution record](native-text-layout-progress.md).

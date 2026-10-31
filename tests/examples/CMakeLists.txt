@@ -1,0 +1,23 @@
+if(NOT CENTUI_BUILD_EXAMPLES)
+    return()
+endif()
+
+add_subdirectory(web)
+add_subdirectory(pulse_web)
+
+if(EMSCRIPTEN)
+    return()
+endif()
+
+add_subdirectory(getting_started)
+add_subdirectory(focus)
+add_subdirectory(hud_sfml)
+add_subdirectory(hud_sdl)
+add_subdirectory(hud_glfw)
+add_subdirectory(gui_static)
+add_subdirectory(gui_dynamic)
+add_subdirectory(custom_backend)
+add_subdirectory(custom_primitive)
+add_subdirectory(pulse)
+add_subdirectory(benchmark)
+add_subdirectory(typography)

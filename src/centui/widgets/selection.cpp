@@ -11,6 +11,10 @@ selection_widget::selection_widget(
     : widget(std::move(appearance)),
       m_items(std::move(items))
 {
+    for(const auto& item: m_items)
+    {
+        centypo::validate_text(item);
+    }
     set_interactive();
     set_focusable();
     set_selected(options.selected);
@@ -20,7 +24,17 @@ selection_widget::selection_widget(
 void selection_widget::set_items(std::vector<std::string> items)
 {
     check_mutation();
+    for(const auto& item: items)
+    {
+        centypo::validate_text(item);
+    }
+    if(items == m_items)
+    {
+        return;
+    }
     m_items = std::move(items);
+    m_text.clear();
+    m_row_offsets.clear();
     m_selected.reset();
     invalidate_layout();
 }
@@ -34,6 +48,10 @@ void selection_widget::set_selected(std::optional<std::size_t> index)
         throw std::out_of_range("Selection is outside the item list");
     }
 
+    if(m_selected == index)
+    {
+        return;
+    }
     m_selected = index;
     invalidate_paint();
 }
@@ -51,25 +69,71 @@ void selection_widget::set_on_change(centui::callback<std::size_t> callback)
 
 size selection_widget::measure(const measure_context& context)
 {
+    return prepare_rows(
+        context.typography,
+        context.width.mode == constraint_mode::unconstrained ? std::numeric_limits<float>::infinity()
+                                                             : context.width.value
+    );
+}
+
+size selection_widget::prepare_rows(const centypo::engine& service, float constraint) const
+{
     const auto appearance = resolved_style();
     float width = 0;
+    std::vector<float> offsets{0};
+    std::vector<centypo::layout> layouts;
+    layouts.reserve(m_items.size());
 
-    for(const auto& item: m_items)
+    for(std::size_t i = 0; i < m_items.size(); ++i)
     {
-        width = std::max(width, context.text.prepare(item, appearance.font, appearance.font_size)->bounds.width);
+        auto layout = service.layout(
+            m_items[i],
+            {.size = appearance.font_size,
+             .width = constraint,
+             .font = appearance.font.value_or(centypo::font{}),
+             .paragraph = appearance.paragraph.value_or(centypo::text_options{}),
+             .alignment = appearance.text_align}
+        );
+        width = std::max(width, layout.bounds().width);
+        offsets.push_back(offsets.back() + std::max(appearance.font_size * 1.6f, layout.bounds().height));
+        layouts.push_back(std::move(layout));
     }
 
-    return {width, row_height() * m_items.size()};
+    m_text = std::move(layouts);
+    m_row_offsets = std::move(offsets);
+    return {width, m_row_offsets.back()};
+}
+
+baseline_function selection_widget::baseline()
+{
+    return [this](size content)
+    {
+        (void)prepare_rows(typography(), content.width);
+        if(m_items.empty())
+        {
+            return 0.0f;
+        }
+        return m_text.front().baseline();
+    };
+}
+
+void selection_widget::on_geometry()
+{
+    (void)prepare_rows(typography(), content_bounds().width);
 }
 
 void selection_widget::paint(painter& output) const
 {
-    const auto appearance = resolved_style();
     auto row = output.bounds();
-    row.height = row_height();
+    if(m_row_offsets.size() != m_items.size() + 1)
+    {
+        throw std::logic_error("Selection rows must be prepared before painting");
+    }
 
     for(std::size_t index = 0; index < m_items.size(); ++index)
     {
+        row.y = m_row_offsets[index];
+        row.height = m_row_offsets[index + 1] - row.y;
         if(m_selected == index)
         {
             auto tint = output.foreground();
@@ -78,11 +142,10 @@ void selection_widget::paint(painter& output) const
         }
 
         output.text(
-            output.fonts().prepare(m_items[index], appearance.font, appearance.font_size, row.width),
+            output.typography().rasterize(m_text[index], output.scale()),
             row,
             output.foreground()
         );
-        row.y += row.height;
     }
 }
 
@@ -97,11 +160,12 @@ bool selection_widget::on_event(const input_event& event)
 
     if(event.type == input_event_type::pointer_pressed && event.button == mouse_button::primary)
     {
-        const auto row = std::floor((event.y - content_bounds().y) / row_height());
-
-        if(row >= 0 && row < m_items.size())
+        const auto y = event.y - content_bounds().y;
+        if(m_row_offsets.size() == m_items.size() + 1 && y >= 0 && y < m_row_offsets.back())
         {
-            next = static_cast<std::size_t>(row);
+            next = static_cast<std::size_t>(
+                std::upper_bound(m_row_offsets.begin(), m_row_offsets.end(), y) - m_row_offsets.begin() - 1
+            );
         }
     }
     else if(event.type == input_event_type::key_pressed)
@@ -147,15 +211,19 @@ bool selection_widget::on_event(const input_event& event)
     if(m_selected != next)
     {
         set_selected(next);
+        if(m_row_offsets.size() == m_items.size() + 1)
+        {
+            request_reveal(
+                {content_bounds().x - bounds().x,
+                 content_bounds().y - bounds().y + m_row_offsets[*next],
+                 content_bounds().width,
+                 m_row_offsets[*next + 1] - m_row_offsets[*next]}
+            );
+        }
         m_on_change(*this, *next);
     }
 
     return true;
-}
-
-float selection_widget::row_height() const noexcept
-{
-    return style().font_size * 1.6f;
 }
 
 } // namespace centui

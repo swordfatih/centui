@@ -14,12 +14,12 @@ namespace centui
 
 using frame_duration = std::chrono::duration<float>;
 
-/// \brief Constraints and font services available while measuring a widget.
+/// \brief Constraints and typography available while measuring a widget.
 struct measure_context
 {
     axis_constraint width;
     axis_constraint height;
-    text_service& text;
+    const centypo::engine& typography;
 };
 
 namespace details
@@ -147,7 +147,7 @@ protected:
 
     const host_services& host() const;
 
-    text_service& fonts();
+    const centypo::engine& typography() const;
 
     [[nodiscard]] vec2 child_offset() const noexcept;
 

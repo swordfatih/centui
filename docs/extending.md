@@ -51,7 +51,16 @@ Call `check_mutation()` before changing widget state. Framework setters propagat
 | `invalidate_geometry()` | Rebuild geometry derived from current allocated bounds, such as paths, caret placement, or reveal calculations. Includes paint invalidation without requesting Yoga calculation. |
 | `invalidate_paint()` | Drawing changed with no geometry preparation required. |
 
-`measure()`, baseline evaluation (including `baseline()`), and `paint()` must not mutate widgets or request more work. They may retain internal derived caches. Widgets with children are laid out by Yoga rather than by their `measure()` hook. The complete [custom primitive](https://github.com/swordfatih/centui/blob/main/examples/custom_primitive/main.cpp) is a small starting point.
+`measure()`, baseline evaluation (including `baseline()`), and `paint()` must not mutate widgets or request more work. They may retain internal derived caches. Widgets with children are laid out by Yoga rather than by their `measure()` hook. The complete [custom primitive](https://github.com/swordfatih/centui/blob/main/tests/examples/custom_primitive/main.cpp) is a small starting point.
+
+Text measurement uses `context.typography.layout(text, options)` directly.
+During painting, `output.typography()` provides the same read-only Centypo engine;
+set alignment in the layout options, then rasterize retained layouts at `output.scale()`
+before passing them to `output.text()`. Drawing uses the prepared glyph positions.
+Widgets retain `centypo::layout` values; engine-prepared aligned and rasterized
+results share its layout cache budget. `layout::aligned()` creates a copy outside
+engine caches. Font collection changes go through the document's
+registration, alias, and discovery methods so dependent widgets are invalidated.
 
 `on_geometry()` is the sole geometry preparation hook. It runs after current layout and placement, before painting and host text-input synchronization. It runs on mounting, after layout/placement changes, and after explicit geometry invalidation even when the widget rectangle is unchanged. Explicit requests coalesce and do not retain removed widgets. Requests made while detached or without a valid viewport survive until geometry becomes available. A failed hook and unfinished work remain pending for retry.
 
@@ -221,7 +230,7 @@ iteration before rendering; elapsed is a finite, nonnegative duration in seconds
 Tree edits made during animation
 callbacks are committed after the tick batch, as they are during input dispatch.
 
-The [custom primitive example](https://github.com/swordfatih/centui/blob/main/examples/custom_primitive/main.cpp)
+The [custom primitive example](https://github.com/swordfatih/centui/blob/main/tests/examples/custom_primitive/main.cpp)
 demonstrates retained paths, a gradient, and animation driven by a slider. It
 requires SDL and bgfx. The Pulse dashboard uses vector chart lines and a
 gradient area fill.

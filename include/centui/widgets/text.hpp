@@ -26,16 +26,18 @@ protected:
 
     baseline_function baseline() override;
 
+    void on_geometry() override;
+
     void paint(painter& output) const override;
 
 private:
     centui::style text_style() const;
 
-    const text_layout& prepared(text_service& fonts, const centui::style& appearance, float width) const;
+    centypo::layout prepared(const centypo::engine& engine, float width) const;
 
     std::string m_value;
     bool m_inherit_text_style = false;
-    mutable text_cache m_cache;
+    centypo::layout m_layout;
 };
 
 /// \brief A text label handle with compile-time style composition.

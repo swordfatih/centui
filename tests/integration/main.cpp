@@ -17,7 +17,6 @@ int run_integration()
     root.patch_style({.width = centui::percent(100), .height = centui::percent(100)});
 
     centui::document document{root};
-    document.set_font(centui::font{CENTUI_FONT_PATH});
 
     int frames = 0;
 

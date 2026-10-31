@@ -79,6 +79,8 @@ struct reveal_fixture
 
     reveal_fixture()
     {
+        doc.set_system_font_discovery(false);
+        doc.register_font(std::filesystem::path{CENTUI_FONT_PATH});
         target->set_style(box(20, 20, 250, 260));
         content->append(target);
         scroll->patch_style({.width = centui::px(100), .height = centui::px(100)});
@@ -148,6 +150,8 @@ TEST_CASE("Reveal clamps to actual ranges and a non-scrolling clip keeps focus",
     auto clip = centui::container{{target}, box(100, 40)};
     clip->patch_style({.overflow = centui::overflow::clip});
     centui::document doc{clip};
+    doc.set_system_font_discovery(false);
+    doc.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     REQUIRE(target->request_focus());
     (void)doc.prepare({100, 100});
     REQUIRE(target->focused());
@@ -171,6 +175,8 @@ TEST_CASE("Nested reveal reaches an inner scroller initially outside the outer v
     outer->patch_style({.width = centui::px(100), .height = centui::px(100)});
     outer->append(outside);
     centui::document doc{outer};
+    doc.set_system_font_discovery(false);
+    doc.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     (void)doc.prepare({100, 100});
     REQUIRE(target->request_focus());
     REQUIRE(inner->offset().y == Catch::Approx(160));
@@ -199,6 +205,8 @@ TEST_CASE("Fixed clipping between scrollers carries only reachable portions", "[
             auto outer = centui::scroll{{outside}};
             outer->patch_style({.width = centui::px(100), .height = centui::px(100)});
             centui::document doc{outer};
+            doc.set_system_font_discovery(false);
+            doc.register_font(std::filesystem::path{CENTUI_FONT_PATH});
             (void)doc.prepare({100, 100});
             REQUIRE(target->request_focus());
             REQUIRE(target->focused());
@@ -281,7 +289,12 @@ TEST_CASE("Geometry disruptions restart reveal at most eight times", "[focus][re
     };
     f.target->reveal();
     REQUIRE(f.scroll->reveals == 8);
+    REQUIRE_FALSE(f.doc.pending_changes().layout);
+    REQUIRE(f.doc.pending_changes().paint);
+
+    (void)f.doc.prepare({100, 100});
     REQUIRE_FALSE(f.doc.pending_changes().any());
+    REQUIRE(f.scroll->reveals == 8);
     f.scroll->disrupt = {};
     f.target->reveal();
     REQUIRE(f.scroll->reveals == 9);

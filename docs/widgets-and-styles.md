@@ -31,7 +31,7 @@ auto tile = centui::pressable<tile_style>{
 };
 ```
 
-Other controls are `toggle`, `range`, `selection`, `scroll`, `popup`, and single-line or multiline `input`. Their option structs carry initial values and callbacks. See [gui_static](https://github.com/swordfatih/centui/blob/main/examples/gui_static/main.cpp) for all of them together. You can also build the same tree with `make_widget<T>()` and `append()`; [gui_dynamic](https://github.com/swordfatih/centui/blob/main/examples/gui_dynamic/main.cpp) uses that approach.
+Other controls are `toggle`, `range`, `selection`, `scroll`, `popup`, and single-line or multiline `input`. Their option structs carry initial values and callbacks. See [gui_static](https://github.com/swordfatih/centui/blob/main/tests/examples/gui_static/main.cpp) for all of them together. You can also build the same tree with `make_widget<T>()` and `append()`; [gui_dynamic](https://github.com/swordfatih/centui/blob/main/tests/examples/gui_dynamic/main.cpp) uses that approach.
 
 ## Give widgets a style
 
@@ -77,6 +77,8 @@ appearance; focus eligibility and ownership remain widget/document operations.
 Applications request `field->request_focus()`, query `document.focused_widget()`,
 call `document.focus_next()` (or `focus_next(true)` for reverse), and explicitly
 clear with `document.clear_focus()`. Tab follows eligible tree order and wraps.
+Multiline inputs consume plain Tab to insert a tab character; Shift+Tab still
+moves focus backwards. Single-line inputs retain Tab focus navigation.
 Detached, hidden, disabled, or out-of-modal controls cannot acquire focus;
 offscreen clipping alone does not disqualify a target. Losing window activation
 retains logical focus, pauses host text input, and hides the active ring.
@@ -104,7 +106,7 @@ containers. `field->reveal()` also requests reveal without changing focus. Neste
 scrollers compose their actual clamped movement; fixed clipping can still prevent
 visibility. Zero surfaces park requests until geometry is usable. Manually
 scrolling away from focus does not snap back on paint or window reactivation.
-See `examples/focus` for offscreen traversal, nested restoration, and a ring under
+See `tests/examples/focus` for offscreen traversal, nested restoration, and a ring under
 hover.
 
 ## Document themes
@@ -140,7 +142,7 @@ Successive patches merge supplied fields into one current override; no patch his
 
 Changes resolve and validate affected widgets before committing the document settings and cached styles. Unchanged results do not invalidate anything; changes request layout or paint as appropriate. Rendering reads the cache. Patches also apply to widgets mounted later. Removal resolves without document layers; mounting in another document uses that document's settings. Style constructors used by retained recipes must be deterministic and side-effect-free.
 
-The [Pulse example](../examples/pulse/main.cpp) switches between dark and light appearances using document patches. For custom widgets, accept a `centui::style_source` construction argument and pass it to `widget`; use `style_source::composed<Styles...>()` with `make_widget()` to retain named styles.
+The [Pulse example](../tests/examples/pulse/main.cpp) switches between dark and light appearances using document patches. For custom widgets, accept a `centui::style_source` construction argument and pass it to `widget`; use `style_source::composed<Styles...>()` with `make_widget()` to retain named styles.
 
 ## Callback events
 
@@ -355,4 +357,4 @@ The [Yoga coverage matrix](yoga-coverage.md) maps supported capabilities to test
 
 Copies of a handle refer to the same widget. A parent owns its children, and a document mounts one root. Keep a named handle for a widget you plan to update. You can remove or append children through widget methods or the document; edits requested inside callbacks settle before the next input event.
 
-If a callback must refer to its own widget or an ancestor, capture `weak()` and check `lock()` before using it. A strong capture there would keep both sides alive. For example, the [Studio popup](https://github.com/swordfatih/centui/blob/main/examples/gui_static/main.cpp) closes through a weak handle.
+If a callback must refer to its own widget or an ancestor, capture `weak()` and check `lock()` before using it. A strong capture there would keep both sides alive. For example, the [Studio popup](https://github.com/swordfatih/centui/blob/main/tests/examples/gui_static/main.cpp) closes through a weak handle.

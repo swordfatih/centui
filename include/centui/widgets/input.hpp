@@ -17,6 +17,8 @@
 #include <centui/widget.hpp>
 #include <centui/widgets/callback.hpp>
 
+#include <centypo/editor.hpp>
+
 namespace centui
 {
 
@@ -35,12 +37,16 @@ class input_widget : public widget
 public:
     explicit input_widget(std::string value = {}, input_options options = {}, centui::style_source appearance = {});
 
+    ~input_widget() override;
+
     [[nodiscard]] std::string_view value() const noexcept;
 
     void set_text(std::string value);
 
-    /// \brief Selects a UTF-8 byte range, clamped to valid character boundaries.
+    /// \brief Selects a UTF-8 byte range, clamped backwards to extended grapheme boundaries.
     void set_selection(std::size_t anchor, std::size_t caret);
+    void set_selection(centypo::text_position anchor, centypo::text_position caret);
+    [[nodiscard]] std::pair<centypo::text_position, centypo::text_position> directional_selection() const noexcept;
 
     [[nodiscard]] std::pair<std::size_t, std::size_t> selection() const noexcept;
 
@@ -64,26 +70,11 @@ protected:
     bool on_event(const input_event& event) override;
 
 private:
-    struct snapshot
-    {
-        std::string value;
-        std::size_t anchor;
-        std::size_t caret;
-    };
+    centypo::text_position hit(float x, float y) const;
 
-    std::string normalize(std::string value) const;
+    void move_caret(centypo::text_position next, bool extend);
 
-    std::size_t boundary(std::size_t offset) const noexcept;
-
-    std::size_t adjacent(bool forward) const;
-
-    std::size_t hit(float x, float y) const;
-
-    void move_caret(std::size_t next, bool extend);
-
-    std::size_t display_caret() const noexcept;
-
-    void prepare_text(text_service& service, float width) const;
+    void prepare_text(const centypo::engine& service, float width) const;
 
     void refresh_text_geometry();
 
@@ -91,30 +82,20 @@ private:
 
     void notify_change();
 
-    void replace_selection(std::string replacement);
+    void replace_selection(std::string replacement, bool typing = false);
 
-    void restore(std::vector<snapshot>& source, std::vector<snapshot>& destination);
-
-    std::string m_value;
-    std::string m_preedit;
-
-    std::size_t m_anchor = 0;
-    std::size_t m_caret = 0;
-    std::size_t m_preedit_caret = 0;
+    centypo::editor m_editor;
+    std::optional<float> m_preferred_x;
 
     bool m_multiline = false;
     bool m_dragging = false;
     bool m_reveal_caret = true;
     vec2 m_scroll{};
 
-    std::vector<snapshot> m_undo;
-    std::vector<snapshot> m_redo;
-
     centui::callback<std::string_view> m_on_change;
     centui::callback<> m_on_submit;
 
-    mutable std::shared_ptr<const text_layout> m_layout;
-    mutable text_cache m_cache;
+    mutable std::optional<centypo::layout> m_layout;
 };
 
 /// \brief A text input handle with compile-time style composition.

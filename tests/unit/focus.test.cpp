@@ -73,6 +73,8 @@ TEST_CASE("Focus activity has ordered notifications and survives inactive transf
     auto a = probe();
     auto b = probe();
     centui::document doc{centui::container{a, b}};
+    doc.set_system_font_discovery(false);
+    doc.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     std::vector<std::string> changes;
     a->notify = [&](auto value)
     {
@@ -111,6 +113,8 @@ TEST_CASE("Window activity stops host ownership and suppresses active drawing", 
     a->text_session = true;
     std::vector<std::optional<centui::rect>> calls;
     centui::document doc{a};
+    doc.set_system_font_discovery(false);
+    doc.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     auto host = std::make_shared<centui::host_services>();
     host->text_input = [&](auto area)
     {
@@ -135,9 +139,13 @@ TEST_CASE("Traversal crosses ordinary containers and wraps in both directions", 
     auto b = probe();
     auto c = probe();
     centui::document empty;
+    empty.set_system_font_discovery(false);
+    empty.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     REQUIRE_FALSE(empty.focus_next());
     auto group = centui::container{a, b};
     centui::document doc{centui::container{group, c}};
+    doc.set_system_font_discovery(false);
+    doc.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     REQUIRE(doc.focus_next(true));
     REQUIRE(c->focused());
     REQUIRE(doc.focus_next());
@@ -165,6 +173,8 @@ TEST_CASE("Modal entry fallback, nested unwind and restoration belong to the doc
     auto inner = centui::container{b};
     auto outer = centui::container{a, inner};
     centui::document doc{centui::container{before, outer}};
+    doc.set_system_font_discovery(false);
+    doc.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     REQUIRE(before->request_focus());
     doc.enter_modal(outer, a);
     REQUIRE(a->focused());
@@ -197,6 +207,8 @@ TEST_CASE("Empty modals retain restrictions and modal root eligibility is checke
     auto empty = centui::container{};
     auto root_fallback = probe();
     centui::document doc{centui::container{background, empty, root_fallback}};
+    doc.set_system_font_discovery(false);
+    doc.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     doc.enter_modal(empty);
     REQUIRE_FALSE(doc.focused_widget().valid());
     REQUIRE_FALSE(doc.focus_next());
@@ -207,6 +219,8 @@ TEST_CASE("Empty modals retain restrictions and modal root eligibility is checke
     doc.leave_modal(root_fallback);
     auto detached = probe();
     centui::document foreign{probe()};
+    foreign.set_system_font_discovery(false);
+    foreign.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     REQUIRE_THROWS_AS(doc.enter_modal(detached), std::invalid_argument);
     REQUIRE_THROWS_AS(doc.enter_modal(foreign.root()), std::invalid_argument);
     REQUIRE_THROWS_AS(doc.enter_modal({}), std::invalid_argument);
@@ -228,6 +242,8 @@ TEST_CASE("Modal topology and visibility changes unwind at the boundary", "[focu
             auto modal = centui::container{inside};
             auto root = centui::container{before, modal};
             centui::document doc{root};
+            doc.set_system_font_discovery(false);
+            doc.register_font(std::filesystem::path{CENTUI_FONT_PATH});
             REQUIRE(before->request_focus());
             doc.enter_modal(modal);
             if(mutation == 0)
@@ -261,6 +277,8 @@ TEST_CASE("Modal routing cancels capture and bounds keyboard, pointer and wheel 
     root->append(background);
     root->append(modal);
     centui::document doc{root};
+    doc.set_system_font_discovery(false);
+    doc.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     doc.process_event({centui::input_event_type::pointer_pressed, 5, 5}, {100, 100});
     REQUIRE(background->pressed());
     doc.enter_modal(modal);
@@ -298,6 +316,8 @@ TEST_CASE("Focus notification failures clean up each stage and retain the origin
             auto root = centui::container{a, b};
             std::optional<centui::rect> host_area;
             centui::document doc{root};
+            doc.set_system_font_discovery(false);
+            doc.register_font(std::filesystem::path{CENTUI_FONT_PATH});
             auto host = std::make_shared<centui::host_services>();
             host->text_input = [&](auto area)
             {
@@ -348,6 +368,8 @@ TEST_CASE("Alternating callbacks share a bounded transaction and leave the next 
     auto outside = probe();
     auto modal = centui::container{a, b};
     centui::document doc{centui::container{outside, modal}};
+    doc.set_system_font_discovery(false);
+    doc.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     doc.enter_modal(modal, a);
     int notifications = 0;
     a->notify = [&](auto value)
@@ -381,6 +403,8 @@ TEST_CASE("Callback mutations reconcile eligibility without duplicate ownership"
     auto a = probe();
     auto b = probe();
     centui::document doc{centui::container{a, b}};
+    doc.set_system_font_discovery(false);
+    doc.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     a->notify = [&](auto value)
     {
         if(value == "logical+")
@@ -403,6 +427,8 @@ TEST_CASE("Focus ring follows keyboard and mouse input without changing ownershi
     label->patch_style({.width = centui::px(20), .height = centui::px(10)});
     a->append(label);
     centui::document doc{a};
+    doc.set_system_font_discovery(false);
+    doc.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     std::vector<std::string> notifications;
     a->notify = [&](auto value)
     {
@@ -457,6 +483,8 @@ TEST_CASE("Window activation preserves the last focus indication mode", "[focus]
         {
             auto a = probe();
             centui::document doc{a};
+            doc.set_system_font_discovery(false);
+            doc.register_font(std::filesystem::path{CENTUI_FONT_PATH});
             REQUIRE(a->request_focus());
             if(!keyboard)
             {
@@ -486,6 +514,8 @@ TEST_CASE(
     auto b = probe();
     auto modal = centui::container{b};
     centui::document doc{centui::container{a, modal}};
+    doc.set_system_font_discovery(false);
+    doc.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     REQUIRE(a->request_focus());
     REQUIRE(a->focus_visible()); // Programmatic focus starts visible before any pointer interaction.
     doc.process_event({centui::input_event_type::pointer_pressed, 5, 5}, {100, 100});
@@ -519,7 +549,11 @@ TEST_CASE("Focus indication input mode belongs to each document", "[focus][visib
     auto a = probe();
     auto b = probe();
     centui::document first{a};
+    first.set_system_font_discovery(false);
+    first.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     centui::document second{b};
+    second.set_system_font_discovery(false);
+    second.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     REQUIRE(a->request_focus());
     REQUIRE(b->request_focus());
     first.process_event({centui::input_event_type::pointer_pressed, 5, 5}, {100, 100});
@@ -574,6 +608,8 @@ TEST_CASE("Nested modal closure falls back within the remaining restriction", "[
     auto inner = centui::container{b};
     auto outer = centui::container{a, inner};
     centui::document doc{centui::container{outside, outer}};
+    doc.set_system_font_discovery(false);
+    doc.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     REQUIRE(outside->request_focus());
     doc.enter_modal(outer, a);
     doc.enter_modal(inner, b);
@@ -593,6 +629,8 @@ TEST_CASE("Detached popup open intent mounts without geometry and unmount restor
     popup->open();
     auto root = centui::container{outside};
     centui::document doc{root};
+    doc.set_system_font_discovery(false);
+    doc.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     REQUIRE(outside->request_focus());
     root->append(popup); // No usable surface and no on_geometry call required.
     REQUIRE(inside->focused());
@@ -623,6 +661,8 @@ TEST_CASE("Background pressable activation is blocked and cancelled gestures nev
     auto modal = centui::container{};
     modal->patch_style({.width = centui::px(40), .height = centui::px(30)});
     centui::document doc{centui::container{button, modal}};
+    doc.set_system_font_discovery(false);
+    doc.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     doc.process_event({centui::input_event_type::pointer_pressed, 5, 5}, {100, 100});
     doc.enter_modal(modal);
     doc.process_event({centui::input_event_type::pointer_released, 5, 5}, {100, 100});

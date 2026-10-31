@@ -36,6 +36,8 @@ TEST_CASE("Frame requests coalesce and callbacks schedule only the following tic
     leaf->request_frame(); // Detached requests survive mounting.
     leaf->request_frame();
     centui::document document{leaf};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     leaf->callback = [weak = leaf.weak()]
     {
         weak.lock()->request_frame();
@@ -55,6 +57,8 @@ TEST_CASE("Scheduled frames do not retain detached widgets", "[animation]")
 {
     auto root = centui::container{};
     centui::document document{root};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     auto leaf = centui::make_widget<animated>();
     auto weak = leaf.weak();
     root->append(leaf);
@@ -71,6 +75,8 @@ TEST_CASE("Frame failures preserve other requests and release dispatch guards", 
     auto second = centui::make_widget<animated>();
     auto root = centui::container{first, second};
     centui::document document{root};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     first->request_frame();
     second->request_frame();
     first->callback = []
@@ -95,6 +101,8 @@ TEST_CASE("Frame callbacks commit tree edits after the tick batch", "[animation]
     auto second = centui::make_widget<animated>();
     auto root = centui::container{first, second};
     centui::document document{root};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     first->callback = [root, second]() mutable
     {
         root->remove(second);

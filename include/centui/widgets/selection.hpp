@@ -47,16 +47,22 @@ public:
 protected:
     size measure(const measure_context& context) override;
 
+    baseline_function baseline() override;
+
+    void on_geometry() override;
+
     void paint(painter& output) const override;
 
     bool on_event(const input_event& event) override;
 
 private:
-    float row_height() const noexcept;
+    size prepare_rows(const centypo::engine& service, float width) const;
 
     std::vector<std::string> m_items;
     std::optional<std::size_t> m_selected;
     centui::callback<std::size_t> m_on_change;
+    mutable std::vector<centypo::layout> m_text;
+    mutable std::vector<float> m_row_offsets;
 };
 
 /// \brief A selection list handle with compile-time style composition.

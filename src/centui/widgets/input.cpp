@@ -5,48 +5,56 @@ namespace centui
 
 input_widget::input_widget(std::string value, input_options options, centui::style_source appearance)
     : widget(std::move(appearance)),
+      m_editor(options.multiline),
       m_multiline(options.multiline)
 {
     set_text(std::move(value));
     set_interactive();
     set_focusable();
+
     set_on_change(std::move(options.on_change));
     set_on_submit(std::move(options.on_submit));
 }
 
+input_widget::~input_widget() = default;
+
 std::string_view input_widget::value() const noexcept
 {
-    return m_value;
+    return m_editor.value();
 }
 
-void input_widget::set_text(std::string value)
+void input_widget::set_text(std::string text)
 {
     check_mutation();
-    m_value = normalize(std::move(value));
-    m_anchor = m_caret = m_value.size();
-    m_preedit.clear();
-    m_undo.clear();
-    m_redo.clear();
-    changed_layout();
+
+    if(m_editor.set_text(std::move(text)))
+    {
+        m_preferred_x.reset();
+        changed_layout();
+    }
 }
 
 void input_widget::set_selection(std::size_t anchor, std::size_t caret)
 {
-    check_mutation();
-    m_anchor = boundary(std::min(anchor, m_value.size()));
-    m_caret = boundary(std::min(caret, m_value.size()));
+    set_selection(centypo::text_position{anchor}, centypo::text_position{caret});
+}
 
-    const bool cancelled_composition = !m_preedit.empty();
-    if(cancelled_composition)
+void input_widget::set_selection(centypo::text_position anchor, centypo::text_position caret)
+{
+    check_mutation();
+
+    const bool composition = !m_editor.preedit().empty();
+    if(!m_editor.select(anchor, caret))
     {
-        m_layout.reset();
+        return;
     }
 
-    m_preedit.clear();
+    m_preferred_x.reset();
     m_reveal_caret = true;
-    if(cancelled_composition)
+
+    if(composition)
     {
-        invalidate_layout();
+        changed_layout();
     }
     else
     {
@@ -54,20 +62,27 @@ void input_widget::set_selection(std::size_t anchor, std::size_t caret)
     }
 }
 
+std::pair<centypo::text_position, centypo::text_position> input_widget::directional_selection() const noexcept
+{
+    return {m_editor.anchor(), m_editor.caret()};
+}
+
 std::pair<std::size_t, std::size_t> input_widget::selection() const noexcept
 {
-    return std::minmax(m_anchor, m_caret);
+    return m_editor.selection();
 }
 
 void input_widget::set_on_change(centui::callback<std::string_view> callback)
 {
     check_mutation();
+
     m_on_change.set(std::move(callback));
 }
 
 void input_widget::set_on_submit(centui::callback<> callback)
 {
     check_mutation();
+
     m_on_submit.set(std::move(callback));
 }
 
@@ -76,40 +91,54 @@ size input_widget::measure(const measure_context& context)
     const auto width = m_multiline && context.width.mode != constraint_mode::unconstrained
                            ? context.width.value
                            : std::numeric_limits<float>::infinity();
-    prepare_text(context.text, width);
+    prepare_text(context.typography, width);
 
-    return {std::max(160.0f, m_layout->bounds.width), std::max(style().font_size * 1.5f, m_layout->bounds.height)};
+    return {std::max(160.0f, m_layout->bounds().width), std::max(style().font_size * 1.5f, m_layout->bounds().height)};
 }
 
 baseline_function input_widget::baseline()
 {
     return [this](size content)
     {
-        prepare_text(fonts(), m_multiline ? content.width : std::numeric_limits<float>::infinity());
-        return m_layout->ascender;
+        prepare_text(typography(), content.width);
+
+        return m_layout->baseline();
     };
 }
 
 void input_widget::on_geometry()
 {
+    m_editor.set_language(resolved_style().paragraph.value_or(centypo::text_options{}).language);
     refresh_text_geometry();
 }
 
 void input_widget::refresh_text_geometry()
 {
     const auto area = content_bounds();
-    prepare_text(fonts(), m_multiline ? area.width : std::numeric_limits<float>::infinity());
-    const auto caret = caret_bounds(*m_layout, display_caret());
+    prepare_text(typography(), area.width);
 
-    if(m_reveal_caret)
+    const auto caret =
+        m_layout->caret_bounds(centypo::text_position{m_editor.display_caret(), m_editor.caret().affinity});
+    const bool reveal = m_reveal_caret;
+    if(reveal)
     {
         m_scroll.x = std::max(caret.x + caret.width - area.width, std::min(m_scroll.x, caret.x));
         m_scroll.y = std::max(caret.y + caret.height - area.height, std::min(m_scroll.y, caret.y));
         m_reveal_caret = false;
     }
 
-    m_scroll.x = std::clamp(m_scroll.x, 0.0f, std::max(0.0f, m_layout->bounds.width + 1 - area.width));
-    m_scroll.y = std::clamp(m_scroll.y, 0.0f, std::max(0.0f, m_layout->bounds.height - area.height));
+    m_scroll.x = std::clamp(m_scroll.x, 0.0f, std::max(0.0f, m_layout->bounds().width + 1 - area.width));
+    m_scroll.y = std::clamp(m_scroll.y, 0.0f, std::max(0.0f, m_layout->bounds().height - area.height));
+
+    if(reveal && focus_active())
+    {
+        request_reveal(
+            {area.x - bounds().x + caret.x - m_scroll.x,
+             area.y - bounds().y + caret.y - m_scroll.y,
+             caret.width,
+             caret.height}
+        );
+    }
 }
 
 void input_widget::paint(painter& output) const
@@ -122,15 +151,16 @@ void input_widget::paint(painter& output) const
     auto area = output.bounds();
     area.x -= m_scroll.x;
     area.y -= m_scroll.y;
-    area.width = std::max(area.width, m_layout->bounds.width);
-    area.height = std::max(area.height, m_layout->bounds.height);
+    area.width = std::max(area.width, m_layout->bounds().width);
+    area.height = std::max(area.height, m_layout->bounds().height);
+
     const auto [begin, end] = selection();
     auto highlight = output.foreground();
     highlight.a = static_cast<std::uint8_t>(highlight.a / 3);
 
-    if(m_preedit.empty())
+    if(m_editor.preedit().empty())
     {
-        for(auto box: selection_bounds(*m_layout, begin, end))
+        for(auto box: m_layout->selection_bounds(begin, end))
         {
             box.x += area.x;
             box.y += area.y;
@@ -139,7 +169,15 @@ void input_widget::paint(painter& output) const
     }
     else
     {
-        for(auto box: selection_bounds(*m_layout, begin, begin + m_preedit.size()))
+        const auto selected = m_editor.composition_selection();
+        for(auto box: m_layout->selection_bounds(selected.first, selected.second))
+        {
+            box.x += area.x;
+            box.y += area.y;
+            output.rectangle(box, highlight);
+        }
+
+        for(auto box: m_layout->selection_bounds(begin, begin + m_editor.preedit().size()))
         {
             box.x += area.x;
             box.y += area.y + box.height - 1;
@@ -148,11 +186,17 @@ void input_widget::paint(painter& output) const
         }
     }
 
-    output.text(m_cache.rasterize(output.fonts()), area, output.foreground());
+    output.text(
+        output.typography().rasterize(*m_layout, output.scale()),
+        area,
+        output.foreground(),
+        true
+    );
 
     if(focus_active())
     {
-        auto caret = caret_bounds(*m_layout, display_caret());
+        auto caret =
+            m_layout->caret_bounds(centypo::text_position{m_editor.display_caret(), m_editor.caret().affinity});
         caret.x += area.x;
         caret.y += area.y;
         output.rectangle(caret, output.foreground());
@@ -166,21 +210,20 @@ std::optional<rect> input_widget::text_input_area() const
         return content_bounds();
     }
 
-    auto caret = caret_bounds(*m_layout, display_caret());
+    auto caret = m_layout->caret_bounds(centypo::text_position{m_editor.display_caret(), m_editor.caret().affinity});
     caret.x += content_bounds().x - m_scroll.x;
     caret.y += content_bounds().y - m_scroll.y;
 
     return caret;
 }
 
-void input_widget::on_focus_activity_changed(bool value)
+void input_widget::on_focus_activity_changed(bool active)
 {
-    if(!value)
+    if(!active)
     {
         m_dragging = false;
-        if(!m_preedit.empty())
+        if(m_editor.cancel_composition())
         {
-            m_preedit.clear();
             changed_layout();
         }
     }
@@ -190,207 +233,219 @@ bool input_widget::on_event(const input_event& event)
 {
     if(event.type == input_event_type::composition)
     {
-        m_preedit = normalize(event.text);
-        m_preedit_caret = std::min(event.selection_start, m_preedit.size());
-        changed_layout();
-
+        if(m_editor.compose(event.text, event.selection_start, event.selection_length))
+        {
+            changed_layout();
+        }
         return true;
     }
-
     if(event.type == input_event_type::text_entered)
     {
-        replace_selection(normalize(event.text));
-
+        replace_selection(event.text, true);
         return true;
     }
-
     if(event.type == input_event_type::pointer_cancelled)
     {
         m_dragging = false;
-        if(!focus_active() && !m_preedit.empty())
+        if(!focus_active() && m_editor.cancel_composition())
         {
-            m_preedit.clear();
             changed_layout();
         }
-
         return true;
     }
-
     if(event.type == input_event_type::pointer_pressed && event.button == mouse_button::primary)
     {
-        const bool cancelled_composition = !m_preedit.empty();
-        m_preedit.clear();
-        m_layout.reset();
-        if(cancelled_composition)
+        if(m_editor.cancel_composition())
         {
             changed_layout();
         }
         refresh_text_geometry();
         m_dragging = true;
         move_caret(hit(event.x, event.y), event.mods.shift);
-
         return true;
     }
-
     if(m_dragging &&
        (event.type == input_event_type::pointer_moved || event.type == input_event_type::pointer_released))
     {
         move_caret(hit(event.x, event.y), true);
-
         if(event.type == input_event_type::pointer_released)
         {
             m_dragging = false;
         }
-
         return true;
     }
-
     if(event.type == input_event_type::wheel && m_layout)
     {
         const auto previous = m_scroll;
         m_scroll.x = std::clamp(
             m_scroll.x + event.delta_x,
             0.0f,
-            std::max(0.0f, m_layout->bounds.width + 1 - content_bounds().width)
+            std::max(0.0f, m_layout->bounds().width + 1 - content_bounds().width)
         );
         m_scroll.y = std::clamp(
             m_scroll.y + event.delta_y,
             0.0f,
-            std::max(0.0f, m_layout->bounds.height - content_bounds().height)
+            std::max(0.0f, m_layout->bounds().height - content_bounds().height)
         );
-        invalidate_paint();
-
-        return previous != m_scroll;
+        if(previous != m_scroll)
+        {
+            invalidate_geometry();
+            return true;
+        }
+        return false;
     }
-
     if(event.type != input_event_type::key_pressed)
     {
         return false;
     }
-
-    if(event.code == key::escape && !m_preedit.empty())
+    if(event.code == key::escape)
     {
-        m_preedit.clear();
-        changed_layout();
-
-        return true;
+        if(m_editor.cancel_composition())
+        {
+            changed_layout();
+            return true;
+        }
+        return false;
     }
-
-    if(!m_preedit.empty())
-    {
-        return event.code != key::tab;
-    }
-
     const auto [begin, end] = selection();
-
-    if(event.mods.control || event.mods.system)
+    const bool command = event.mods.control || event.mods.system;
+    if(command)
     {
         if(event.code == key::a)
         {
-            set_selection(0, m_value.size());
-
+            set_selection(0, value().size());
             return true;
         }
-
         if(event.code == key::c || event.code == key::x)
         {
             if(begin != end && host().write_clipboard)
             {
-                host().write_clipboard(std::string_view{m_value}.substr(begin, end - begin));
-
+                host().write_clipboard(value().substr(begin, end - begin));
                 if(event.code == key::x)
                 {
                     replace_selection({});
                 }
             }
-
             return true;
         }
-
         if(event.code == key::v)
         {
             if(host().read_clipboard)
             {
-                replace_selection(normalize(host().read_clipboard()));
+                replace_selection(host().read_clipboard());
             }
-
             return true;
         }
-
         if(event.code == key::z || event.code == key::y)
         {
-            const bool redo = event.code == key::y || event.mods.shift;
-            restore(redo ? m_redo : m_undo, redo ? m_undo : m_redo);
-
+            const bool composition = !m_editor.preedit().empty();
+            const bool changed = m_editor.undo(event.code == key::y || event.mods.shift);
+            if(changed || composition)
+            {
+                changed_layout();
+            }
+            if(changed)
+            {
+                notify_change();
+            }
             return true;
         }
     }
-
     switch(event.code)
     {
     case key::left:
-    {
-        move_caret(!event.mods.shift && begin != end ? begin : adjacent(false), event.mods.shift);
-
-        return true;
-    }
-
     case key::right:
     {
-        move_caret(!event.mods.shift && begin != end ? end : adjacent(true), event.mods.shift);
-
+        if(m_editor.cancel_composition())
+        {
+            changed_layout();
+            refresh_text_geometry();
+        }
+        const bool forward = event.code == key::right;
+        if(command)
+        {
+            move_caret({m_editor.adjacent(forward, true)}, event.mods.shift);
+        }
+        else if(!event.mods.shift && begin != end && m_layout)
+        {
+            const auto anchor = m_layout->caret_bounds(m_editor.anchor());
+            const auto caret = m_layout->caret_bounds(m_editor.caret());
+            const bool anchor_first = anchor.y == caret.y ? anchor.x < caret.x : anchor.y < caret.y;
+            move_caret((forward == anchor_first) ? m_editor.caret() : m_editor.anchor(), false);
+        }
+        else if(m_layout)
+        {
+            move_caret(m_layout->move_visual(m_editor.caret(), forward), event.mods.shift);
+        }
+        else
+        {
+            move_caret({m_editor.adjacent(forward, false)}, event.mods.shift);
+        }
         return true;
     }
-
     case key::up:
     case key::down:
     {
+        if(m_editor.cancel_composition())
+        {
+            changed_layout();
+            refresh_text_geometry();
+        }
         if(m_multiline && m_layout)
         {
-            const auto caret = caret_bounds(*m_layout, m_caret);
+            const auto caret = m_layout->caret_bounds(m_editor.caret());
+            const auto preferred = m_preferred_x.value_or(caret.x);
             move_caret(
-                text_hit(*m_layout, {caret.x, caret.y + caret.height * (event.code == key::up ? -0.5f : 1.5f)}),
+                m_layout->hit_test({preferred, caret.y + caret.height * (event.code == key::up ? -0.5f : 1.5f)}),
                 event.mods.shift
             );
+            m_preferred_x = preferred;
         }
-
         return m_multiline;
     }
-
     case key::home:
     case key::end:
     {
-        auto next = event.code == key::home ? std::size_t{0} : m_value.size();
-
-        if(m_layout && !event.mods.control && !event.mods.system)
+        if(m_editor.cancel_composition())
         {
-            const auto caret = caret_bounds(*m_layout, m_caret);
-            next = text_hit(
-                *m_layout,
-                {event.code == key::home ? -1.0f : m_layout->bounds.width + 1, caret.y + caret.height / 2}
+            changed_layout();
+            refresh_text_geometry();
+        }
+        centypo::text_position next{event.code == key::home ? 0 : value().size()};
+        if(m_layout && !command)
+        {
+            const auto caret = m_layout->caret_bounds(m_editor.caret());
+            next = m_layout->hit_test(
+                {event.code == key::home ? -std::numeric_limits<float>::max() : std::numeric_limits<float>::max(),
+                 caret.y + caret.height / 2}
             );
         }
-
         move_caret(next, event.mods.shift);
-
         return true;
     }
-
     case key::backspace:
     case key::delete_:
     {
-        if(begin == end)
+        const bool composition = !m_editor.preedit().empty();
+        if(m_editor.erase(event.code == key::delete_, command))
         {
-            m_anchor = adjacent(event.code == key::delete_);
+            changed_layout();
+            notify_change();
         }
-
-        replace_selection({});
-
+        else if(composition)
+        {
+            changed_layout();
+        }
         return true;
     }
-
+    case key::tab:
+        if(m_multiline && !command && !event.mods.alt && !event.mods.shift)
+        {
+            replace_selection("\t");
+            return true;
+        }
+        return false;
     case key::enter:
-    {
         if(m_multiline)
         {
             replace_selection("\n");
@@ -399,197 +454,75 @@ bool input_widget::on_event(const input_event& event)
         {
             m_on_submit(*this);
         }
-
         return true;
-    }
-
     default:
-    {
         return false;
     }
-    }
 }
 
-std::string input_widget::normalize(std::string value) const
+centypo::text_position input_widget::hit(float x, float y) const
 {
-    std::string result;
-
-    for(std::size_t index = 0; index < value.size();)
-    {
-        const auto first = static_cast<unsigned char>(value[index]);
-        const std::size_t count = first < 0x80                     ? 1
-                                  : first >= 0xC2 && first <= 0xDF ? 2
-                                  : first >= 0xE0 && first <= 0xEF ? 3
-                                  : first >= 0xF0 && first <= 0xF4 ? 4
-                                                                   : 0;
-
-        if(count == 0 || index + count > value.size())
-        {
-            throw std::invalid_argument("Input requires valid UTF-8");
-        }
-
-        std::uint32_t scalar = first & (count == 1 ? 0x7F : count == 2 ? 0x1F : count == 3 ? 0x0F : 0x07);
-
-        for(std::size_t byte = 1; byte < count; ++byte)
-        {
-            const auto continuation = static_cast<unsigned char>(value[index + byte]);
-
-            if((continuation & 0xC0) != 0x80)
-            {
-                throw std::invalid_argument("Input requires valid UTF-8");
-            }
-
-            scalar = (scalar << 6) | (continuation & 0x3F);
-        }
-
-        if((count == 2 && scalar < 0x80) || (count == 3 && scalar < 0x800) || (count == 4 && scalar < 0x10000) ||
-           scalar > 0x10FFFF || (scalar >= 0xD800 && scalar <= 0xDFFF))
-        {
-            throw std::invalid_argument("Input requires valid UTF-8");
-        }
-
-        if(first == '\r' || first == '\n')
-        {
-            result += m_multiline ? '\n' : ' ';
-
-            if(first == '\r' && index + 1 < value.size() && value[index + 1] == '\n')
-            {
-                ++index;
-            }
-        }
-        else if(first == '\t')
-        {
-            result += ' ';
-        }
-        else if(scalar >= 32 && scalar != 127)
-        {
-            result.append(value, index, count);
-        }
-
-        index += count;
-    }
-
-    return result;
+    return m_layout ? m_layout->hit_test({x - content_bounds().x + m_scroll.x, y - content_bounds().y + m_scroll.y})
+                    : centypo::text_position{};
 }
 
-std::size_t input_widget::boundary(std::size_t offset) const noexcept
+void input_widget::move_caret(centypo::text_position next, bool extend)
 {
-    while(offset > 0 && offset < m_value.size() && (static_cast<unsigned char>(m_value[offset]) & 0xC0) == 0x80)
-    {
-        --offset;
-    }
-
-    return offset;
+    set_selection(extend ? m_editor.anchor() : next, next);
 }
 
-std::size_t input_widget::adjacent(bool forward) const
-{
-    auto result = forward ? m_value.size() : 0;
-
-    if(m_layout)
-    {
-        for(const auto& caret: m_layout->carets)
-        {
-            if(forward && caret.offset > m_caret)
-            {
-                result = std::min(result, caret.offset);
-            }
-            else if(!forward && caret.offset < m_caret)
-            {
-                result = std::max(result, caret.offset);
-            }
-        }
-    }
-
-    return result;
-}
-
-std::size_t input_widget::hit(float x, float y) const
-{
-    return m_layout ? text_hit(*m_layout, {x - content_bounds().x + m_scroll.x, y - content_bounds().y + m_scroll.y})
-                    : 0;
-}
-
-void input_widget::move_caret(std::size_t next, bool extend)
-{
-    set_selection(extend ? m_anchor : next, next);
-}
-
-std::size_t input_widget::display_caret() const noexcept
-{
-    return m_preedit.empty() ? m_caret : std::min(m_anchor, m_caret) + m_preedit_caret;
-}
-
-void input_widget::prepare_text(text_service& service, float width) const
+void input_widget::prepare_text(const centypo::engine& service, float width) const
 {
     const auto appearance = resolved_style();
-    auto text = m_value;
-
-    if(!m_preedit.empty())
+    auto options = appearance.paragraph.value_or(centypo::text_options{});
+    if(!m_multiline)
     {
-        const auto [begin, end] = selection();
-        text.replace(begin, end - begin, m_preedit);
+        options.wrap = centypo::text_wrap::none;
     }
-
-    m_layout = m_cache.layout(service, text, appearance.font, appearance.font_size, width);
+    options.max_lines = 0;
+    options.ellipsis = false;
+    m_layout = service.layout(
+        m_editor.display_text(),
+        {.size = appearance.font_size,
+         .width = width,
+         .font = appearance.font.value_or(centypo::font{}),
+         .paragraph = options,
+         .alignment = appearance.text_align}
+    );
 }
 
 void input_widget::changed_layout()
 {
     m_layout.reset();
     m_reveal_caret = true;
+    m_preferred_x.reset();
     invalidate_layout();
 }
 
 void input_widget::notify_change()
 {
-    const auto value = m_value;
-    m_on_change(*this, value);
+    const auto text = m_editor.value();
+    m_on_change(*this, text);
 }
 
-void input_widget::replace_selection(std::string replacement)
+void input_widget::replace_selection(std::string text, bool typing)
 {
-    const auto [begin, end] = selection();
-    m_preedit.clear();
-
-    if(begin == end && replacement.empty())
+    const bool composition = !m_editor.preedit().empty();
+    const auto before = directional_selection();
+    const bool changed = m_editor.replace(std::move(text), typing);
+    if(changed || composition)
     {
         changed_layout();
-
-        return;
     }
-
-    auto candidate = m_value;
-    candidate.replace(begin, end - begin, replacement);
-    m_undo.push_back({m_value, m_anchor, m_caret});
-
-    if(m_undo.size() > 128)
+    else if(before != directional_selection())
     {
-        m_undo.erase(m_undo.begin());
+        m_reveal_caret = true;
+        invalidate_geometry();
     }
-
-    m_redo.clear();
-    m_value = std::move(candidate);
-    m_anchor = m_caret = begin + replacement.size();
-    changed_layout();
-    notify_change();
-}
-
-void input_widget::restore(std::vector<snapshot>& source, std::vector<snapshot>& destination)
-{
-    if(source.empty())
+    if(changed)
     {
-        return;
+        notify_change();
     }
-
-    destination.push_back({m_value, m_anchor, m_caret});
-    auto state = std::move(source.back());
-    source.pop_back();
-    m_value = std::move(state.value);
-    m_anchor = state.anchor;
-    m_caret = state.caret;
-    changed_layout();
-    notify_change();
 }
 
 } // namespace centui

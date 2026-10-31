@@ -33,6 +33,8 @@ TEST_CASE("Document patches retain composition order and persistent local overri
     auto secondary = centui::container<base_theme, secondary_theme>{};
     auto root = centui::container{base, secondary};
     centui::document document{root};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     document.set_style({.font_size = 12});
     document.patch_style<base_theme>({.font_size = 20});
     REQUIRE(base.style().font_size == 20);
@@ -60,6 +62,8 @@ TEST_CASE("Full style replacements can reveal their original recipe again", "[st
     replacement.font_size = 30;
     auto value = centui::container<base_theme>{replacement};
     centui::document document{value};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     document.patch_style<base_theme>({.font_size = 22});
     REQUIRE(value.style().font_size == 30);
     value.clear_style_overrides();
@@ -75,6 +79,8 @@ TEST_CASE("Document patches reach future widgets and follow mount ownership", "[
 {
     auto root = centui::container{};
     centui::document first{root};
+    first.set_system_font_discovery(false);
+    first.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     first.patch_style<base_theme>({.font_size = 25});
     auto child = centui::container<base_theme>{};
     root->append(child);
@@ -84,6 +90,8 @@ TEST_CASE("Document patches reach future widgets and follow mount ownership", "[
 
     {
         centui::document second;
+        second.set_system_font_discovery(false);
+        second.register_font(std::filesystem::path{CENTUI_FONT_PATH});
         second.patch_style<base_theme>({.font_size = 32});
         second.set_root(child);
         REQUIRE(child.style().font_size == 32);
@@ -96,6 +104,8 @@ TEST_CASE("Invalid document updates and mounts leave prior state intact", "[styl
     auto first = centui::container<base_theme>{};
     auto second = centui::container<base_theme>{};
     centui::document document{centui::container{first, second}};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     REQUIRE_THROWS_AS(document.patch_style<base_theme>({.font_size = -1}), std::invalid_argument);
     REQUIRE(first.style().font_size == 16);
     REQUIRE(second.style().font_size == 16);
@@ -104,6 +114,8 @@ TEST_CASE("Invalid document updates and mounts leave prior state intact", "[styl
     REQUIRE(later.style().font_size == 16);
 
     centui::document destination;
+    destination.set_system_font_discovery(false);
+    destination.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     destination.patch_style<base_theme>({.font_size = -1});
     auto detached = centui::container<base_theme>{};
     REQUIRE_THROWS_AS(destination.set_root(detached), std::invalid_argument);
@@ -116,6 +128,8 @@ TEST_CASE("Document style changes invalidate only actual resolved differences", 
 {
     auto value = centui::container<base_theme>{};
     centui::document document{value};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     (void)document.prepare({100, 100});
     document.patch_style<base_theme>({.font_size = 16});
     REQUIRE_FALSE(document.pending_changes().any());
@@ -132,6 +146,8 @@ TEST_CASE("Context callbacks expose the emitting widget and support self replace
     auto value = centui::make_widget<activation_probe>();
     auto root = centui::container{value};
     centui::document document{root};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     int calls = 0;
     value->set_on_click(
         [&](centui::event& event)
@@ -159,6 +175,8 @@ TEST_CASE("Context callbacks borrow originating input only during dispatch", "[e
 {
     auto value = centui::make_widget<activation_probe>();
     centui::document document{value};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     bool received_input = false;
     value->set_on_click(
         [&](centui::event& event)
@@ -184,6 +202,8 @@ TEST_CASE("Optional callback context precedes widget-specific arguments", "[even
 {
     auto value = centui::make_widget<activation_probe>();
     centui::document document{value};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     float received = 0;
     centui::callback<float> callback = [&](centui::event& event, float number)
     {

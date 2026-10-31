@@ -88,6 +88,8 @@ TEST_CASE("Widget child operations work detached and mounted", "[widget][extensi
     REQUIRE_FALSE(child->parent().valid());
     {
         centui::document document{root};
+        document.set_system_font_discovery(false);
+        document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
         root->append(child);
         REQUIRE(document.parent(child) == centui::handle<>{root});
         root->remove(child);
@@ -107,6 +109,8 @@ TEST_CASE("Composite callbacks edit their children through the widget API", "[wi
     auto replacement = centui::make_widget<centui::container_widget>(box(80, 30));
     root->append(action);
     centui::document document{root};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     const auto weak_root = root.weak();
     const auto weak_action = action.weak();
     action->set_on_click(
@@ -134,6 +138,8 @@ TEST_CASE("Focus is independent of pointer interaction and reports invalidation"
     root->append(first);
     root->append(second);
     centui::document document{root};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     REQUIRE(first->request_focus());
     REQUIRE(first->focused());
     REQUIRE(second->request_focus());
@@ -163,6 +169,8 @@ TEST_CASE("Focus callbacks defer topology edits and recover from exceptions", "[
     auto root = centui::make_widget<centui::container_widget>(box(200, 100));
     root->append(child);
     centui::document document{root};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     const auto weak_child = child.weak();
     const auto weak_root = root.weak();
     child->focus_callback = [weak_child, weak_root](bool focused)
@@ -198,6 +206,8 @@ TEST_CASE("Child clipping and offsets agree for drawing and pointer targeting", 
     auto child = centui::make_widget<counting_button>(centui::pressable_options{}, appearance);
     root->append(child);
     centui::document document{root};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     document.process_event({centui::input_event_type::pointer_moved, 50, 5}, {200, 100});
     REQUIRE(child->hovered());
     root->set_clip_children(true);
@@ -232,6 +242,8 @@ TEST_CASE("Content buttons reuse activation without inheriting text", "[widget][
         }
     );
     centui::document document{action};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     REQUIRE(content->parent() == centui::handle<>{action});
     document.process_event({centui::input_event_type::pointer_pressed, 5, 5}, {200, 100});
     document.process_event({centui::input_event_type::pointer_released, 5, 5}, {200, 100});
@@ -248,6 +260,8 @@ TEST_CASE("Unhandled motion reaches ancestors while captured gestures stay local
     root->handle_events = true;
     root->append(child);
     centui::document document{root};
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     document.process_event({centui::input_event_type::pointer_moved, 5, 5}, {200, 100});
     REQUIRE(root->events.size() == 1);
     REQUIRE(child->events.size() == 1);

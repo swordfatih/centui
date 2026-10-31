@@ -7,6 +7,14 @@ namespace centui
 
 void style::validate() const
 {
+    if(paragraph)
+    {
+        paragraph->validate();
+    }
+    if(font)
+    {
+        font->validate();
+    }
     const auto check_length = [](length value, bool nonnegative)
     {
         if(!std::isfinite(value.value))
@@ -73,7 +81,7 @@ void style::validate() const
     check_edges(inset, false);
 
     if(!std::isfinite(font_size) || font_size <= 0 ||
-       std::round(static_cast<double>(font_size)) > std::numeric_limits<std::uint32_t>::max())
+       static_cast<double>(font_size) * 64 > std::numeric_limits<std::int32_t>::max())
     {
         throw std::invalid_argument("Font size must be positive, finite, and representable");
     }
@@ -90,7 +98,7 @@ void style::validate() const
     check_enum(flex_direction, direction::column, direction::row_reverse);
     check_enum(align_items, alignment::automatic, alignment::space_evenly);
     check_enum(justify_content, justification::start, justification::space_evenly);
-    check_enum(text_align, text_alignment::left, text_alignment::right);
+    check_enum(text_align, centypo::text_alignment::left, centypo::text_alignment::end);
     check_enum(visibility, centui::visibility::visible, centui::visibility::collapsed);
     check_enum(overflow, centui::overflow::visible, centui::overflow::scroll);
 
@@ -153,7 +161,8 @@ invalidation style::changes_from(const style& previous) const noexcept
 
 details::style_effects details::classify_style(const style& next, const style& previous) noexcept
 {
-    const bool text_changed = next.font_size != previous.font_size || next.font != previous.font;
+    const bool text_changed =
+        next.font_size != previous.font_size || next.font != previous.font || next.paragraph != previous.paragraph;
     const bool layout_changed =
         text_changed || next.padding != previous.padding || next.margin != previous.margin ||
         next.inset != previous.inset || next.gap != previous.gap || next.position != previous.position ||
@@ -205,6 +214,7 @@ style style_patch::apply(style candidate) const
     X(font_size)                   \
     X(font)                        \
     X(text_align)                  \
+    X(paragraph)                   \
     X(visibility)                  \
     X(overflow)                    \
     X(border_width)                \

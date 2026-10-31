@@ -22,7 +22,9 @@ TEST_CASE("Standalone selection header exposes items options and callbacks", "[w
         }
     };
     centui::document document{control};
-    document.set_font(centui::font{CENTUI_FONT_PATH});
+    document.set_system_font_discovery(false);
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
+
     (void)document.prepare({200, 100});
     REQUIRE(control->request_focus());
     document.process_event({.type = centui::input_event_type::key_pressed, .code = centui::key::down}, {200, 100});
