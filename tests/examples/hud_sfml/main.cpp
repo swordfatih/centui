@@ -70,7 +70,7 @@ int main()
     const auto resize_circle = [&circle, radius](float value) mutable
     {
         circle.setRadius(value);
-        radius.set_text(std::format("Radius / {:.0f} px", value));
+        radius->set_text(std::format("Radius / {:.0f} px", value));
     };
 
     auto root = centui::container<overlay>{

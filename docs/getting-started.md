@@ -81,7 +81,7 @@ auto root = centui::container{
     label,
     centui::button{"Update", {.on_click = [label]() mutable
     {
-        label.set_text("Updated");
+        label->set_text("Updated");
     }}},
 };
 

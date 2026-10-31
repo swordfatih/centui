@@ -73,7 +73,7 @@ int main()
                 {
                     .on_click = [count, label]() mutable
                     {
-                        label.set_text(std::format("{} clicks", ++*count));
+                        label->set_text(std::format("{} clicks", ++*count));
                     },
                 }
             },

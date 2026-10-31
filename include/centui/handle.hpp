@@ -70,26 +70,6 @@ public:
         return get();
     }
 
-    [[nodiscard]] const centui::style& style() const
-    {
-        return get().style();
-    }
-
-    void set_style(centui::style value)
-    {
-        get().set_style(std::move(value));
-    }
-
-    void patch_style(const style_patch& patch)
-    {
-        get().patch_style(patch);
-    }
-
-    void clear_style_overrides()
-    {
-        get().clear_style_overrides();
-    }
-
     [[nodiscard]] weak_handle<T> weak() const noexcept
     {
         return weak_handle<T>{*this};

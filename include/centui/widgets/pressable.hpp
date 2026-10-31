@@ -72,21 +72,6 @@ public:
     {
         this->get().append(std::span{children.begin(), children.size()});
     }
-
-    void set_enabled(bool value)
-    {
-        this->get().set_enabled(value);
-    }
-
-    [[nodiscard]] bool enabled() const
-    {
-        return this->get().enabled();
-    }
-
-    void set_on_click(centui::callback<> callback)
-    {
-        this->get().set_on_click(std::move(callback));
-    }
 };
 
 } // namespace centui

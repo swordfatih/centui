@@ -59,36 +59,6 @@ public:
           )
     {
     }
-
-    void set_image(image_source value)
-    {
-        this->get().set_image(std::move(value));
-    }
-
-    void set_image(bitmap value)
-    {
-        this->get().set_image(std::move(value));
-    }
-
-    [[nodiscard]] const image_source& value() const
-    {
-        return this->get().value();
-    }
-
-    void value(image_source value)
-    {
-        set_image(std::move(value));
-    }
-
-    void set_options(image_options value)
-    {
-        this->get().set_options(value);
-    }
-
-    [[nodiscard]] image_options options() const
-    {
-        return this->get().options();
-    }
 };
 
 } // namespace centui

@@ -52,21 +52,6 @@ public:
           ))
     {
     }
-
-    void set_text(std::string value)
-    {
-        this->get().set_text(std::move(value));
-    }
-
-    void value(std::string value)
-    {
-        set_text(std::move(value));
-    }
-
-    [[nodiscard]] std::string_view value() const
-    {
-        return this->get().value();
-    }
 };
 
 } // namespace centui

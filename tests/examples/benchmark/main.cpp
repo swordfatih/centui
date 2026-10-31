@@ -27,11 +27,11 @@ int main()
     for(bool cached: {false, true})
     {
         auto root = centui::container{};
-        root.patch_style({.width = centui::px(1000), .height = centui::px(1000)});
+        root->patch_style({.width = centui::px(1000), .height = centui::px(1000)});
 
         auto panel = centui::container{};
-        panel.patch_style({.height = centui::px(900)});
-        panel.patch_style({.flex_direction = centui::direction::row});
+        panel->patch_style({.height = centui::px(900)});
+        panel->patch_style({.flex_direction = centui::direction::row});
 
         for(int i = 0; i < 100; ++i)
         {

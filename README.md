@@ -27,7 +27,7 @@ int main()
         message,
         centui::button{"Click me", {.on_click = [message]() mutable
         {
-            message.set_text("You clicked the button!");
+            message->set_text("You clicked the button!");
         }}},
     };
 

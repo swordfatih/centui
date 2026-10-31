@@ -121,7 +121,7 @@ int main()
         progress,
         slider
     };
-    content.set_style(card);
+    content->set_style(card);
     auto root = centui::container{content};
     centui::style screen;
     screen.width = centui::percent(100);
@@ -129,7 +129,7 @@ int main()
     screen.align_items = centui::alignment::center;
     screen.justify_content = centui::justification::center;
     screen.background_color = centui::states_color::all(centui::color::from_hex(0x0F172A));
-    root.set_style(screen);
+    root->set_style(screen);
     centui::document document{root};
 
     centui::ui ui{window, renderer};

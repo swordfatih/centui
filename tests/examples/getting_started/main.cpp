@@ -79,7 +79,7 @@ int main()
 
     const auto increment = [count, label]() mutable
     {
-        label.set_text(std::format("{}", ++*count));
+        label->set_text(std::format("{}", ++*count));
     };
 
     auto root = centui::container<screen>{
@@ -101,7 +101,7 @@ int main()
                         .on_click = [count, label]() mutable
                         {
                             *count = 0;
-                            label.set_text("0");
+                            label->set_text("0");
                         },
                     }
                 },

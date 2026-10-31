@@ -237,7 +237,7 @@ void document::update_layout(centui::viewport viewport)
                         std::make_unique<layout_configuration>(m_data->geometry.layout_options);
                 }
                 sync_layout(m_data->geometry.tree, m_data->root.m_value, m_data->geometry.measure_all);
-                if(m_data->root.style().display == display::contents)
+                if(m_data->root->style().display == display::contents)
                 {
                     if(!m_data->geometry.viewport_layout)
                     {

@@ -92,10 +92,10 @@ TEST_CASE("Typed handles share identity and expose derived setters", "[widget][h
     auto captured = label;
     auto edit = [captured]() mutable
     {
-        captured.set_text("After");
+        captured->set_text("After");
     };
     edit();
-    REQUIRE(label.value() == "After");
+    REQUIRE(label->value() == "After");
 }
 
 TEST_CASE("Empty and moved handles reject access without disturbing aliases", "[widget][handles]")
@@ -120,8 +120,8 @@ TEST_CASE("Empty and moved handles reject access without disturbing aliases", "[
     centui::text<> title{"Moved"};
     auto destination = std::move(title);
     REQUIRE_FALSE(title.valid());
-    REQUIRE_THROWS_AS(title.value(), std::logic_error);
-    REQUIRE(destination.value() == "Moved");
+    REQUIRE_THROWS_AS(title->value(), std::logic_error);
+    REQUIRE(destination->value() == "Moved");
 }
 
 TEST_CASE("Weak handles expire after the last shared owner", "[widget][lifetime]")
@@ -288,11 +288,11 @@ TEST_CASE("Custom measurement painting and invalidation use the public extension
 {
     auto leaf = centui::make_widget<custom_leaf>(29);
     centui::container<> root{leaf};
-    auto appearance = root.style();
+    auto appearance = root->style();
     appearance.width = centui::px(200);
     appearance.height = centui::px(100);
     appearance.align_items = centui::alignment::start;
-    root.set_style(appearance);
+    root->set_style(appearance);
     centui::document document{root};
     document.set_system_font_discovery(false);
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});

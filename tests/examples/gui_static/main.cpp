@@ -45,7 +45,7 @@ int main()
             dismiss,
         },
     };
-    dismiss.set_on_click(
+    dismiss->set_on_click(
         [weak = dialog.weak()]
         {
             if(auto popup = weak.lock(); popup.valid())

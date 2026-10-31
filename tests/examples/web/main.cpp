@@ -42,7 +42,7 @@ auto make_interface()
     auto label = centui::text{"0 clicks"};
     const auto increment = [clicks, label]() mutable
     {
-        label.set_text(std::to_string(++*clicks) + " clicks");
+        label->set_text(std::to_string(++*clicks) + " clicks");
     };
 
     return centui::container<screen>{

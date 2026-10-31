@@ -9,9 +9,9 @@
 TEST_CASE("Standalone scroll header retains children and clamps offsets", "[widget][scroll][header]")
 {
     auto content = centui::container<>();
-    content.patch_style({.height = centui::px(200)});
+    content->patch_style({.height = centui::px(200)});
     auto control = centui::scroll{content};
-    control.patch_style({.width = centui::px(100), .height = centui::px(50)});
+    control->patch_style({.width = centui::px(100), .height = centui::px(50)});
     centui::document document{control};
     document.set_system_font_discovery(false);
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});

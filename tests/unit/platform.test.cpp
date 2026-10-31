@@ -173,7 +173,7 @@ TEST_CASE("UI frames process polled events and advance widgets before drawing", 
             },
         }
     };
-    action.patch_style({.width = centui::px(100), .height = centui::px(60)});
+    action->patch_style({.width = centui::px(100), .height = centui::px(60)});
     centui::document document{action};
     document.set_system_font_discovery(false);
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});

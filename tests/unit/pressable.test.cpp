@@ -27,8 +27,8 @@ TEST_CASE("Pressables activate through nested content and multiple children", "[
 {
     auto first = centui::container<>();
     auto second = centui::container<>();
-    first.patch_style({.height = centui::px(20)});
-    second.patch_style({.height = centui::px(20)});
+    first->patch_style({.height = centui::px(20)});
+    second->patch_style({.height = centui::px(20)});
     int calls = 0;
     centui::handle<centui::pressable_widget> action;
     SECTION("Single nested content argument")
@@ -102,7 +102,7 @@ TEST_CASE("Pressable keyboard activation ignores repeats and disabled state", "[
         REQUIRE(calls == previous + 1);
     }
 
-    action.set_enabled(false);
+    action->set_enabled(false);
     document.process_event({.type = centui::input_event_type::key_pressed, .code = centui::key::enter}, {200, 100});
     REQUIRE(calls == 2);
 }
@@ -115,7 +115,7 @@ TEST_CASE("Noninteractive descendants inherit pressable visual states", "[widget
     colors.focused = {40, 0, 0, 255};
     colors.disabled = {50, 0, 0, 255};
     auto content = centui::container<>();
-    content.patch_style({.height = centui::px(20), .background_color = colors});
+    content->patch_style({.height = centui::px(20), .background_color = colors});
     auto action = centui::pressable<action_style>{centui::container{content}};
     centui::document document{action};
     document.set_system_font_discovery(false);
@@ -136,6 +136,6 @@ TEST_CASE("Noninteractive descendants inherit pressable visual states", "[widget
     document.process_event({centui::input_event_type::pointer_released, 5, 5}, {200, 100});
     document.process_event({centui::input_event_type::pointer_left}, {200, 100});
     REQUIRE(color() == colors.focused);
-    action.set_enabled(false);
+    action->set_enabled(false);
     REQUIRE(color() == colors.disabled);
 }

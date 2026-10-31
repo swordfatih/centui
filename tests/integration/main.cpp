@@ -14,7 +14,7 @@ int run_integration()
     centui::ui integration{host, renderer};
 
     auto root = centui::container{centui::text{"Integration test"}, centui::button{"Button"}};
-    root.patch_style({.width = centui::percent(100), .height = centui::percent(100)});
+    root->patch_style({.width = centui::percent(100), .height = centui::percent(100)});
 
     centui::document document{root};
 

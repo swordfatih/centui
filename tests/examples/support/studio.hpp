@@ -224,8 +224,8 @@ struct settings
 
     void refresh()
     {
-        preview_name.set_text(name.empty() ? "Untitled studio" : name);
-        details.set_text(
+        preview_name->set_text(name.empty() ? "Untitled studio" : name);
+        details->set_text(
             std::format(
                 "{}\n\n{:.0f} minute focus sessions\nNotifications {}",
                 projects().at(project),
@@ -233,20 +233,20 @@ struct settings
                 notifications ? "on" : "off"
             )
         );
-        duration.set_text(std::format("Focus session / {:.0f} min", minutes));
+        duration->set_text(std::format("Focus session / {:.0f} min", minutes));
     }
 
     void changed()
     {
         refresh();
-        status.set_text("Unsaved changes");
+        status->set_text("Unsaved changes");
     }
 
     void apply()
     {
         refresh();
-        status.set_text("Applied for this session");
-        confirmation.set_text(
+        status->set_text("Applied for this session");
+        confirmation->set_text(
             std::format(
                 "{}\n{}\n\nFocus: {:.0f} minutes\nNotifications: {}\nNotes: {} characters",
                 name.empty() ? "Untitled studio" : name,

@@ -37,23 +37,23 @@ TEST_CASE("Document patches retain composition order and persistent local overri
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     document.set_style({.font_size = 12});
     document.patch_style<base_theme>({.font_size = 20});
-    REQUIRE(base.style().font_size == 20);
-    REQUIRE(secondary.style().font_size == 14);
-    REQUIRE(root.style().font_size == 12);
+    REQUIRE(base->style().font_size == 20);
+    REQUIRE(secondary->style().font_size == 14);
+    REQUIRE(root->style().font_size == 12);
 
-    base.patch_style({.font_size = 20}); // Explicit even though it is currently equal.
+    base->patch_style({.font_size = 20}); // Explicit even though it is currently equal.
     document.patch_style<base_theme>({.font_size = 24});
-    REQUIRE(base.style().font_size == 20);
-    base.clear_style_overrides();
-    REQUIRE(base.style().font_size == 24);
+    REQUIRE(base->style().font_size == 20);
+    base->clear_style_overrides();
+    REQUIRE(base->style().font_size == 24);
     document.patch_style<base_theme>({.width = centui::px(80)});
-    REQUIRE(base.style().font_size == 24);
-    REQUIRE(base.style().width == centui::px(80));
+    REQUIRE(base->style().font_size == 24);
+    REQUIRE(base->style().width == centui::px(80));
     document.clear_style_patch<base_theme>();
-    REQUIRE(base.style().font_size == 16);
-    REQUIRE(base.style().width == centui::px(40));
+    REQUIRE(base->style().font_size == 16);
+    REQUIRE(base->style().width == centui::px(40));
     document.set_style({});
-    REQUIRE(root.style().font_size == centui::style{}.font_size);
+    REQUIRE(root->style().font_size == centui::style{}.font_size);
 }
 
 TEST_CASE("Full style replacements can reveal their original recipe again", "[style][widget]")
@@ -65,14 +65,14 @@ TEST_CASE("Full style replacements can reveal their original recipe again", "[st
     document.set_system_font_discovery(false);
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     document.patch_style<base_theme>({.font_size = 22});
-    REQUIRE(value.style().font_size == 30);
-    value.clear_style_overrides();
-    REQUIRE(value.style().font_size == 22);
-    value.set_style(replacement);
+    REQUIRE(value->style().font_size == 30);
+    value->clear_style_overrides();
+    REQUIRE(value->style().font_size == 22);
+    value->set_style(replacement);
     document.set_style({.font_size = 10});
-    REQUIRE(value.style().font_size == 30);
-    value.clear_style_overrides();
-    REQUIRE(value.style().font_size == 22);
+    REQUIRE(value->style().font_size == 30);
+    value->clear_style_overrides();
+    REQUIRE(value->style().font_size == 22);
 }
 
 TEST_CASE("Document patches reach future widgets and follow mount ownership", "[style][document]")
@@ -84,9 +84,9 @@ TEST_CASE("Document patches reach future widgets and follow mount ownership", "[
     first.patch_style<base_theme>({.font_size = 25});
     auto child = centui::container<base_theme>{};
     root->append(child);
-    REQUIRE(child.style().font_size == 25);
+    REQUIRE(child->style().font_size == 25);
     first.remove(child);
-    REQUIRE(child.style().font_size == 16);
+    REQUIRE(child->style().font_size == 16);
 
     {
         centui::document second;
@@ -94,9 +94,9 @@ TEST_CASE("Document patches reach future widgets and follow mount ownership", "[
         second.register_font(std::filesystem::path{CENTUI_FONT_PATH});
         second.patch_style<base_theme>({.font_size = 32});
         second.set_root(child);
-        REQUIRE(child.style().font_size == 32);
+        REQUIRE(child->style().font_size == 32);
     }
-    REQUIRE(child.style().font_size == 16);
+    REQUIRE(child->style().font_size == 16);
 }
 
 TEST_CASE("Invalid document updates and mounts leave prior state intact", "[style][document]")
@@ -107,11 +107,11 @@ TEST_CASE("Invalid document updates and mounts leave prior state intact", "[styl
     document.set_system_font_discovery(false);
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     REQUIRE_THROWS_AS(document.patch_style<base_theme>({.font_size = -1}), std::invalid_argument);
-    REQUIRE(first.style().font_size == 16);
-    REQUIRE(second.style().font_size == 16);
+    REQUIRE(first->style().font_size == 16);
+    REQUIRE(second->style().font_size == 16);
     auto later = centui::container<base_theme>{};
     document.append(document.root(), later);
-    REQUIRE(later.style().font_size == 16);
+    REQUIRE(later->style().font_size == 16);
 
     centui::document destination;
     destination.set_system_font_discovery(false);
@@ -120,7 +120,7 @@ TEST_CASE("Invalid document updates and mounts leave prior state intact", "[styl
     auto detached = centui::container<base_theme>{};
     REQUIRE_THROWS_AS(destination.set_root(detached), std::invalid_argument);
     REQUIRE(destination.empty());
-    REQUIRE(detached.style().font_size == 16);
+    REQUIRE(detached->style().font_size == 16);
     REQUIRE_FALSE(detached->parent().valid());
 }
 

@@ -474,7 +474,7 @@ int main()
                  [selected, toast]() mutable
              {
                  *selected = "Overview";
-                 toast.set_text("Viewing Overview");
+                 toast->set_text("Viewing Overview");
              }}
         },
         centui::button<nav>{
@@ -483,7 +483,7 @@ int main()
                  [selected, toast]() mutable
              {
                  *selected = "Analytics";
-                 toast.set_text("Analytics selected");
+                 toast->set_text("Analytics selected");
              }}
         },
         centui::button<nav>{
@@ -492,7 +492,7 @@ int main()
                  [selected, toast]() mutable
              {
                  *selected = "Audience";
-                 toast.set_text("Audience selected");
+                 toast->set_text("Audience selected");
              }}
         },
         centui::button<nav>{
@@ -501,7 +501,7 @@ int main()
                  [selected, toast]() mutable
              {
                  *selected = "Campaigns";
-                 toast.set_text("Campaigns selected");
+                 toast->set_text("Campaigns selected");
              }}
         },
         centui::button<nav>{
@@ -510,7 +510,7 @@ int main()
                  [selected, toast]() mutable
              {
                  *selected = "Activity";
-                 toast.set_text("Activity selected");
+                 toast->set_text("Activity selected");
              }}
         },
         centui::container<spacer>{},
@@ -529,7 +529,7 @@ int main()
             {.on_click =
                  [toast]() mutable
              {
-                 toast.set_text("Settings selected");
+                 toast->set_text("Settings selected");
              }}
         },
         centui::button<nav>{
@@ -537,7 +537,7 @@ int main()
             {.on_click =
                  [toast]() mutable
              {
-                 toast.set_text("Support: hello@pulse.example");
+                 toast->set_text("Support: hello@pulse.example");
              }}
         },
         centui::container<spacer>{},
@@ -557,14 +557,14 @@ int main()
                 {.on_click =
                      [toast]() mutable
                  {
-                     toast.set_text("Dashboard refreshed successfully");
+                     toast->set_text("Dashboard refreshed successfully");
                  }}
             },
             centui::button<primary>{
                 "↗  Export report",
                 {.on_click = [toast]() mutable
                  {
-                     toast.set_text("Report export is a demo action");
+                     toast->set_text("Report export is a demo action");
                  }}
             }
         }
@@ -577,7 +577,7 @@ int main()
             {.on_click = [period, short_period]() mutable
              {
                  *short_period = !*short_period;
-                 period.set_text(*short_period ? "Last 7 days" : "Last 30 days");
+                 period->set_text(*short_period ? "Last 7 days" : "Last 30 days");
              }}
         }
     };
@@ -645,7 +645,7 @@ int main()
                     {.on_click =
                          [toast]() mutable
                      {
-                         toast.set_text("Transactions: showing the latest four");
+                         toast->set_text("Transactions: showing the latest four");
                      }}
                 }
             },
@@ -669,7 +669,7 @@ int main()
                      [search, toast](std::string_view value) mutable
                  {
                      *search = value;
-                     toast.set_text(value.empty() ? "Search cleared" : "Searching: " + std::string(value));
+                     toast->set_text(value.empty() ? "Search cleared" : "Searching: " + std::string(value));
                  }}
             },
             centui::button<primary>{
@@ -677,7 +677,7 @@ int main()
                 {.on_click =
                      [toast]() mutable
                  {
-                     toast.set_text("New campaign clicked");
+                     toast->set_text("New campaign clicked");
                  }}
             },
             centui::button<action>{
@@ -685,7 +685,7 @@ int main()
                 {.on_click =
                      [toast]() mutable
                  {
-                     toast.set_text("Analytics selected");
+                     toast->set_text("Analytics selected");
                  }}
             },
             centui::container<separator>{},

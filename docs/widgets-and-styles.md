@@ -14,7 +14,7 @@ auto root = centui::container{
     status,
     centui::button{"Go", {.on_click = [status]() mutable
     {
-        status.set_text("Done");
+        status->set_text("Done");
     }}},
 };
 ```
@@ -31,7 +31,25 @@ auto tile = centui::pressable<tile_style>{
 };
 ```
 
-Other controls are `toggle`, `range`, `selection`, `scroll`, `popup`, and single-line or multiline `input`. Their option structs carry initial values and callbacks. See [gui_static](https://github.com/swordfatih/centui/blob/main/tests/examples/gui_static/main.cpp) for all of them together. You can also build the same tree with `make_widget<T>()` and `append()`; [gui_dynamic](https://github.com/swordfatih/centui/blob/main/tests/examples/gui_dynamic/main.cpp) uses that approach.
+Other controls are `toggle`, `range`, `selection`, `scroll`, `popup`, and single-line or multiline `input`. Their option structs carry initial values and callbacks. See [gui_static](https://github.com/swordfatih/centui/blob/main/tests/examples/gui_static/main.cpp) for all of them together.
+
+Handles provide construction, shared ownership, and access to widgets. Use `->`
+for all widget operations, including text changes, callbacks, and styles:
+
+```cpp
+status->set_text("Ready");
+root->patch_style({.gap = centui::px(12)});
+root->append(centui::text{"Added later"});
+```
+
+Nested construction and incremental `append()` calls work with the same handles
+and can be mixed. `make_widget<T>()` creates handles directly from widget classes,
+including custom widgets; [gui_dynamic](https://github.com/swordfatih/centui/blob/main/tests/examples/gui_dynamic/main.cpp)
+shows that lower-level approach. The former dot shortcuts such as
+`status.set_text(...)` and `root.patch_style(...)` have been removed; replace them
+with `status->set_text(...)` and `root->patch_style(...)`. Former `value(new_value)`
+shortcuts become `->set_text(new_value)` for text/buttons or `->set_image(new_value)`
+for images; getters use `->value()`.
 
 ## Give widgets a style
 
@@ -129,8 +147,8 @@ centui::document document{centui::container{save}};
 
 document.set_style({.text_color = centui::states_color::all({30, 40, 50, 255})});
 document.patch_style<base>({.font_size = 20}); // Secondary still wins: 14.
-save.patch_style({.font_size = 18});          // Final local override: 18.
-save.clear_style_overrides();               // Back to 14.
+save->patch_style({.font_size = 18});         // Final local override: 18.
+save->clear_style_overrides();              // Back to 14.
 document.clear_style_patch<base>();         // Restore the original Base definition.
 ```
 
@@ -138,7 +156,7 @@ Resolution applies built-in defaults, document defaults, then each composed type
 
 Document `set_style()` replaces the default override layer; `{}` clears it. Document defaults apply to every node, including controls' internal children, so box properties such as padding affect those children too. Document defaults are fallback values rather than inherited theme tokens.
 
-Successive patches merge supplied fields into one current override; no patch history is retained. Widget patches remain explicit even when their values equal current defaults. `widget.set_style(style)` and explicit full-style constructor arguments make every property locally explicit; clearing local overrides restores the retained composition. Runtime nested patches replace entire supplied properties, as described below.
+Successive patches merge supplied fields into one current override; no patch history is retained. Widget patches remain explicit even when their values equal current defaults. `widget->set_style(style)` and explicit full-style constructor arguments make every property locally explicit; clearing local overrides restores the retained composition. Runtime nested patches replace entire supplied properties, as described below.
 
 Changes resolve and validate affected widgets before committing the document settings and cached styles. Unchanged results do not invalidate anything; changes request layout or paint as appropriate. Rendering reads the cache. Patches also apply to widgets mounted later. Removal resolves without document layers; mounting in another document uses that document's settings. Style constructors used by retained recipes must be deterministic and side-effect-free.
 
@@ -221,12 +239,12 @@ struct expand_twice
 };
 
 auto panel = centui::container<main_panel, expand_twice>{};
-panel.patch_style({.flex = centui::flex::all(1, 0, centui::px(200))});
+panel->patch_style({.flex = centui::flex::all(1, 0, centui::px(200))});
 ```
 
 Runtime patches replace a supplied nested value as a whole, just as they do for
 edges and state colors. To change a single member at runtime while preserving
-the others, copy `panel.style().flex`, edit it, and patch the resulting value.
+the others, copy `panel->style().flex`, edit it, and patch the resulting value.
 
 ## Lengths, constraints, and edges
 
@@ -269,9 +287,9 @@ numbers, and invalid enum choices throw before a widget's style is changed.
 Clear constraints and overrides explicitly:
 
 ```cpp
-panel.patch_style({.max_width = centui::undefined()});
-panel.patch_style({.row_gap = centui::undefined()});
-panel.patch_style({.aspect_ratio = std::optional<float>{}});
+panel->patch_style({.max_width = centui::undefined()});
+panel->patch_style({.row_gap = centui::undefined()});
+panel->patch_style({.aspect_ratio = std::optional<float>{}});
 ```
 
 An omitted patch field leaves its value unchanged. For optional properties such

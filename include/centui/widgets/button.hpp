@@ -41,36 +41,6 @@ public:
           ))
     {
     }
-
-    void set_text(std::string value)
-    {
-        this->get().set_text(std::move(value));
-    }
-
-    void value(std::string value)
-    {
-        set_text(std::move(value));
-    }
-
-    [[nodiscard]] std::string_view value() const
-    {
-        return this->get().value();
-    }
-
-    void set_enabled(bool value)
-    {
-        this->get().set_enabled(value);
-    }
-
-    [[nodiscard]] bool enabled() const
-    {
-        return this->get().enabled();
-    }
-
-    void set_on_click(centui::callback<> callback)
-    {
-        this->get().set_on_click(std::move(callback));
-    }
 };
 
 } // namespace centui

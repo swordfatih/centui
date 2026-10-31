@@ -7,7 +7,7 @@
 int main()
 {
     auto root = centui::container{centui::text{"System fonts\r\nand explicit registration"}};
-    root.patch_style({
+    root->patch_style({
         .width = centui::px(100),
         .height = centui::px(100),
         .background_color = centui::states_color::all({255, 0, 0, 255}),

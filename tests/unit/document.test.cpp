@@ -167,14 +167,14 @@ TEST_CASE("Idle preparation reuses paint and equal patches do no work", "[docume
     REQUIRE(paints == 1);
     REQUIRE(document.prepare({200, 100}).commands.data() == first.data());
     REQUIRE(paints == 1);
-    child.patch_style({.width = centui::px(20)});
+    child->patch_style({.width = centui::px(20)});
     (void)document.prepare({200, 100});
     REQUIRE(paints == 1);
-    child.patch_style({.background_color = centui::states_color::all({1, 2, 3, 255})});
+    child->patch_style({.background_color = centui::states_color::all({1, 2, 3, 255})});
     (void)document.prepare({200, 100});
     REQUIRE(paints == 2);
-    REQUIRE_THROWS(child.patch_style({.width = centui::px(-1)}));
-    REQUIRE(child.style().width == centui::px(20));
+    REQUIRE_THROWS(child->patch_style({.width = centui::px(-1)}));
+    REQUIRE(child->style().width == centui::px(20));
 }
 
 TEST_CASE("Mutable callback state survives events and registration replacement", "[document][input]")
@@ -198,7 +198,7 @@ TEST_CASE("Mutable callback state survives events and registration replacement",
     REQUIRE(observed == 2);
 
     const auto weak = button.weak();
-    button.set_on_click(
+    button->set_on_click(
         [weak, &observed]()
         {
             if(auto self = weak.lock(); self.valid())
@@ -244,10 +244,10 @@ TEST_CASE("Release outside, focus loss and disabled controls cancel activation",
     document.process_event({centui::input_event_type::pointer_released, 5, 5}, {200, 100});
     REQUIRE(calls == 0);
     document.process_event({centui::input_event_type::focus_gained}, {200, 100});
-    button.set_enabled(false);
+    button->set_enabled(false);
     click(document);
     REQUIRE(calls == 0);
-    button.set_enabled(true);
+    button->set_enabled(true);
     click(document);
     REQUIRE(calls == 1);
 }
@@ -262,7 +262,7 @@ TEST_CASE("Callback topology edits become visible before the next event", "[docu
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
 
     const auto weak = button.weak();
-    button.set_on_click(
+    button->set_on_click(
         [&document, &calls, weak]()
         {
             ++calls;
@@ -290,7 +290,7 @@ TEST_CASE("Callback exceptions release dispatch guards and preserve edits", "[do
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
 
     const auto weak = button.weak();
-    button.set_on_click(
+    button->set_on_click(
         [&document, weak]()
         {
             document.remove(weak.lock());
@@ -320,7 +320,7 @@ TEST_CASE("Root replacement reaches the next event in a batch", "[document][inpu
     document.set_system_font_discovery(false);
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
 
-    first.set_on_click(
+    first->set_on_click(
         [&document, second]()
         {
             document.set_root(second);
@@ -336,7 +336,7 @@ TEST_CASE("Preparation mutations are rejected and failed measurement is retryabl
 {
     auto child = centui::make_widget<guarded_measurement>();
     auto root = centui::container<panel_style>{child};
-    root.patch_style({.align_items = centui::alignment::start});
+    root->patch_style({.align_items = centui::alignment::start});
     centui::document document{root};
     document.set_system_font_discovery(false);
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
@@ -355,7 +355,7 @@ TEST_CASE("Recursive dispatch is rejected without poisoning later input", "[docu
     document.set_system_font_discovery(false);
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
 
-    button.set_on_click(
+    button->set_on_click(
         [&document]()
         {
             click(document);
@@ -363,7 +363,7 @@ TEST_CASE("Recursive dispatch is rejected without poisoning later input", "[docu
     );
     REQUIRE_THROWS_AS(click(document), std::logic_error);
     int calls = 0;
-    button.set_on_click(
+    button->set_on_click(
         [&calls]()
         {
             ++calls;
@@ -456,8 +456,8 @@ TEST_CASE("Stationary pointer hover follows layout and topology changes", "[docu
     colors.hover = hovered;
     auto first = centui::make_widget<pointer_probe>();
     auto second = centui::make_widget<pointer_probe>();
-    first.patch_style({.background_color = colors});
-    second.patch_style({.background_color = colors});
+    first->patch_style({.background_color = colors});
+    second->patch_style({.background_color = colors});
     auto root = centui::container<panel_style>{first, second};
     centui::document document{root};
     document.set_system_font_discovery(false);
@@ -469,19 +469,19 @@ TEST_CASE("Stationary pointer hover follows layout and topology changes", "[docu
     document.process_event({centui::input_event_type::pointer_moved, 5, 35}, {200, 100});
     REQUIRE(color_at(0) == normal);
     REQUIRE(color_at(1) == hovered);
-    first.patch_style({.height = centui::px(50)});
+    first->patch_style({.height = centui::px(50)});
     REQUIRE(color_at(0) == hovered);
     REQUIRE(color_at(1) == normal);
     document.remove(first);
     REQUIRE(color_at(0) == normal);
-    second.patch_style({.height = centui::px(50)});
+    second->patch_style({.height = centui::px(50)});
     REQUIRE(color_at(0) == hovered);
     second->set_enabled(false);
     REQUIRE(color_at(0) == normal);
     second->set_enabled(true);
     REQUIRE(color_at(0) == hovered);
     document.process_event({centui::input_event_type::pointer_left}, {200, 100});
-    second.patch_style({.height = centui::px(60)});
+    second->patch_style({.height = centui::px(60)});
     REQUIRE(color_at(0) == normal);
     document.process_event({centui::input_event_type::pointer_moved, 5, 5}, {200, 100});
     REQUIRE(color_at(0) == hovered);
@@ -580,8 +580,8 @@ TEST_CASE("Buttons activate only for a primary gesture ending inside", "[documen
     document.process_event({centui::input_event_type::pointer_released, 5, 5}, {200, 100});
     REQUIRE(calls == 1);
     document.process_event({centui::input_event_type::pointer_pressed, 5, 5}, {200, 100});
-    button.set_enabled(false);
-    button.set_enabled(true);
+    button->set_enabled(false);
+    button->set_enabled(true);
     document.process_event({centui::input_event_type::pointer_released, 5, 5}, {200, 100});
     REQUIRE(calls == 1);
     click(document);
