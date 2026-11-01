@@ -5,6 +5,7 @@
 #include <centui_shaders.h>
 #include <bgfx/embedded_shader.h>
 // clang-format on
+
 #include <bx/math.h>
 
 namespace
@@ -26,14 +27,6 @@ static const ::bgfx::EmbeddedShader text_shaders[] = {
 
 namespace centui::details
 {
-
-struct color_vertex
-{
-    float x;
-    float y;
-    float z;
-    std::uint32_t rgba;
-};
 
 struct text_vertex
 {
@@ -137,11 +130,6 @@ backend::backend(std::function<centui::viewport()> surface, std::unique_ptr<cont
     m_backbuffer = viewport();
     m_vertex_layout.begin()
         .add(::bgfx::Attrib::Position, 3, ::bgfx::AttribType::Float)
-        .add(::bgfx::Attrib::Color0, 4, ::bgfx::AttribType::Uint8, true)
-        .end();
-
-    m_text_layout.begin()
-        .add(::bgfx::Attrib::Position, 3, ::bgfx::AttribType::Float)
         .add(::bgfx::Attrib::TexCoord0, 2, ::bgfx::AttribType::Float)
         .add(::bgfx::Attrib::Color0, 4, ::bgfx::AttribType::Uint8, true)
         .end();
@@ -241,55 +229,6 @@ void backend::begin(std::uint16_t width, std::uint16_t height, float scale)
     ::bgfx::setViewTransform(m_view_id, nullptr, projection.data());
 }
 
-void backend::rectangle(const rect& bounds, color value)
-{
-    if(value.a == 0 || bounds.width <= 0 || bounds.height <= 0)
-    {
-        return;
-    }
-
-    if(::bgfx::getAvailTransientVertexBuffer(4, m_vertex_layout) < 4 || ::bgfx::getAvailTransientIndexBuffer(6) < 6)
-    {
-        return;
-    }
-
-    ::bgfx::TransientVertexBuffer vertices;
-    ::bgfx::TransientIndexBuffer indices;
-
-    ::bgfx::allocTransientVertexBuffer(&vertices, 4, m_vertex_layout);
-    ::bgfx::allocTransientIndexBuffer(&indices, 6);
-
-    const auto packed = details::pack_color(value);
-    auto v = std::span{reinterpret_cast<details::color_vertex*>(vertices.data), 4};
-
-    v[0] = {bounds.x, bounds.y, 0.0f, packed};
-    v[1] = {bounds.x + bounds.width, bounds.y, 0.0f, packed};
-    v[2] = {bounds.x + bounds.width, bounds.y + bounds.height, 0.0f, packed};
-    v[3] = {bounds.x, bounds.y + bounds.height, 0.0f, packed};
-
-    auto i = std::span{reinterpret_cast<std::uint16_t*>(indices.data), 6};
-
-    i[0] = 0;
-    i[1] = 1;
-    i[2] = 2;
-    i[3] = 0;
-    i[4] = 2;
-    i[5] = 3;
-
-    ::bgfx::setVertexBuffer(0, &vertices);
-    ::bgfx::setIndexBuffer(&indices);
-    ::bgfx::setState(
-        BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A |
-        BGFX_STATE_BLEND_FUNC_SEPARATE(
-            BGFX_STATE_BLEND_SRC_ALPHA,
-            BGFX_STATE_BLEND_INV_SRC_ALPHA,
-            BGFX_STATE_BLEND_ONE,
-            BGFX_STATE_BLEND_INV_SRC_ALPHA
-        )
-    );
-    ::bgfx::submit(m_view_id, m_program.get());
-}
-
 void backend::set_cache_budget(std::size_t bytes)
 {
     m_cache_budget = bytes;
@@ -327,16 +266,19 @@ void backend::draw(const draw_list& list)
 
     m_glyphs.begin_frame(list, m_cache_limit, m_cache_budget);
     begin(static_cast<std::uint16_t>(size.width), static_cast<std::uint16_t>(size.height), size.scale);
-    for(const auto& item: list.commands)
+    // Only adjacent commands may merge: preserve translucent painter order.
+    constexpr std::size_t max_quads = 65536 / 4;
+    for(std::size_t first = 0; first < list.commands.size();)
     {
-        if(item.image)
+        auto end = first + 1;
+        while(end < list.commands.size() && end - first < max_quads &&
+              list.commands[end].image == list.commands[first].image &&
+              list.commands[end].sampling == list.commands[first].sampling)
         {
-            glyph(item.bounds, item.color, item.uv, get_glyph(item.image).get(), item.sampling);
+            ++end;
         }
-        else
-        {
-            rectangle(item.bounds, item.color);
-        }
+        submit(std::span{list.commands}.subspan(first, end - first));
+        first = end;
     }
 }
 
@@ -382,46 +324,95 @@ const backend::texture_handle& backend::get_glyph(const std::shared_ptr<const bi
     return m_glyphs.emplace(key, std::move(texture)).first->second;
 }
 
-void backend::glyph(const rect& bounds, color value, rect uv, ::bgfx::TextureHandle texture, image_sampling sampling)
+void backend::submit(std::span<const draw_quad> commands)
 {
-    if(!::bgfx::isValid(texture) || bounds.width <= 0 || bounds.height <= 0 || value.a == 0)
+    const auto visible = [](const draw_quad& command)
+    {
+        return command.color.a != 0 && command.bounds.width > 0 && command.bounds.height > 0;
+    };
+    const auto quads = static_cast<std::uint32_t>(std::count_if(commands.begin(), commands.end(), visible));
+    if(quads == 0)
     {
         return;
     }
-
-    if(::bgfx::getAvailTransientVertexBuffer(4, m_text_layout) < 4 || ::bgfx::getAvailTransientIndexBuffer(6) < 6)
+    const auto vertex_count = quads * 4;
+    const auto index_count = quads * 6;
+    const auto vertex_bytes = vertex_count * static_cast<std::uint32_t>(sizeof(details::text_vertex));
+    const auto index_bytes = index_count * static_cast<std::uint32_t>(sizeof(std::uint16_t));
+    const bool transient = ::bgfx::getAvailTransientVertexBuffer(vertex_count, m_vertex_layout) == vertex_count &&
+                           ::bgfx::getAvailTransientIndexBuffer(index_count) == index_count;
+    ::bgfx::TransientVertexBuffer transient_vertices;
+    ::bgfx::TransientIndexBuffer transient_indices;
+    std::vector<details::text_vertex> vertex_storage;
+    std::vector<std::uint16_t> index_storage;
+    std::span<details::text_vertex> vertices;
+    std::span<std::uint16_t> indices;
+    if(transient)
     {
-        return;
+        ::bgfx::allocTransientVertexBuffer(&transient_vertices, vertex_count, m_vertex_layout);
+        ::bgfx::allocTransientIndexBuffer(&transient_indices, index_count);
+        vertices = {reinterpret_cast<details::text_vertex*>(transient_vertices.data), vertex_count};
+        indices = {reinterpret_cast<std::uint16_t*>(transient_indices.data), index_count};
     }
-
-    ::bgfx::TransientVertexBuffer vertices;
-    ::bgfx::TransientIndexBuffer indices;
-
-    ::bgfx::allocTransientVertexBuffer(&vertices, 4, m_text_layout);
-    ::bgfx::allocTransientIndexBuffer(&indices, 6);
-
-    const auto packed = details::pack_color(value);
-    auto v = std::span{reinterpret_cast<details::text_vertex*>(vertices.data), 4};
-
-    v[0] = {bounds.x, bounds.y, 0.0f, uv.x, uv.y, packed};
-    v[1] = {bounds.x + bounds.width, bounds.y, 0.0f, uv.x + uv.width, uv.y, packed};
-    v[2] = {bounds.x + bounds.width, bounds.y + bounds.height, 0.0f, uv.x + uv.width, uv.y + uv.height, packed};
-    v[3] = {bounds.x, bounds.y + bounds.height, 0.0f, uv.x, uv.y + uv.height, packed};
-
-    auto i = std::span{reinterpret_cast<std::uint16_t*>(indices.data), 6};
-
-    i[0] = 0;
-    i[1] = 1;
-    i[2] = 2;
-    i[3] = 0;
-    i[4] = 2;
-    i[5] = 3;
-
-    ::bgfx::setVertexBuffer(0, &vertices);
-    ::bgfx::setIndexBuffer(&indices);
-    const auto flags = BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP |
-                       (sampling == image_sampling::nearest ? BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT : 0);
-    ::bgfx::setTexture(0, m_sampler.get(), texture, flags);
+    else
+    {
+        vertex_storage.resize(vertex_count);
+        index_storage.resize(index_count);
+        vertices = vertex_storage;
+        indices = index_storage;
+    }
+    std::size_t quad = 0;
+    for(const auto& command: commands)
+    {
+        if(!visible(command))
+        {
+            continue;
+        }
+        const auto& bounds = command.bounds;
+        const auto& uv = command.uv;
+        const auto packed = details::pack_color(command.color);
+        const auto base = quad * 4;
+        vertices[base] = {bounds.x, bounds.y, 0, uv.x, uv.y, packed};
+        vertices[base + 1] = {bounds.x + bounds.width, bounds.y, 0, uv.x + uv.width, uv.y, packed};
+        vertices[base + 2] =
+            {bounds.x + bounds.width, bounds.y + bounds.height, 0, uv.x + uv.width, uv.y + uv.height, packed};
+        vertices[base + 3] = {bounds.x, bounds.y + bounds.height, 0, uv.x, uv.y + uv.height, packed};
+        std::size_t index = quad * 6;
+        for(const auto offset: {0, 1, 2, 0, 2, 3})
+        {
+            indices[index++] = static_cast<std::uint16_t>(base + offset);
+        }
+        ++quad;
+    }
+    details::owned_handle<::bgfx::VertexBufferHandle> owned_vertices;
+    details::owned_handle<::bgfx::IndexBufferHandle> owned_indices;
+    if(transient)
+    {
+        ::bgfx::setVertexBuffer(0, &transient_vertices);
+        ::bgfx::setIndexBuffer(&transient_indices);
+    }
+    else
+    {
+        // Dedicated buffers remain valid for this submission; bgfx defers destruction.
+        owned_vertices = details::owned_handle{
+            ::bgfx::createVertexBuffer(::bgfx::copy(vertices.data(), vertex_bytes), m_vertex_layout)
+        };
+        owned_indices = details::owned_handle{::bgfx::createIndexBuffer(::bgfx::copy(indices.data(), index_bytes))};
+        if(!::bgfx::isValid(owned_vertices.get()) || !::bgfx::isValid(owned_indices.get()))
+        {
+            throw std::runtime_error("Failed to allocate CentUI draw buffers");
+        }
+        ::bgfx::setVertexBuffer(0, owned_vertices.get());
+        ::bgfx::setIndexBuffer(owned_indices.get());
+    }
+    const auto& first = commands.front();
+    if(first.image)
+    {
+        const auto flags =
+            BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP |
+            (first.sampling == image_sampling::nearest ? BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT : 0);
+        ::bgfx::setTexture(0, m_sampler.get(), get_glyph(first.image).get(), flags);
+    }
     ::bgfx::setState(
         BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A |
         BGFX_STATE_BLEND_FUNC_SEPARATE(
@@ -431,7 +422,7 @@ void backend::glyph(const rect& bounds, color value, rect uv, ::bgfx::TextureHan
             BGFX_STATE_BLEND_INV_SRC_ALPHA
         )
     );
-    ::bgfx::submit(m_view_id, m_text_program.get());
+    ::bgfx::submit(m_view_id, first.image ? m_text_program.get() : m_program.get());
 }
 
 } // namespace centui::bgfx

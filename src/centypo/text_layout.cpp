@@ -102,18 +102,22 @@ bool supported_sequence(
 
     const auto boundaries = analyze_text(text);
     const auto scalars = decode_scalars(text);
+    std::size_t scalar = 0, glyph_index = 0;
+    // HarfBuzz emits monotone grapheme clusters, reversed for RTL runs.
+    const bool reversed = shaped.glyphs.size() > 1 && shaped.glyphs.front().cluster > shaped.glyphs.back().cluster;
+    const auto glyph_at = [&](std::size_t index) -> const glyph&
+    {
+        return shaped.glyphs[reversed ? shaped.glyphs.size() - index - 1 : index];
+    };
     for(std::size_t g = 0; g + 1 < boundaries.graphemes.size(); ++g)
     {
         const auto begin = boundaries.graphemes[g], end = boundaries.graphemes[g + 1];
         bool joined = false, emoji = false;
         std::size_t regional = 0;
 
-        for(std::size_t i = 0; i < scalars.size(); ++i)
+        for(; scalar < scalars.size() && scalars[scalar].begin < end; ++scalar)
         {
-            if(scalars[i].begin < begin || scalars[i].begin >= end)
-            {
-                continue;
-            }
+            const auto i = scalar;
 
             const auto value = scalars[i].value;
             joined |= value == 0x200d || value == 0x20e3;
@@ -129,21 +133,15 @@ bool supported_sequence(
             }
         }
 
-        if((joined && emoji) || regional == 2)
+        std::size_t visible = 0;
+        while(glyph_index < shaped.glyphs.size() && glyph_at(glyph_index).cluster < cluster_base + end)
         {
-            const auto visible = std::count_if(
-                shaped.glyphs.begin(),
-                shaped.glyphs.end(),
-                [&](const auto& glyph)
-                {
-                    return glyph.cluster >= cluster_base + begin && glyph.cluster < cluster_base + end &&
-                           (glyph.advance != 0 || glyph.ink.width != 0);
-                }
-            );
-            if(visible != 1)
-            {
-                return false;
-            }
+            const auto& glyph = glyph_at(glyph_index++);
+            visible += glyph.cluster >= cluster_base + begin && (glyph.advance != 0 || glyph.ink.width != 0);
+        }
+        if(((joined && emoji) || regional == 2) && visible != 1)
+        {
+            return false;
         }
     }
 

@@ -69,6 +69,10 @@ detail::window_ptr platform::create_window(const window_options& options)
 
 void platform::initialize_services()
 {
+    if(m_adapters.contains(&m_window))
+    {
+        throw std::logic_error("An SDL window already has a CentUI adapter");
+    }
     m_services = std::make_shared<host_services>();
     const std::weak_ptr<std::reference_wrapper<SDL_Window>> weak_window = m_lifetime;
     m_services->read_clipboard = [weak_window]
@@ -136,10 +140,12 @@ void platform::initialize_services()
             SDL_SetTextInputArea(std::addressof(window->get()), &input_area, 0);
         }
     };
+    m_adapters.emplace(&m_window, this);
 }
 
 platform::~platform()
 {
+    m_adapters.erase(&m_window);
     release_mouse_capture();
 }
 
@@ -155,30 +161,38 @@ bool platform::poll_events()
 
 bool platform::poll_events(const std::function<void(const SDL_Event&)>& on_event)
 {
-    m_input_events.clear();
     SDL_Event event;
-    bool running = true;
-
     while(SDL_PollEvent(&event))
     {
         if(on_event)
         {
             on_event(event);
         }
-
-        if(event.type == SDL_EVENT_QUIT || (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED &&
-                                            event.window.windowID == SDL_GetWindowID(std::addressof(m_window))))
+        if(event.type == SDL_EVENT_QUIT)
         {
-            running = false;
+            for(auto& [window, adapter]: m_adapters)
+            {
+                adapter->m_running = false;
+            }
+            continue;
         }
-
-        if(auto translated = translate(event))
+        const auto found = m_adapters.find(SDL_GetWindowFromEvent(&event));
+        if(found == m_adapters.end())
         {
-            m_input_events.push_back(std::move(*translated));
+            continue;
+        }
+        auto& adapter = *found->second;
+        if(event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED)
+        {
+            adapter.m_running = false;
+        }
+        if(auto translated = adapter.translate(event))
+        {
+            adapter.m_pending_events.push_back(std::move(*translated));
         }
     }
-
-    return running;
+    m_input_events = std::exchange(m_pending_events, {});
+    return m_running;
 }
 
 std::optional<input_event> platform::translate(const SDL_Event& event)

@@ -1,3 +1,4 @@
+#include "text_analysis.hpp"
 #include "unicode_analysis.hpp"
 
 #include <algorithm>
@@ -6,23 +7,11 @@
 #include <sstream>
 #include <type_traits>
 
-#include <SheenBidi/SheenBidi.h>
 #include <catch2/catch_test_macros.hpp>
 #include <centypo/unicode.hpp>
 
 namespace
 {
-
-template <class T, auto Release>
-struct release_native
-{
-    void operator()(T* value) const
-    {
-        Release(value);
-    }
-};
-template <class T, auto Release>
-using native_owner = std::unique_ptr<std::remove_pointer_t<T>, release_native<std::remove_pointer_t<T>, Release>>;
 
 void append(std::string& value, std::uint32_t scalar)
 {
@@ -90,19 +79,16 @@ TEST_CASE("Unicode 17 bidi character conformance uses UTF-8 native offsets", "[t
             continue;
         }
         const auto scalars = centypo::details::decode_scalars(text);
-        const SBCodepointSequence sequence{SBStringEncodingUTF8, text.data(), text.size()};
-        native_owner<SBAlgorithmRef, SBAlgorithmRelease> algorithm{SBAlgorithmCreate(&sequence)};
-        REQUIRE(algorithm);
         const auto direction = std::stoi(fields[1]);
-        native_owner<SBParagraphRef, SBParagraphRelease> paragraph{SBAlgorithmCreateParagraph(
-            algorithm.get(),
-            0,
-            text.size(),
-            direction == 2 ? SBLevelDefaultLTR : static_cast<SBLevel>(direction)
-        )};
-        REQUIRE(paragraph);
+        centypo::details::text_analysis analysis{
+            text,
+            {},
+            direction == 2   ? centypo::text_direction::automatic
+            : direction == 1 ? centypo::text_direction::rtl
+                             : centypo::text_direction::ltr
+        };
         INFO("BidiCharacterTest line " << number);
-        REQUIRE(SBParagraphGetBaseLevel(paragraph.get()) == std::stoi(fields[2]));
+        REQUIRE(analysis.rtl(0) == (std::stoi(fields[2]) != 0));
         std::vector<bool> removed;
         std::vector<int> expected_levels;
         std::istringstream levels(fields[3]);
@@ -111,11 +97,9 @@ TEST_CASE("Unicode 17 bidi character conformance uses UTF-8 native offsets", "[t
             removed.push_back(token == "x");
             expected_levels.push_back(token == "x" ? -1 : std::stoi(token));
         }
-        native_owner<SBLineRef, SBLineRelease> visual{SBParagraphCreateLine(paragraph.get(), 0, text.size())};
-        REQUIRE(visual);
+        const auto runs = analysis.line_runs(0, text.size());
         std::vector<std::size_t> order;
-        const auto* runs = SBLineGetRunsPtr(visual.get());
-        for(std::size_t run = 0; run < SBLineGetRunCount(visual.get()); ++run)
+        for(std::size_t run = 0; run < runs.size(); ++run)
         {
             std::vector<std::size_t> indices;
             for(std::size_t i = 0; i < scalars.size(); ++i)

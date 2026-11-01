@@ -71,7 +71,7 @@ bool popup_widget::on_event(const input_event& event)
             }
             const auto box = child->bounds();
 
-            if(event.x >= box.x && event.y >= box.y && event.x < box.x + box.width && event.y < box.y + box.height)
+            if(box.contains({event.x, event.y}))
             {
                 return true;
             }

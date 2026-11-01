@@ -13,6 +13,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -110,6 +111,9 @@ private:
         std::make_shared<std::reference_wrapper<SDL_Window>>(m_window);
 
     std::vector<input_event> m_input_events;
+    std::vector<input_event> m_pending_events;
+    bool m_running = true;
+    static inline std::unordered_map<SDL_Window*, platform*> m_adapters;
     std::shared_ptr<host_services> m_services;
     bool m_mouse_captured = false;
     std::uint8_t m_capture_button = 0;

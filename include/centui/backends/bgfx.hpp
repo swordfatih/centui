@@ -145,17 +145,9 @@ private:
 
     void begin(std::uint16_t width, std::uint16_t height, float scale);
 
-    void rectangle(const rect& bounds, color value);
+    void submit(std::span<const draw_quad> commands);
 
     const texture_handle& get_glyph(const std::shared_ptr<const bitmap>& bitmap);
-
-    void glyph(
-        const rect& bounds,
-        color value,
-        rect uv,
-        ::bgfx::TextureHandle texture,
-        image_sampling sampling = image_sampling::nearest
-    );
 
     // Declared first so bgfx outlives every resource destroyed below.
     std::unique_ptr<context> m_context;
@@ -164,7 +156,6 @@ private:
     std::uint16_t m_view_id;
 
     ::bgfx::VertexLayout m_vertex_layout;
-    ::bgfx::VertexLayout m_text_layout;
 
     details::owned_handle<::bgfx::ProgramHandle> m_program;
     details::owned_handle<::bgfx::ProgramHandle> m_text_program;

@@ -38,6 +38,10 @@ while(platform.poll_events())
 
 Build the platform before the renderer so the renderer releases its graphics resources first. The [getting_started example](https://github.com/swordfatih/centui/blob/main/tests/examples/getting_started/main.cpp) contains the full program.
 
+SDL and GLFW polling pumps native events globally while retaining input for each
+CentUI adapter. Poll each adapter before processing its events. SDL's optional
+native-event callback observes all events handled by that poll.
+
 For SDL's own 2D renderer, include `<centui/backends/sdl.hpp>` and construct `centui::sdl::backend renderer{platform}`. It supports the same `ui.frame(document)` loop. You can also borrow an existing `SDL_Renderer` with `centui::sdl::backend renderer{native_renderer, platform}`. Draw your SDL scene before `ui.render(document)` to put the interface on top. The [hud_sdl example](https://github.com/swordfatih/centui/blob/main/tests/examples/hud_sdl/main.cpp) shows this setup.
 
 `ui.frame(document)` processes the events from the last platform poll, calculates elapsed time, advances widgets, and begins, renders, and ends the backend frame. It returns false if the backend cannot begin rendering. Call it once after each event poll. To supply your own timing, use `ui.frame(document, elapsed)`, where elapsed is a finite, nonnegative `centui::frame_duration` in seconds. Your application owns the loop and keeps the platform, renderer, document, and UI alive between frames.

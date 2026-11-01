@@ -1,32 +1,14 @@
 #pragma once
 
 #include "font_face.hpp"
+#include "font_source.hpp"
+#include "system/fonts.hpp"
 
 #include <map>
 #include <tuple>
 
 namespace centypo::details
 {
-
-struct font_source
-{
-    std::filesystem::path path;
-    long index = 0;
-    std::string family;
-    int weight = 400;
-    font_slant slant = font_slant::normal;
-};
-
-[[nodiscard]] std::vector<font_source> system_fonts();
-[[nodiscard]] std::map<std::string, std::vector<std::string>> system_font_aliases();
-
-[[nodiscard]] std::vector<std::string> system_font_fallbacks(
-    const font& request,
-    std::string_view text,
-    std::string_view language
-);
-
-[[nodiscard]] std::shared_ptr<const std::vector<unsigned char>> read_font(const std::filesystem::path& path);
 
 class font_collection
 {
@@ -66,6 +48,7 @@ private:
     std::map<std::string, std::vector<std::string>> m_application_aliases;
 
     bool m_discover_system = false;
+    std::shared_ptr<const system::font_provider> m_system;
 
     mutable std::map<std::tuple<std::size_t, int, font_slant>, std::shared_ptr<font_face>> m_configurations;
 };

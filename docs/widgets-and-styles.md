@@ -33,6 +33,17 @@ auto tile = centui::pressable<tile_style>{
 
 Other controls are `toggle`, `range`, `selection`, `scroll`, `popup`, and single-line or multiline `input`. Their option structs carry initial values and callbacks. See [gui_static](https://github.com/swordfatih/centui/blob/main/tests/examples/gui_static/main.cpp) for all of them together.
 
+`scroll` shows overlay scrollbars on axes whose content overflows. Drag a thumb,
+click its track to move by one viewport, or use the wheel and Page Up/Down keys.
+The bars stay above content without changing its layout, use the scroll widget's
+text color with transparency, and disappear when the content fits. This behavior
+is shared by desktop and browser renderers.
+
+Use `scroll->set_scrollbars({.thickness = 14, .minimum_thumb = 30})` to adjust
+scrollbar dimensions; a zero thickness hides them. `range_options` exposes
+`preferred_size`, `thumb_width`, and `track_thickness`. Widget styles can still
+set the final width and height.
+
 Handles provide construction, shared ownership, and access to widgets. Use `->`
 for all widget operations, including text changes, callbacks, and styles:
 

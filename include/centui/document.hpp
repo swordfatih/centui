@@ -228,7 +228,6 @@ private:
         details::visual_state inherited_state
     );
 
-    static bool contains(rect box, float x, float y) noexcept;
 
     [[nodiscard]] bool eligible(const std::shared_ptr<widget>& value) const;
 

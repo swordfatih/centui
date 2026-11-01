@@ -21,6 +21,9 @@ struct range_options
     float step = 0.01f;
     float value = 0;
     centui::callback<float> on_change{};
+    size preferred_size{160, 24};
+    float thumb_width = 12;
+    float track_thickness = 2;
 };
 
 /// \brief Selects a stepped numeric value with pointer or keyboard input.
@@ -53,6 +56,9 @@ private:
     float m_value = 0;
     bool m_dragging = false;
     centui::callback<float> m_on_change;
+    size m_preferred_size;
+    float m_thumb_width;
+    float m_track_thickness;
 };
 
 /// \brief A numeric range handle with compile-time style composition.

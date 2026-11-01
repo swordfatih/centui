@@ -117,6 +117,12 @@ protected:
     /// \brief Records commands without mutating widgets or requesting work. Derived caches are permitted.
     virtual void paint(painter&) const;
 
+    /// Records content-local commands above children; follows the same read-only contract as paint().
+    virtual void paint_overlay(painter&) const;
+
+    /// Claims a content-local pointer position before testing children, for painted overlays.
+    [[nodiscard]] virtual bool hit_test_overlay(vec2 position) const;
+
     /// \brief Handles an input event and returns whether it was consumed.
     virtual bool on_event(const input_event&);
 

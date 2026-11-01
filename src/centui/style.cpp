@@ -161,34 +161,18 @@ invalidation style::changes_from(const style& previous) const noexcept
 
 details::style_effects details::classify_style(const style& next, const style& previous) noexcept
 {
-    const bool text_changed =
-        next.font_size != previous.font_size || next.font != previous.font || next.paragraph != previous.paragraph;
-    const bool layout_changed =
-        text_changed || next.padding != previous.padding || next.margin != previous.margin ||
-        next.inset != previous.inset || next.gap != previous.gap || next.position != previous.position ||
-        next.width != previous.width || next.height != previous.height ||
-        next.flex_direction != previous.flex_direction || next.align_items != previous.align_items ||
-        next.justify_content != previous.justify_content || next.visibility != previous.visibility ||
-        next.overflow != previous.overflow || next.border_width != previous.border_width ||
-        next.flex != previous.flex || next.min_width != previous.min_width || next.min_height != previous.min_height ||
-        next.max_width != previous.max_width || next.max_height != previous.max_height ||
-        next.aspect_ratio != previous.aspect_ratio || next.flex_wrap != previous.flex_wrap ||
-        next.align_self != previous.align_self || next.align_content != previous.align_content ||
-        next.row_gap != previous.row_gap || next.column_gap != previous.column_gap ||
-        next.layout_direction != previous.layout_direction || next.box_sizing != previous.box_sizing ||
-        next.display != previous.display || next.reference_baseline != previous.reference_baseline ||
-        next.forms_containing_block != previous.forms_containing_block;
-
-    return style_effects{
-        .layout = layout_changed,
-        .paint = layout_changed || next.background_color != previous.background_color ||
-                 next.text_color != previous.text_color || next.text_align != previous.text_align ||
-                 next.border_color != previous.border_color || next.corner_radius != previous.corner_radius ||
-                 next.focus != previous.focus,
-        .interaction = next.visibility != previous.visibility || next.overflow != previous.overflow ||
-                       next.display != previous.display,
-        .inherited_metrics = text_changed,
-    };
+    style_effects effects;
+#define CENTUI_STYLE_PROPERTY(name, affects_layout, affects_interaction, inherited) \
+    if(next.name != previous.name)                                                  \
+    {                                                                               \
+        effects.paint = true;                                                       \
+        effects.layout |= affects_layout;                                           \
+        effects.interaction |= affects_interaction;                                 \
+        effects.inherited_metrics |= inherited;                                     \
+    }
+#include <centui/details/style_properties.inc>
+#undef CENTUI_STYLE_PROPERTY
+    return effects;
 }
 
 style style_patch::apply(style candidate) const
@@ -198,77 +182,35 @@ style style_patch::apply(style candidate) const
     return candidate;
 }
 
-#define CENTUI_PATCH_PROPERTIES(X) \
-    X(padding)                     \
-    X(margin)                      \
-    X(inset)                       \
-    X(gap)                         \
-    X(position)                    \
-    X(width)                       \
-    X(height)                      \
-    X(flex_direction)              \
-    X(align_items)                 \
-    X(justify_content)             \
-    X(background_color)            \
-    X(text_color)                  \
-    X(font_size)                   \
-    X(font)                        \
-    X(text_align)                  \
-    X(paragraph)                   \
-    X(visibility)                  \
-    X(overflow)                    \
-    X(border_width)                \
-    X(border_color)                \
-    X(flex)                        \
-    X(min_width)                   \
-    X(min_height)                  \
-    X(max_width)                   \
-    X(max_height)                  \
-    X(aspect_ratio)                \
-    X(flex_wrap)                   \
-    X(align_self)                  \
-    X(align_content)               \
-    X(row_gap)                     \
-    X(column_gap)                  \
-    X(layout_direction)            \
-    X(box_sizing)                  \
-    X(display)                     \
-    X(reference_baseline)          \
-    X(forms_containing_block)      \
-    X(corner_radius)               \
-    X(focus)
-
 void style_patch::apply_to(style& candidate) const
 {
-#define CENTUI_APPLY_PROPERTY(name) \
-    if(name)                        \
-    {                               \
-        candidate.name = *name;     \
+#define CENTUI_STYLE_PROPERTY(name, ...) \
+    if(name)                             \
+    {                                    \
+        candidate.name = *name;          \
     }
-    CENTUI_PATCH_PROPERTIES(CENTUI_APPLY_PROPERTY)
-#undef CENTUI_APPLY_PROPERTY
+#include <centui/details/style_properties.inc>
+#undef CENTUI_STYLE_PROPERTY
 }
 
 void style_patch::merge(const style_patch& patch)
 {
-#define CENTUI_MERGE_PROPERTY(name) \
-    if(patch.name)                  \
-    {                               \
-        name = patch.name;          \
+#define CENTUI_STYLE_PROPERTY(name, ...) \
+    if(patch.name)                       \
+    {                                    \
+        name = patch.name;               \
     }
-    CENTUI_PATCH_PROPERTIES(CENTUI_MERGE_PROPERTY)
-#undef CENTUI_MERGE_PROPERTY
+#include <centui/details/style_properties.inc>
+#undef CENTUI_STYLE_PROPERTY
 }
 
 style_patch style_patch::replacement(const style& value)
 {
     style_patch result;
-#define CENTUI_REPLACE_PROPERTY(name) result.name.emplace(value.name);
-    CENTUI_PATCH_PROPERTIES(CENTUI_REPLACE_PROPERTY)
-#undef CENTUI_REPLACE_PROPERTY
+#define CENTUI_STYLE_PROPERTY(name, ...) result.name.emplace(value.name);
+#include <centui/details/style_properties.inc>
+#undef CENTUI_STYLE_PROPERTY
     return result;
 }
-
-#undef CENTUI_PATCH_PROPERTIES
 
 } // namespace centui

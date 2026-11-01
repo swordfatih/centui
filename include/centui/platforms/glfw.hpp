@@ -146,6 +146,7 @@ private:
 
     std::shared_ptr<host_services> m_services;
     std::vector<input_event> m_events;
+    std::vector<input_event> m_pending_events;
     std::exception_ptr m_callback_error;
     GLFWkeyfun m_previous_key = nullptr;
     GLFWcharfun m_previous_char = nullptr;

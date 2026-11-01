@@ -129,6 +129,8 @@ void document::paint_tree_uncached(
         paint_tree(*child, output, child_clip, enabled, state);
     }
 
+    value.paint_overlay(content);
+
     const auto indicator = value.m_style.focus;
     if(value.focus_visible() && indicator.width > 0)
     {

@@ -86,10 +86,9 @@ platform::~platform()
 
 bool platform::poll_events()
 {
-    m_events.clear();
-    m_callback_error = nullptr;
     glfwPollEvents();
     check_callback_error();
+    m_events = std::exchange(m_pending_events, {});
 
     return !glfwWindowShouldClose(&m_window);
 }
@@ -103,6 +102,8 @@ std::vector<input_event> platform::take_events()
 {
     check_callback_error();
 
+    m_events.insert(m_events.end(), m_pending_events.begin(), m_pending_events.end());
+    m_pending_events.clear();
     return std::exchange(m_events, std::vector<input_event>{});
 }
 
@@ -293,7 +294,7 @@ void platform::key_callback(GLFWwindow* window, int native, int scancode, int ac
         window,
         [&](platform& self)
         {
-            self.m_events.push_back({
+            self.m_pending_events.push_back({
                 .type = action == GLFW_RELEASE ? input_event_type::key_released : input_event_type::key_pressed,
                 .code = translate_key(native),
                 .mods =
@@ -347,7 +348,7 @@ void platform::char_callback(GLFWwindow* window, unsigned int codepoint)
                     utf8 += static_cast<char>(0x80 | (codepoint & 0x3F));
                 }
 
-                self.m_events.push_back({.type = input_event_type::text_entered, .text = std::move(utf8)});
+                self.m_pending_events.push_back({.type = input_event_type::text_entered, .text = std::move(utf8)});
             }
 
             if(self.m_previous_char)
@@ -365,7 +366,7 @@ void platform::cursor_callback(GLFWwindow* window, double x, double y)
         [&](platform& self)
         {
             const auto [logical_x, logical_y] = self.pointer(x, y);
-            self.m_events.push_back(
+            self.m_pending_events.push_back(
                 {.type = input_event_type::pointer_moved, .x = logical_x, .y = logical_y, .mods = self.modifiers_now()}
             );
 
@@ -385,7 +386,7 @@ void platform::enter_callback(GLFWwindow* window, int entered)
         {
             if(!entered)
             {
-                self.m_events.push_back({.type = input_event_type::pointer_left});
+                self.m_pending_events.push_back({.type = input_event_type::pointer_left});
             }
 
             if(self.m_previous_enter)
@@ -410,7 +411,7 @@ void platform::button_callback(GLFWwindow* window, int native, int action, int m
                                 : native == GLFW_MOUSE_BUTTON_RIGHT  ? mouse_button::secondary
                                 : native == GLFW_MOUSE_BUTTON_MIDDLE ? mouse_button::middle
                                                                      : mouse_button::other;
-            self.m_events.push_back({
+            self.m_pending_events.push_back({
                 .type = action == GLFW_PRESS ? input_event_type::pointer_pressed : input_event_type::pointer_released,
                 .x = logical_x,
                 .y = logical_y,
@@ -441,7 +442,7 @@ void platform::scroll_callback(GLFWwindow* window, double horizontal, double ver
             double y = 0;
             glfwGetCursorPos(window, &x, &y);
             const auto [logical_x, logical_y] = self.pointer(x, y);
-            self.m_events.push_back({
+            self.m_pending_events.push_back({
                 .type = input_event_type::wheel,
                 .x = logical_x,
                 .y = logical_y,
@@ -464,7 +465,9 @@ void platform::focus_callback(GLFWwindow* window, int focused)
         window,
         [&](platform& self)
         {
-            self.m_events.push_back({.type = focused ? input_event_type::focus_gained : input_event_type::focus_lost});
+            self.m_pending_events.push_back(
+                {.type = focused ? input_event_type::focus_gained : input_event_type::focus_lost}
+            );
 
             if(self.m_previous_focus)
             {

@@ -7,6 +7,14 @@
 namespace centypo
 {
 
+struct vec2
+{
+    float x = 0;
+    float y = 0;
+
+    constexpr bool operator==(const vec2&) const = default;
+};
+
 struct rect
 {
     float x = 0;
@@ -14,15 +22,13 @@ struct rect
     float width = 0;
     float height = 0;
 
+    /// \brief Includes the left and top edges, excludes the right and bottom edges.
+    constexpr bool contains(vec2 point) const noexcept
+    {
+        return point.x >= x && point.y >= y && point.x < x + width && point.y < y + height;
+    }
+
     constexpr bool operator==(const rect&) const = default;
-};
-
-struct vec2
-{
-    float x = 0;
-    float y = 0;
-
-    constexpr bool operator==(const vec2&) const = default;
 };
 
 enum class text_alignment

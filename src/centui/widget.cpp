@@ -259,6 +259,15 @@ void widget::paint(painter&) const
 {
 }
 
+void widget::paint_overlay(painter&) const
+{
+}
+
+bool widget::hit_test_overlay(vec2) const
+{
+    return false;
+}
+
 bool widget::on_event(const input_event&)
 {
     return false;

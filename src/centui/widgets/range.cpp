@@ -4,8 +4,18 @@ namespace centui
 {
 
 range_widget::range_widget(range_options options, centui::style_source appearance)
-    : widget(std::move(appearance))
+    : widget(std::move(appearance)),
+      m_preferred_size(options.preferred_size),
+      m_thumb_width(options.thumb_width),
+      m_track_thickness(options.track_thickness)
 {
+    for(const auto value: {m_preferred_size.width, m_preferred_size.height, m_thumb_width, m_track_thickness})
+    {
+        if(!std::isfinite(value) || value < 0)
+        {
+            throw std::invalid_argument("Range dimensions must be finite and nonnegative");
+        }
+    }
     set_range(options.minimum, options.maximum, options.step);
     set_value(options.value);
     set_on_change(std::move(options.on_change));
@@ -66,15 +76,16 @@ void range_widget::set_on_change(centui::callback<float> callback)
 
 size range_widget::measure(const measure_context&)
 {
-    return {160, 24};
+    return m_preferred_size;
 }
 
 void range_widget::paint(painter& output) const
 {
     const auto box = output.bounds();
-    const auto thumb = std::min(12.0f, box.width);
+    const auto thumb = std::min(m_thumb_width, box.width);
     const auto x = box.x + (box.width - thumb) * (m_value - m_minimum) / (m_maximum - m_minimum);
-    output.rectangle({box.x, box.y + box.height / 2 - 1, box.width, 2}, output.foreground());
+    const auto track = std::min(m_track_thickness, box.height);
+    output.rectangle({box.x, box.y + (box.height - track) / 2, box.width, track}, output.foreground());
     output.rectangle({x, box.y, thumb, box.height}, output.foreground());
 }
 
@@ -97,7 +108,7 @@ bool range_widget::on_event(const input_event& event)
         event.type == input_event_type::pointer_released))
     {
         const auto box = content_bounds();
-        const auto thumb = std::min(12.0f, box.width);
+        const auto thumb = std::min(m_thumb_width, box.width);
         const auto fraction =
             box.width > thumb ? std::clamp((event.x - box.x - thumb / 2) / (box.width - thumb), 0.0f, 1.0f) : 0.0f;
         change(std::lerp(m_minimum, m_maximum, fraction));

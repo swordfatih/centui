@@ -92,6 +92,10 @@ budget; this prevents eviction and repeated upload during the same draw.
 `clear_cache()` explicitly releases resources. Backend-native destruction handles
 queued graphics work; callers must obey the existing renderer/thread lifetime rules.
 
+The bgfx renderer batches adjacent quads that share a texture and sampling mode,
+preserving drawing order. If transient buffers are full, it uses dedicated buffers
+for the remaining batches instead of dropping commands.
+
 ## Validation
 
 CI builds all adapters and examples on Linux, Windows, and macOS. Optional native

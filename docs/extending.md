@@ -53,6 +53,15 @@ Call `check_mutation()` before changing widget state. Framework setters propagat
 
 `measure()`, baseline evaluation (including `baseline()`), and `paint()` must not mutate widgets or request more work. They may retain internal derived caches. Widgets with children are laid out by Yoga rather than by their `measure()` hook. The complete [custom primitive](https://github.com/swordfatih/centui/blob/main/tests/examples/custom_primitive/main.cpp) is a small starting point.
 
+`paint_overlay()` follows the same read-only painting contract and local content
+coordinates as `paint()`, but runs after children and before the focus outline.
+Override read-only `hit_test_overlay(vec2)` to claim a local content position before
+child hit testing. Overlay drawing and hit testing respect ancestor clipping;
+neither hook runs for a `display::contents` wrapper. The scroll widget uses these
+hooks so its scrollbar thumbs remain visible and receive pointer input above
+interactive content. Overlay state changes require normal paint invalidation and
+participate in the same command cache as other widget drawing.
+
 Text measurement uses `context.typography.layout(text, options)` directly.
 During painting, `output.typography()` provides the same read-only Centypo engine;
 set alignment in the layout options, then rasterize retained layouts at `output.scale()`

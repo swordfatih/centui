@@ -62,6 +62,11 @@ dependencies, fetched at pinned revisions. Standard FetchContent source override
 allow vendored dependencies. Linux discovery requires Fontconfig development
 headers; `CENTYPO_SYSTEM_FONTS=OFF` disables native discovery.
 
+Native discovery lives in `src/centypo/system`. Its CMake file selects one
+implementation of the private `font_provider` API for Windows, Apple, Android,
+or Fontconfig. The base provider returns empty results for unsupported operations;
+disabled discovery and Web builds instantiate it directly.
+
 ```sh
 cmake -S . -B build -DCENTUI_BUILD_TESTS=ON
 cmake --build build

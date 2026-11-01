@@ -2,6 +2,7 @@
 
 #include <fstream>
 #include <numeric>
+#include <set>
 #include <tuple>
 
 namespace centypo
@@ -69,15 +70,20 @@ std::shared_ptr<const std::vector<unsigned char>> read_font(const std::filesyste
 }
 
 font_collection::font_collection(bool discover_system)
-    : m_discover_system(discover_system)
+    : m_discover_system(discover_system),
+      m_system(discover_system ? system::make_font_provider() : nullptr)
 {
     if(discover_system)
     {
-        for(auto source: system_fonts())
+        std::set<std::pair<std::filesystem::path, long>> seen;
+        for(auto source: m_system->fonts())
         {
-            m_entries.push_back({std::move(source), {}, false, false});
+            if(seen.emplace(source.path, source.index).second)
+            {
+                m_entries.push_back({std::move(source), {}, false, false});
+            }
         }
-        m_aliases = system_font_aliases();
+        m_aliases = m_system->aliases();
     }
 }
 
@@ -179,7 +185,7 @@ std::vector<std::size_t> font_collection::resolve(
 
     if(m_discover_system && !text.empty())
     {
-        for(auto family: system_font_fallbacks(request, text, language))
+        for(auto family: m_system->fallbacks(request, text, language))
         {
             const auto key = folded(std::move(family));
             if(std::find(families.begin(), families.end(), key) == families.end())

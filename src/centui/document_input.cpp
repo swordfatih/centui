@@ -106,11 +106,6 @@ void document::sync_host()
     }
 }
 
-bool document::contains(rect box, float x, float y) noexcept
-{
-    return x >= box.x && y >= box.y && x < box.x + box.width && y < box.y + box.height;
-}
-
 bool document::eligible(const std::shared_ptr<widget>& value) const
 {
     if(!value || !m_data->focus->active() || m_data->viewport.width <= 0 || m_data->viewport.height <= 0 ||
@@ -131,7 +126,7 @@ bool document::focus_eligible(const std::shared_ptr<widget>& value) const
 std::shared_ptr<widget> document::hit(const std::shared_ptr<widget>& value, float x, float y, rect clip) const
 {
     if(!value || !value->m_enabled || value->m_style.visibility != visibility::visible ||
-       value->m_style.display == display::none || !contains(clip, x, y))
+       value->m_style.display == display::none || !clip.contains({x, y}))
     {
         return {};
     }
@@ -141,6 +136,12 @@ std::shared_ptr<widget> document::hit(const std::shared_ptr<widget>& value, floa
                                 ? intersection(clip, value->m_content)
                                 : clip;
 
+    if(eligible(value) && value->m_content.contains({x, y}) &&
+       value->hit_test_overlay({x - value->m_content.x, y - value->m_content.y}))
+    {
+        return value;
+    }
+
     for(auto child = value->m_children.rbegin(); child != value->m_children.rend(); ++child)
     {
         if(auto target = hit(*child, x, y, child_clip))
@@ -149,7 +150,7 @@ std::shared_ptr<widget> document::hit(const std::shared_ptr<widget>& value, floa
         }
     }
 
-    return eligible(value) && contains(value->m_bounds, x, y) ? value : nullptr;
+    return eligible(value) && value->m_bounds.contains({x, y}) ? value : nullptr;
 }
 
 std::shared_ptr<widget> document::hit(float x, float y) const

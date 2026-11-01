@@ -13,47 +13,6 @@
 #include <unordered_map>
 #include <utility>
 
-// Properties accepted by compile-time style composition.
-#define CENTUI_STYLE_PROPERTIES(X) \
-    X(padding)                     \
-    X(margin)                      \
-    X(inset)                       \
-    X(gap)                         \
-    X(position)                    \
-    X(width)                       \
-    X(height)                      \
-    X(flex_direction)              \
-    X(align_items)                 \
-    X(justify_content)             \
-    X(background_color)            \
-    X(text_color)                  \
-    X(font_size)                   \
-    X(font)                        \
-    X(text_align)                  \
-    X(paragraph)                   \
-    X(visibility)                  \
-    X(overflow)                    \
-    X(border_width)                \
-    X(border_color)                \
-    X(flex)                        \
-    X(min_width)                   \
-    X(min_height)                  \
-    X(max_width)                   \
-    X(max_height)                  \
-    X(aspect_ratio)                \
-    X(flex_wrap)                   \
-    X(align_self)                  \
-    X(align_content)               \
-    X(row_gap)                     \
-    X(column_gap)                  \
-    X(layout_direction)            \
-    X(box_sizing)                  \
-    X(display)                     \
-    X(reference_baseline)          \
-    X(forms_containing_block)      \
-    X(corner_radius)               \
-    X(focus)
-
 #include <centui/types.hpp>
 
 #include <centypo/engine.hpp>
@@ -261,14 +220,14 @@ public:
     template <typename Source>
     static void merge(style& target, const Source& source)
     {
-#define CENTUI_MERGE_PROPERTY(name)                     \
+#define CENTUI_STYLE_PROPERTY(name, ...)                \
     if constexpr(requires { source.name; })             \
     {                                                   \
         details::merge_value(target.name, source.name); \
     }
 
-        CENTUI_STYLE_PROPERTIES(CENTUI_MERGE_PROPERTY)
-#undef CENTUI_MERGE_PROPERTY
+#include <centui/details/style_properties.inc>
+#undef CENTUI_STYLE_PROPERTY
     }
 };
 
@@ -276,45 +235,9 @@ public:
 /// Use undefined() to clear a length; an engaged empty optional clears font or aspect ratio.
 struct style_patch
 {
-    std::optional<edges> padding = std::nullopt;
-    std::optional<edges> margin = std::nullopt;
-    std::optional<edges> inset = std::nullopt;
-    std::optional<length> gap = std::nullopt;
-    std::optional<centui::position> position = std::nullopt;
-    std::optional<length> width = std::nullopt;
-    std::optional<length> height = std::nullopt;
-    std::optional<direction> flex_direction = std::nullopt;
-    std::optional<alignment> align_items = std::nullopt;
-    std::optional<justification> justify_content = std::nullopt;
-    std::optional<states_color> background_color = std::nullopt;
-    std::optional<states_color> text_color = std::nullopt;
-    std::optional<float> font_size = std::nullopt;
-    std::optional<std::optional<centypo::font>> font = std::nullopt;
-    std::optional<centypo::text_alignment> text_align = std::nullopt;
-    std::optional<std::optional<centypo::text_options>> paragraph;
-    std::optional<centui::visibility> visibility = std::nullopt;
-    std::optional<centui::overflow> overflow = std::nullopt;
-    std::optional<edges> border_width = std::nullopt;
-    std::optional<states_color> border_color = std::nullopt;
-
-    std::optional<centui::flex> flex = std::nullopt;
-    std::optional<length> min_width = std::nullopt;
-    std::optional<length> min_height = std::nullopt;
-    std::optional<length> max_width = std::nullopt;
-    std::optional<length> max_height = std::nullopt;
-    std::optional<std::optional<float>> aspect_ratio = std::nullopt;
-    std::optional<wrapping> flex_wrap = std::nullopt;
-    std::optional<alignment> align_self = std::nullopt;
-    std::optional<alignment> align_content = std::nullopt;
-    std::optional<length> row_gap = std::nullopt;
-    std::optional<length> column_gap = std::nullopt;
-    std::optional<centui::layout_direction> layout_direction = std::nullopt;
-    std::optional<centui::box_sizing> box_sizing = std::nullopt;
-    std::optional<centui::display> display = std::nullopt;
-    std::optional<bool> reference_baseline = std::nullopt;
-    std::optional<bool> forms_containing_block = std::nullopt;
-    std::optional<float> corner_radius = std::nullopt;
-    std::optional<centui::focus> focus = std::nullopt;
+#define CENTUI_STYLE_PROPERTY(name, ...) std::optional<decltype(style::name)> name = std::nullopt;
+#include <centui/details/style_properties.inc>
+#undef CENTUI_STYLE_PROPERTY
 
     [[nodiscard]] style apply(style candidate) const;
 
@@ -398,5 +321,3 @@ private:
 };
 
 } // namespace centui
-
-#undef CENTUI_STYLE_PROPERTIES

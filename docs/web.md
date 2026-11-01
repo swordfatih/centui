@@ -78,6 +78,10 @@ python -m http.server 8000 --directory build/web/tests/examples/pulse_web
 Open `http://localhost:8000/centui_example_pulse_web.html`. Use a desktop-sized
 browser window to view the full dashboard.
 
+The dashboard's CentUI scroll region shows a draggable scrollbar when its content
+exceeds the viewport. The HTML page remains a fixed canvas host; scrolling and the
+visible scrollbar are rendered by CentUI rather than by the browser page.
+
 ## Integration boundaries
 
 The SDL adapter reads the canvas selector from SDL's window properties; it does
