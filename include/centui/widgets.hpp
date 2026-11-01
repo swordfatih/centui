@@ -8,6 +8,7 @@
 #include <centui/widgets/container.hpp>
 #include <centui/widgets/image.hpp>
 #include <centui/widgets/input.hpp>
+#include <centui/widgets/list.hpp>
 #include <centui/widgets/popup.hpp>
 #include <centui/widgets/pressable.hpp>
 #include <centui/widgets/range.hpp>

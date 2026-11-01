@@ -168,6 +168,10 @@ protected:
 
     void set_child_offset(vec2 value);
 
+    /// Reorders an exact permutation of the current children without detaching them.
+    /// Mounted edits follow the document's usual dispatch boundary.
+    void reorder_children(std::span<const handle<>> children);
+
     void check_mutation() const;
 
     /// \brief Content/measurement or baseline inputs changed; calculate layout, refresh geometry and paint.

@@ -46,6 +46,32 @@ tasks->append(task);
 
 Call `tasks->remove(task)` to remove it. The document commits tree changes requested by input callbacks at the dispatch boundary; you do not need to rebuild the document or run layout yourself.
 
+## Display a large list
+
+Use `list` for a large collection. Give it an item count, a fixed row height in logical pixels, and a factory that returns a fresh widget for an index:
+
+```cpp
+auto contacts = centui::list{
+    [&names](std::size_t index)
+    {
+        return centui::text{names[index]};
+    },
+    {
+        .item_count = names.size(),
+        .row_height = 32,
+    }
+};
+contacts->patch_style({.width = centui::percent(100), .height = centui::px(320)});
+```
+
+Here `names` is your application's collection of strings. Keep it alive while the list uses it. Give the list a bounded height, either explicitly or through a flex layout. It scrolls itself; do not wrap it in another `scroll`.
+
+The list creates only rows inside its viewport plus two extra rows on each side by default (`overscan`). Rows that remain in that range retain their widgets. Rows that leave are removed, and focus inside a removed row is cleared. Keep persistent values, such as checked states or edited text, in your application data and initialize each row from that data. A factory must return a detached widget and must not modify its list.
+
+Call `set_item_count(names.size())` when the collection grows or shrinks. Existing rows are identified by index. After changing existing values, inserting, removing, or reordering items, also call `refresh()` to recreate the current rows. `scroll_to(index)` reveals an item, and `rendered_range()` reports the half-open range of mounted indexes after preparation. Tab traverses mounted controls; this first version does not provide collection-wide selection or variable-height rows.
+
+Use ordinary `scroll` for an existing set of controls that should stay alive.
+
 ## Avoid keeping removed widgets alive
 
 A parent owns its children. A child's callback should observe its own widget or an ancestor through a weak handle:
@@ -69,7 +95,7 @@ remove->set_on_click(
 task->append(remove);
 ```
 
-The [task-list example](https://github.com/swordfatih/centui/blob/main/tests/examples/task_list/main.cpp) connects submission, completion, removal, and scrolling in one app.
+The [task-list example](https://github.com/swordfatih/centui/blob/main/tests/examples/task_list/main.cpp) uses `list` to connect submission, completion, removal, and scrolling. It keeps task values in application data so completion survives rows being recreated.
 
 ## Focus and dialogs
 

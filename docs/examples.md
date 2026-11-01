@@ -11,7 +11,7 @@ Each example is a complete app with a different lesson. Choose the one closest t
 | Example | Read it to learn | Build target |
 | --- | --- | --- |
 | [Getting started](https://github.com/swordfatih/centui/blob/main/tests/examples/getting_started/main.cpp) | A widget tree, named styles, and a callback. | `centui_example_getting_started` |
-| [Task list](https://github.com/swordfatih/centui/blob/main/tests/examples/task_list/main.cpp) | Input submission and dynamic rows with safe callback ownership. | `centui_example_task_list` |
+| [Task list](https://github.com/swordfatih/centui/blob/main/tests/examples/task_list/main.cpp) | A virtualized list with adding, removing, and completion state kept in application data. | `centui_example_task_list` |
 | [Scene overlay](https://github.com/swordfatih/centui/blob/main/tests/examples/overlay/main.cpp) | Controls over an existing SFML scene and event loop. | `centui_example_overlay` |
 | [Custom widget](https://github.com/swordfatih/centui/blob/main/tests/examples/custom_widget/main.cpp) | An animated meter with retained paths and a gradient. | `centui_example_custom_widget` |
 | [Dashboard](https://github.com/swordfatih/centui/blob/main/tests/examples/dashboard/main.cpp) | Reusable styles, theme switching, scrolling, and a custom chart. | `centui_example_dashboard` |

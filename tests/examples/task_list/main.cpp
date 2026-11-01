@@ -1,4 +1,6 @@
+#include <cstddef>
 #include <string>
+#include <vector>
 
 #include <centui/backends/bgfx.hpp>
 #include <centui/centui.hpp>
@@ -25,6 +27,14 @@ struct row
     centui::length gap = centui::px(12);
 };
 
+struct task_row : row
+{
+    centui::length height = centui::percent(100);
+    centui::edges padding{
+        .bottom = centui::px(12),
+    };
+};
+
 struct fill
 {
     centui::flex flex = centui::flex::all(1, 1, centui::px(0));
@@ -41,6 +51,17 @@ struct control
     };
 };
 
+struct task
+{
+    std::string title;
+    bool completed = false;
+};
+
+centui::states_color task_color(bool completed)
+{
+    return centui::states_color::all(completed ? centui::color{100, 116, 139, 255} : centui::color{226, 232, 240, 255});
+}
+
 } // namespace
 
 int main()
@@ -48,12 +69,66 @@ int main()
     centui::sdl::platform window{{.title = "CentUI / Task list", .width = 720, .height = 520}};
     centui::bgfx::backend renderer{window};
 
-    auto entry = centui::input<control, fill>{};
-    auto tasks = centui::container{};
-    tasks->patch_style({.gap = centui::px(12)});
+    // Task values outlive rows, which are created and removed as the list scrolls.
+    std::vector<task> items;
+    centui::handle<centui::list_widget> tasks;
 
-    // Both controls use the same action; the tree is updated without rebuilding the document.
-    const auto add_task = [&entry, &tasks]
+    tasks = centui::list<fill>{
+        [&items, &tasks](std::size_t index)
+        {
+            const auto& item = items[index];
+
+            auto complete = centui::toggle<fill>{
+                item.title,
+                {
+                    .checked = item.completed,
+                }
+            };
+            auto remove = centui::button<control>{"Remove"};
+            auto row = centui::container<task_row>{complete, remove};
+            row->patch_style({
+                .text_color = task_color(item.completed),
+            });
+
+            complete->set_on_change(
+                [&items, index, weak = row.weak()](bool checked)
+                {
+                    items[index].completed = checked;
+
+                    if(auto current = weak.lock(); current.valid())
+                    {
+                        current->patch_style({
+                            .text_color = task_color(checked),
+                        });
+                    }
+                }
+            );
+
+            remove->set_on_click(
+                [&items, index, weak = tasks.weak()]
+                {
+                    if(auto list = weak.lock(); list.valid())
+                    {
+                        items.erase(items.begin() + static_cast<std::ptrdiff_t>(index));
+
+                        list->set_item_count(items.size());
+                        // Erasing shifts indexes; rebuild mounted rows with their new indexes.
+                        list->refresh();
+                    }
+                }
+            );
+
+            return row;
+        },
+        {
+            .item_count = items.size(),
+            .row_height = 64,
+        }
+    };
+
+    auto entry = centui::input<control, fill>{};
+
+    const auto add_task = [&items, &entry, &tasks]
     {
         const std::string title{entry->value()};
 
@@ -62,45 +137,16 @@ int main()
             return;
         }
 
-        auto complete = centui::toggle<fill>{title};
-        auto remove = centui::button<control>{"Remove"};
-        auto task = centui::container<row>{complete, remove};
+        items.push_back({
+            .title = title,
+        });
 
-        complete->set_on_change(
-            [weak = task.weak()](bool checked)
-            {
-                if(auto item = weak.lock(); item.valid())
-                {
-                    item->patch_style(
-                        {.text_color = centui::states_color::all(
-                             checked ? centui::color{100, 116, 139, 255} : centui::color{226, 232, 240, 255}
-                         )}
-                    );
-                }
-            }
-        );
-
-        // The button observes its ancestors so its callback cannot keep a removed row alive.
-        remove->set_on_click(
-            [list = tasks.weak(), weak = task.weak()]
-            {
-                auto parent = list.lock();
-                auto item = weak.lock();
-
-                if(parent.valid() && item.valid())
-                {
-                    parent->remove(item);
-                }
-            }
-        );
-
-        tasks->append(task);
+        tasks->set_item_count(items.size());
+        tasks->scroll_to(items.size() - 1);
         entry->set_text("");
     };
 
     entry->set_on_submit(add_task);
-
-    auto list = centui::scroll<fill>{tasks};
 
     auto root = centui::container<page>{
         centui::text{"Things to do"},
@@ -114,7 +160,7 @@ int main()
                 }
             },
         },
-        list,
+        tasks,
     };
 
     centui::document document{root};

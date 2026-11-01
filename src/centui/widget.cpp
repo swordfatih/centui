@@ -629,6 +629,45 @@ std::vector<handle<>> widget::children() const
     return result;
 }
 
+void widget::reorder_children(std::span<const handle<>> children)
+{
+    check_mutation();
+
+    auto target = shared_from_this();
+    std::vector<std::shared_ptr<widget>> ordered;
+    ordered.reserve(children.size());
+
+    for(const auto& child: children)
+    {
+        (void)child.get();
+        ordered.push_back(child.m_value);
+    }
+
+    const auto apply = [target, ordered = std::move(ordered)]
+    {
+        if(!std::is_permutation(ordered.begin(), ordered.end(), target->m_children.begin(), target->m_children.end()))
+        {
+            throw std::invalid_argument("Child ordering must contain each current child exactly once");
+        }
+
+        if(ordered != target->m_children)
+        {
+            target->m_children = ordered;
+
+            details::invalidation_access::invalidate(*target, details::change::topology);
+        }
+    };
+
+    if(auto context = m_document.lock())
+    {
+        context->owner.edit(apply);
+    }
+    else
+    {
+        apply();
+    }
+}
+
 handle<> widget::parent() const
 {
     return handle<>{m_parent.lock()};
