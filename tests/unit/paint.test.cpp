@@ -59,8 +59,12 @@ TEST_CASE("Vector rasters reuse masks and survive eviction and document destruct
     auto leaf = centui::make_widget<drawing>();
     std::shared_ptr<const centui::bitmap> retained;
     {
-        centui::document document{leaf};
-        document.set_system_font_discovery(false);
+        centui::document document{
+            leaf,
+            {
+                .system_font_discovery = false,
+            }
+        };
         document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
         const auto first = document.prepare({100, 100});
         REQUIRE(first.commands.size() == 1);
@@ -83,8 +87,12 @@ TEST_CASE("Vector rasters reuse masks and survive eviction and document destruct
 TEST_CASE("Copied paths keep their geometry when an alias is edited", "[paint]")
 {
     auto leaf = centui::make_widget<drawing>();
-    centui::document document{leaf};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        leaf,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     const auto original = document.prepare({100, 100});
     auto alias = leaf->shape;
@@ -103,8 +111,12 @@ TEST_CASE("Editing a cached path refreshes its raster without changing bounds", 
     auto leaf = centui::make_widget<drawing>();
     leaf->shape = {};
     leaf->shape.move_to({2, 2}).line_to({22, 2}).line_to({2, 22}).close();
-    centui::document document{leaf};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        leaf,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     const auto original = document.prepare({100, 100});
     REQUIRE(original.commands.size() == 1);
@@ -124,8 +136,12 @@ TEST_CASE("Vector gradients rasterize at viewport scale and validate stops", "[p
 {
     auto leaf = centui::make_widget<drawing>();
     leaf->brush = centui::linear_gradient{{2, 2}, {22, 2}, {{0, {255, 0, 0, 255}}, {1, {0, 0, 255, 255}}}};
-    centui::document document{leaf};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        leaf,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     const auto first = document.prepare({100, 100});
     const auto image = first.commands.front().image;
@@ -157,8 +173,12 @@ TEST_CASE("Invalid vector geometry and stroke widths fail before drawing", "[pai
     REQUIRE_THROWS_AS(path.rounded_rectangle({0, 0, 10, 10}, nan), std::invalid_argument);
     auto leaf = centui::make_widget<drawing>();
     leaf->stroke_width = -1;
-    centui::document document{leaf};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        leaf,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     REQUIRE_THROWS_AS(document.prepare({100, 100}), std::invalid_argument);
     leaf->stroke_width = 2;
@@ -176,8 +196,12 @@ TEST_CASE("Failed layout hooks retry retained geometry preparation", "[paint][la
             throw std::runtime_error("geometry unavailable");
         }
     };
-    centui::document document{leaf};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        leaf,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     REQUIRE_THROWS_AS(document.prepare({100, 100}), std::runtime_error);
     REQUIRE_FALSE(document.prepare({100, 100}).commands.empty());

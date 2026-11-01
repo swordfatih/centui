@@ -416,8 +416,12 @@ TEST_CASE("Static ancestors can explicitly form containing blocks", "[yoga][posi
     middle_style.position = centui::position::normal;
     auto middle = centui::container{{child}, middle_style};
     auto root = centui::container{{middle}, row(200, 100)};
-    centui::document document{root};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        root,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     (void)document.prepare({200, 100});
     REQUIRE(child->bounds().x == Catch::Approx(100));
@@ -465,8 +469,12 @@ TEST_CASE("Custom baselines include padding and propagate failures safely", "[yo
     auto outer = row();
     outer.align_items = centui::alignment::baseline;
     auto root = centui::container{{first, second}, outer};
-    centui::document document{root};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        root,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     (void)document.prepare({300, 100});
     REQUIRE(first->bounds().y + 17 == Catch::Approx(second->bounds().y + 25));
@@ -517,8 +525,12 @@ TEST_CASE("Different text sizes align using font ascenders", "[yoga][baseline][f
     auto outer = row();
     outer.align_items = centui::alignment::baseline;
     auto root = centui::container{{small, large}, outer};
-    centui::document document{root};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        root,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     centypo::font face{{"Inter"}};
     document.set_style({.font = face});
@@ -559,8 +571,12 @@ TEST_CASE("Contents wrappers preserve layout painting events and ownership", "[y
     outer.gap = centui::px(5);
     auto before = centui::container{box(20, 20)};
     auto root = centui::container{{before, wrapper}, outer};
-    centui::document document{root};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        root,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     const auto& drawing = document.prepare({200, 100});
     REQUIRE(child->bounds().x == Catch::Approx(35));
@@ -595,8 +611,12 @@ TEST_CASE("Hidden retains layout while collapsed and display none remove it", "[
     auto first = centui::container{box(40, 20)};
     auto second = centui::container{box(40, 20)};
     auto root = centui::container{{first, second}, row()};
-    centui::document document{root};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        root,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     first->patch_style({.visibility = centui::visibility::hidden});
     (void)document.prepare({300, 100});
@@ -618,8 +638,12 @@ TEST_CASE("Border painting uses each resolved physical width", "[yoga][render]")
     appearance.border_width = {centui::px(1), centui::px(2), centui::px(3), centui::px(4)};
     appearance.border_color = centui::states_color::all({255, 0, 0, 255});
     auto root = centui::container{appearance};
-    centui::document document{root};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        root,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     const auto& draw = document.prepare({100, 100});
     REQUIRE(draw.commands.size() == 4);
@@ -633,8 +657,12 @@ TEST_CASE("Document layout options invalidate only when changed and validate ato
 {
     auto child = centui::container{box(20, 20)};
     auto root = centui::container{{child}, row(100, 100)};
-    centui::document document{root};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        root,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     (void)document.prepare({100, 100});
     document.set_layout_options({});
@@ -830,8 +858,12 @@ TEST_CASE("Overflow modes control clipping and pointer targets", "[yoga][overflo
         auto appearance = row(40, 40);
         appearance.overflow = mode;
         auto root = centui::container{{child}, appearance};
-        centui::document document{root};
-        document.set_system_font_discovery(false);
+        centui::document document{
+            root,
+            {
+                .system_font_discovery = false,
+            }
+        };
         document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
         const auto& draw = document.prepare({100, 100});
         REQUIRE(root->metrics().had_overflow);
@@ -857,8 +889,12 @@ TEST_CASE("A contents root uses the viewport and ignores its own box styles", "[
     appearance.display = centui::display::contents;
     appearance.padding = centui::edges::all(centui::px(100));
     auto root = centui::container{{child}, appearance};
-    centui::document document{root};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        root,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     (void)document.prepare({200, 100});
     REQUIRE(root->bounds().width == 0);
@@ -1003,8 +1039,12 @@ TEST_CASE("New layout properties compose and participate in patch invalidation",
 TEST_CASE("Invalid layout patches leave mounted style and invalidation unchanged", "[yoga][validation]")
 {
     auto root = centui::container{box(100, 100)};
-    centui::document document{root};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        root,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     (void)document.prepare({100, 100});
     const auto before = root->style();
@@ -1132,8 +1172,12 @@ TEST_CASE("Text inputs share the first-line baseline with text labels", "[yoga][
     auto outer = row(400, 100);
     outer.align_items = centui::alignment::baseline;
     auto root = centui::container{{label, input}, outer};
-    centui::document document{root};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        root,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     centypo::font face{{"Inter"}};
     document.set_style({.font = face});
@@ -1249,8 +1293,12 @@ TEST_CASE("Mounted flex patches resize siblings and reset growth", "[yoga][flex]
     auto first = centui::container{flexible};
     auto second = centui::container{flexible};
     auto root = centui::container{{first, second}, row(300, 100)};
-    centui::document document{root};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        root,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     (void)document.prepare({300, 100});
     REQUIRE(first->bounds().width == Catch::Approx(150));

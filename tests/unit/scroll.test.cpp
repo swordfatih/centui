@@ -13,8 +13,12 @@ TEST_CASE("Standalone scroll header retains children and clamps offsets", "[widg
     content->patch_style({.height = centui::px(200)});
     auto control = centui::scroll{content};
     control->patch_style({.width = centui::px(100), .height = centui::px(50)});
-    centui::document document{control};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        control,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     (void)document.prepare({200, 100});
     REQUIRE(content->parent() == centui::handle<>{control});
@@ -47,8 +51,12 @@ TEST_CASE("Flex scroll viewport fills the space beside a fixed sidebar across re
     shell_style.height = centui::percent(100);
     shell_style.flex_direction = centui::direction::row;
     auto shell = centui::container{{sidebar, viewport}, shell_style};
-    centui::document document{shell};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        shell,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
 
     for(auto surface: {centui::viewport{1440, 100}, centui::viewport{1100, 100}, centui::viewport{1440, 200, 2}})
@@ -82,8 +90,12 @@ TEST_CASE("Scrollbar thumbs paint above content and drag without activating cove
     );
     auto control = centui::scroll{content};
     control->patch_style({.width = centui::px(100), .height = centui::px(50)});
-    centui::document document{control};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        control,
+        {
+            .system_font_discovery = false,
+        }
+    };
     const auto first = document.prepare({200, 100});
     REQUIRE(control->limit().y == Catch::Approx(150));
     REQUIRE(first.commands.size() >= 3);
@@ -110,8 +122,12 @@ TEST_CASE("Scrollbar tracks page content and capture dragging until release or c
     content->patch_style({.width = centui::px(100), .height = centui::px(200)});
     auto control = centui::scroll{content};
     control->patch_style({.width = centui::px(100), .height = centui::px(50)});
-    centui::document document{control};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        control,
+        {
+            .system_font_discovery = false,
+        }
+    };
     (void)document.prepare({200, 100});
 
     document.process_event({centui::input_event_type::pointer_pressed, 95, 45}, {200, 100});
@@ -132,8 +148,12 @@ TEST_CASE("Horizontal and vertical scrollbars drag independently at scaled viewp
     content->patch_style({.width = centui::px(400), .height = centui::px(200)});
     auto control = centui::scroll{content};
     control->patch_style({.width = centui::px(100), .height = centui::px(50)});
-    centui::document document{control};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        control,
+        {
+            .system_font_discovery = false,
+        }
+    };
     const centui::viewport surface{400, 200, 2};
     (void)document.prepare(surface);
     REQUIRE(control->limit().x == Catch::Approx(300));
@@ -156,8 +176,12 @@ TEST_CASE("Scrollbars disappear when content fits and tiny viewports remain fini
     content->patch_style({.width = centui::px(100), .height = centui::px(200)});
     auto control = centui::scroll{content};
     control->patch_style({.width = centui::px(100), .height = centui::px(50)});
-    centui::document document{control};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        control,
+        {
+            .system_font_discovery = false,
+        }
+    };
     REQUIRE_FALSE(document.prepare({200, 100}).commands.empty());
     content->patch_style({.height = centui::px(20)});
     REQUIRE(document.prepare({200, 100}).commands.empty());

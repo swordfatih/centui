@@ -16,8 +16,12 @@ TEST_CASE("Standalone range header exposes options and keyboard callbacks", "[wi
             observed = value;
         },
     }};
-    centui::document document{control};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        control,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     (void)document.prepare({200, 100});
     REQUIRE(control->request_focus());

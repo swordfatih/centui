@@ -21,8 +21,12 @@ TEST_CASE("Standalone selection header exposes items options and callbacks", "[w
             },
         }
     };
-    centui::document document{control};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        control,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
 
     (void)document.prepare({200, 100});

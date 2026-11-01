@@ -23,8 +23,12 @@ TEST_CASE("Standalone input header exposes edit and submit callbacks", "[widget]
     };
 
     auto control = centui::input{"A", {.on_change = observe, .on_submit = submit}};
-    centui::document document{control};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        control,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
 
     (void)document.prepare({200, 100});
@@ -48,8 +52,12 @@ TEST_CASE("Multiline Tab edits text while single-line and modified Tab navigate"
          }}
     };
     auto single = centui::input{"single"};
-    centui::document document{centui::container{multiline, single}};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        centui::container{multiline, single},
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     (void)document.prepare({200, 100});
     REQUIRE(multiline->request_focus());
@@ -110,8 +118,12 @@ TEST_CASE("Input activity loss cancels composition while retaining logical focus
 {
     auto control = centui::input{"A"};
     std::optional<centui::rect> host_area;
-    centui::document document{control};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        control,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     auto services = std::make_shared<centui::host_services>();
     services->text_input = [&](auto area)
@@ -150,8 +162,12 @@ TEST_CASE("Mouse-focused input retains its caret and host session with no focus 
         {.width = centui::px(100), .height = centui::px(30), .focus = centui::focus{.color = ring_color}}
     );
     std::optional<centui::rect> host_area;
-    centui::document document{control};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        control,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     auto services = std::make_shared<centui::host_services>();
     services->text_input = [&](auto area)

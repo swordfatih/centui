@@ -75,11 +75,12 @@ struct reveal_fixture
     centui::handle<reveal_probe> target = centui::make_widget<reveal_probe>();
     centui::container<> content{box(400, 400)};
     centui::handle<counting_scroll> scroll = centui::make_widget<counting_scroll>();
-    centui::document doc;
+    centui::document doc{centui::document_options{
+        .system_font_discovery = false,
+    }};
 
     reveal_fixture()
     {
-        doc.set_system_font_discovery(false);
         doc.register_font(std::filesystem::path{CENTUI_FONT_PATH});
         target->set_style(box(20, 20, 250, 260));
         content->append(target);
@@ -149,8 +150,12 @@ TEST_CASE("Reveal clamps to actual ranges and a non-scrolling clip keeps focus",
     target->set_style(box(20, 20, 0, 200));
     auto clip = centui::container{{target}, box(100, 40)};
     clip->patch_style({.overflow = centui::overflow::clip});
-    centui::document doc{clip};
-    doc.set_system_font_discovery(false);
+    centui::document doc{
+        clip,
+        {
+            .system_font_discovery = false,
+        }
+    };
     doc.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     REQUIRE(target->request_focus());
     (void)doc.prepare({100, 100});
@@ -174,8 +179,12 @@ TEST_CASE("Nested reveal reaches an inner scroller initially outside the outer v
     auto outer = centui::make_widget<counting_scroll>();
     outer->patch_style({.width = centui::px(100), .height = centui::px(100)});
     outer->append(outside);
-    centui::document doc{outer};
-    doc.set_system_font_discovery(false);
+    centui::document doc{
+        outer,
+        {
+            .system_font_discovery = false,
+        }
+    };
     doc.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     (void)doc.prepare({100, 100});
     REQUIRE(target->request_focus());
@@ -204,8 +213,12 @@ TEST_CASE("Fixed clipping between scrollers carries only reachable portions", "[
             auto outside = centui::container{{fixed_clip}, box(100, 500)};
             auto outer = centui::scroll{{outside}};
             outer->patch_style({.width = centui::px(100), .height = centui::px(100)});
-            centui::document doc{outer};
-            doc.set_system_font_discovery(false);
+            centui::document doc{
+                outer,
+                {
+                    .system_font_discovery = false,
+                }
+            };
             doc.register_font(std::filesystem::path{CENTUI_FONT_PATH});
             (void)doc.prepare({100, 100});
             REQUIRE(target->request_focus());

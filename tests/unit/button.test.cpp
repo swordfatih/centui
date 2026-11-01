@@ -38,8 +38,12 @@ TEST_CASE("Button labels retain their child and invalidate layout when edited", 
     auto button = centui::button{"I"};
     auto root = centui::container{button};
     root->patch_style({.align_items = centui::alignment::start});
-    centui::document document{root};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        root,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
 
     const auto children = button->children();
@@ -73,8 +77,12 @@ TEST_CASE("Button labels follow parent typography and padding changes", "[widget
         .font_size = 12,
         .text_align = centypo::text_alignment::right,
     });
-    centui::document document{button};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        button,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
 
     const auto small = label_command(document);
@@ -105,8 +113,12 @@ TEST_CASE("Button labels paint normal hover pressed focused and disabled colors"
     colors.disabled = {50, 0, 0, 255};
     auto button = centui::button{"Label"};
     button->patch_style({.width = centui::px(120), .height = centui::px(40), .text_color = colors});
-    centui::document document{button};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        button,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
 
     REQUIRE(label_command(document).color == colors.normal);

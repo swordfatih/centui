@@ -186,8 +186,12 @@ TEST_CASE("Duplicate and parented construction batches fail atomically", "[widge
     const std::array<centui::handle<>, 1> detached{free_child};
     auto accepted = centui::make_widget<custom_composite>(std::span{detached});
     centui::container<> root{owner, accepted};
-    centui::document document{root};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        root,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     REQUIRE(document.children(owner).front() == centui::handle<>{owned_child});
     REQUIRE(document.children(accepted).front() == centui::handle<>{free_child});
@@ -203,8 +207,12 @@ TEST_CASE("Composite extension rejects self attachment and ancestor cycles", "[w
     REQUIRE_THROWS_AS(child->compose(std::span{ancestor}), std::invalid_argument);
     REQUIRE_THROWS_AS(child->compose(std::span{self}), std::invalid_argument);
 
-    centui::document document{parent};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        parent,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     REQUIRE(document.children(parent).size() == 1);
     REQUIRE(document.parent(child) == centui::handle<>{parent});
@@ -228,8 +236,12 @@ TEST_CASE("A single same-type container is nested while ordinary copies alias", 
     REQUIRE(alias == child);
     REQUIRE_FALSE(parent == child);
 
-    centui::document document{parent};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        parent,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     REQUIRE(document.children(parent).size() == 1);
     REQUIRE(document.children(parent).front() == centui::handle<>{alias});
@@ -240,8 +252,12 @@ TEST_CASE("Nested temporary containers preserve every level and typed leaf", CEN
 {
     auto leaf = centui::make_widget<custom_leaf>(29);
     auto root = centui::container<>{centui::container<>{centui::container<>{leaf}}};
-    centui::document document{root};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        root,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     auto current = document.root();
 
@@ -268,8 +284,12 @@ TEST_CASE("Document destruction detaches a surviving custom subtree", "[widget][
     const std::array<centui::handle<>, 1> children{leaf};
     auto root = centui::make_widget<custom_composite>(std::span{children});
     {
-        centui::document document{root};
-        document.set_system_font_discovery(false);
+        centui::document document{
+            root,
+            {
+                .system_font_discovery = false,
+            }
+        };
         document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
         REQUIRE(document.children(root).front() == centui::handle<>{leaf});
     }
@@ -277,8 +297,12 @@ TEST_CASE("Document destruction detaches a surviving custom subtree", "[widget][
     REQUIRE(root.valid());
     REQUIRE(leaf.valid());
     leaf->set_value(17);
-    centui::document remounted{root};
-    remounted.set_system_font_discovery(false);
+    centui::document remounted{
+        root,
+        {
+            .system_font_discovery = false,
+        }
+    };
     remounted.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     REQUIRE(remounted.children(root).front() == centui::handle<>{leaf});
     REQUIRE(leaf->value() == 17);
@@ -293,8 +317,12 @@ TEST_CASE("Custom measurement painting and invalidation use the public extension
     appearance.height = centui::px(100);
     appearance.align_items = centui::alignment::start;
     root->set_style(appearance);
-    centui::document document{root};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        root,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
 
     REQUIRE(document.prepare({200, 100}).commands.size() == 1);

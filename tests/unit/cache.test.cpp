@@ -36,8 +36,12 @@ TEST_CASE("Paint boundaries reuse unchanged siblings and invalidate on geometry"
     auto b = centui::make_widget<probe>();
     a->set_paint_boundary(true);
     auto root = centui::container{a, b};
-    centui::document document{root};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        root,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     (void)document.prepare({200, 100});
     b->change();
@@ -64,8 +68,12 @@ TEST_CASE("Topology edits retain unaffected layout nodes", "[layout][cache]")
 {
     auto a = centui::make_widget<probe>();
     auto root = centui::container{a};
-    centui::document document{root};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        root,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     (void)document.prepare({200, 100});
     const auto before = document.statistics().layout_nodes_created;

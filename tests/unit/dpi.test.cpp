@@ -48,8 +48,12 @@ TEST_CASE("Documents refresh text caches and hit test in logical coordinates", "
     action->patch_style({.width = centui::px(80), .height = centui::px(30)});
     auto root = centui::container{action};
     root->patch_style({.width = centui::percent(100), .height = centui::percent(100)});
-    centui::document document{root};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        root,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
 
     (void)document.prepare({200, 100, 1});

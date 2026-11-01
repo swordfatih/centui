@@ -87,8 +87,12 @@ TEST_CASE("Widget child operations work detached and mounted", "[widget][extensi
     root->remove(child);
     REQUIRE_FALSE(child->parent().valid());
     {
-        centui::document document{root};
-        document.set_system_font_discovery(false);
+        centui::document document{
+            root,
+            {
+                .system_font_discovery = false,
+            }
+        };
         document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
         root->append(child);
         REQUIRE(document.parent(child) == centui::handle<>{root});
@@ -108,8 +112,12 @@ TEST_CASE("Composite callbacks edit their children through the widget API", "[wi
     auto action = centui::make_widget<centui::pressable_widget>(centui::pressable_options{}, box(80, 30));
     auto replacement = centui::make_widget<centui::container_widget>(box(80, 30));
     root->append(action);
-    centui::document document{root};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        root,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     const auto weak_root = root.weak();
     const auto weak_action = action.weak();
@@ -137,8 +145,12 @@ TEST_CASE("Focus is independent of pointer interaction and reports invalidation"
     auto root = centui::make_widget<centui::container_widget>(box(200, 100));
     root->append(first);
     root->append(second);
-    centui::document document{root};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        root,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     REQUIRE(first->request_focus());
     REQUIRE(first->focused());
@@ -168,8 +180,12 @@ TEST_CASE("Focus callbacks defer topology edits and recover from exceptions", "[
     auto child = centui::make_widget<extension_probe>();
     auto root = centui::make_widget<centui::container_widget>(box(200, 100));
     root->append(child);
-    centui::document document{root};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        root,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     const auto weak_child = child.weak();
     const auto weak_root = root.weak();
@@ -205,8 +221,12 @@ TEST_CASE("Child clipping and offsets agree for drawing and pointer targeting", 
     appearance.background_color = centui::states_color::all({255, 0, 0, 255});
     auto child = centui::make_widget<counting_button>(centui::pressable_options{}, appearance);
     root->append(child);
-    centui::document document{root};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        root,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     document.process_event({centui::input_event_type::pointer_moved, 50, 5}, {200, 100});
     REQUIRE(child->hovered());
@@ -241,8 +261,12 @@ TEST_CASE("Content buttons reuse activation without inheriting text", "[widget][
             ++callbacks;
         }
     );
-    centui::document document{action};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        action,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     REQUIRE(content->parent() == centui::handle<>{action});
     document.process_event({centui::input_event_type::pointer_pressed, 5, 5}, {200, 100});
@@ -259,8 +283,12 @@ TEST_CASE("Unhandled motion reaches ancestors while captured gestures stay local
     child->set_interactive();
     root->handle_events = true;
     root->append(child);
-    centui::document document{root};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        root,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     document.process_event({centui::input_event_type::pointer_moved, 5, 5}, {200, 100});
     REQUIRE(root->events.size() == 1);

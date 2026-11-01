@@ -130,8 +130,12 @@ TEST_CASE("Native forwarding borrows host state without taking over its event lo
     auto probe = centui::make_widget<service_probe>();
     auto root = centui::container{probe};
     root->patch_style({.width = centui::percent(100)});
-    centui::document document{root};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        root,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
 
     ui.process_event(document, native_event{{.type = centui::input_event_type::pointer_moved, .x = 10, .y = 10}});
@@ -174,8 +178,12 @@ TEST_CASE("UI frames process polled events and advance widgets before drawing", 
         }
     };
     action->patch_style({.width = centui::px(100), .height = centui::px(60)});
-    centui::document document{action};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        action,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
 
     renderer.on_begin = [&]
@@ -205,8 +213,12 @@ TEST_CASE("UI frames advance animations even when rendering is unavailable", "[p
     centui::ui ui{platform_interface, renderer_interface};
     auto probe = centui::make_widget<service_probe>();
     probe->request_frame();
-    centui::document document{probe};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        probe,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
 
     REQUIRE_FALSE(ui.frame(document, centui::frame_duration{0.5f}));
@@ -223,8 +235,12 @@ TEST_CASE("UI frames support automatic timing and renderer-only applications", "
     test_renderer renderer;
     centui::ui ui{renderer};
     auto probe = centui::make_widget<service_probe>();
-    centui::document document{probe};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        probe,
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
 
     probe->request_frame();
@@ -245,8 +261,12 @@ TEST_CASE("UI frames reject invalid elapsed time before beginning rendering", "[
 {
     test_renderer renderer;
     centui::ui ui{renderer};
-    centui::document document{centui::container{}};
-    document.set_system_font_discovery(false);
+    centui::document document{
+        centui::container{},
+        {
+            .system_font_discovery = false,
+        }
+    };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
 
     REQUIRE_THROWS_AS(ui.frame(document, centui::frame_duration{-1}), std::invalid_argument);
