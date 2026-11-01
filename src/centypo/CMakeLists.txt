@@ -20,9 +20,3 @@ target_sources(centypo PRIVATE ${sources})
 target_link_libraries(centypo PRIVATE freetype harfbuzz centypo_bidi libunibreak)
 
 add_subdirectory(system)
-
-if(EMSCRIPTEN)
-    target_compile_options(centypo PUBLIC -fexceptions)
-    target_link_options(centypo PUBLIC -fexceptions)
-endif()
-

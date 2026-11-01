@@ -372,7 +372,7 @@ layout_configuration::layout_configuration(layout_options options)
     YGConfigSetExperimentalFeatureEnabled(
         m_data->config.get(),
         YGExperimentalFeatureWebFlexBasis,
-        options.experimental_web_flex_basis
+        options.recalculate_flex_basis
     );
 }
 

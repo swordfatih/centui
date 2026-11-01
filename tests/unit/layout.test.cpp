@@ -920,10 +920,10 @@ TEST_CASE("Stretch flex basis compatibility changes intrinsic column height", "[
     }
 }
 
-TEST_CASE("Experimental web basis recalculates percentages when available size changes", "[yoga][config]")
+TEST_CASE("Flex basis recalculation resolves percentages when available size changes", "[yoga][config]")
 {
     centui::layout_options options;
-    options.experimental_web_flex_basis = true;
+    options.recalculate_flex_basis = true;
     centui::layout parent(options), child(options);
     centui::style outer;
     outer.width = centui::percent(100);

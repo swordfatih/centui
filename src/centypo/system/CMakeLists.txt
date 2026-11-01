@@ -1,4 +1,4 @@
-if(NOT CENTYPO_SYSTEM_FONTS OR EMSCRIPTEN)
+if(NOT CENTYPO_SYSTEM_FONTS)
     target_sources(centypo PRIVATE fonts.cpp)
 elseif(WIN32)
     target_sources(centypo PRIVATE windows.cpp)

@@ -41,7 +41,7 @@ cmake --build build --target my_app
 
 Use the same supported compiler for your application and CentUI. The linked targets propagate the C++20 requirement and public include directory. Include `<centui/centui.hpp>` for the core API, or individual headers such as `<centui/widgets/button.hpp>`. Replace `GIT_TAG main` with a specific commit to pin your dependency.
 
-The native Hello world program uses system fonts automatically. Font files under `tests/assets/` support the repository's tests and web examples; applications do not need them for native system font discovery.
+The native Hello world program uses system fonts automatically. Font files under `tests/assets/` support the repository's tests; applications do not need them for native system font discovery.
 
 Choose the targets for your integration:
 
@@ -69,9 +69,6 @@ cmake --build build --target centui_example_getting_started
 Run `centui_example_getting_started` from `build/tests/examples/getting_started/`. To build the SFML overlay too, configure with `-DCENTUI_BUILD_SFML=ON` and build `centui_example_hud_sfml`.
 
 All optional platforms, renderers, examples, and tests are off by default. Enable only the pieces your application uses.
-
-For an Emscripten build with SDL and bgfx, see [Web](web.md). The browser example
-provides the browser callback and asset packaging while using `ui.frame(document)`.
 
 ## Meet the pieces
 

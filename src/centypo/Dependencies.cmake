@@ -1,10 +1,6 @@
 include(FetchContent)
 
 function(centypo_dependencies)
-    if(EMSCRIPTEN)
-        set(CMAKE_DISABLE_FIND_PACKAGE_Threads ON)
-    endif()
-
     if(NOT TARGET freetype)
         set(FT_DISABLE_HARFBUZZ ON)
         set(FT_DISABLE_BZIP2 ON)
@@ -34,10 +30,6 @@ function(centypo_dependencies)
             GIT_SHALLOW TRUE)
 
         FetchContent_MakeAvailable(harfbuzz)
-
-        if(EMSCRIPTEN)
-            target_compile_definitions(harfbuzz PRIVATE HB_NO_MT)
-        endif()
     endif()
 endfunction()
 

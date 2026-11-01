@@ -65,7 +65,7 @@ headers; `CENTYPO_SYSTEM_FONTS=OFF` disables native discovery.
 Native discovery lives in `src/centypo/system`. Its CMake file selects one
 implementation of the private `font_provider` API for Windows, Apple, Android,
 or Fontconfig. The base provider returns empty results for unsupported operations;
-disabled discovery and Web builds instantiate it directly.
+disabled discovery instantiates it directly.
 
 ```sh
 cmake -S . -B build -DCENTUI_BUILD_TESTS=ON
@@ -75,5 +75,3 @@ ctest --test-dir build --output-on-failure
 
 Run these test commands from the repository root. Centypo tests live in
 `tests/unit` and use the shared font fixture under `tests/assets`.
-Web applications must register their own font data; browser CSS fonts are
-unavailable to Wasm.

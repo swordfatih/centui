@@ -23,18 +23,16 @@ enum class native_window_system
     cocoa,
     android,
     x11,
-    wayland,
-    web
+    wayland
 };
 
-/// \brief Borrowed native C handles or a browser canvas selector used to connect a renderer.
+/// \brief Borrowed native C handles used to connect a renderer.
 /// These handles never own resources; their platform must outlive the renderer.
 struct native_window_handles
 {
     void* window = nullptr;
     void* display = nullptr;
     native_window_system system = native_window_system::win32;
-    const char* canvas = nullptr;
 };
 
 /// \brief Supplies window events, framebuffer dimensions, and optional host services.

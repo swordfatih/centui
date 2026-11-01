@@ -72,27 +72,19 @@ namespace centui::bgfx
 
 std::unique_ptr<backend::context> backend::create_context(native_window_handles handles, centui::viewport size)
 {
-    const bool web = handles.system == native_window_system::web;
-
-    if((web ? !handles.canvas || !*handles.canvas : !handles.window) || size.width <= 0 || size.height <= 0)
+    if(!handles.window || size.width <= 0 || size.height <= 0)
     {
-        throw std::invalid_argument("bgfx requires a window or canvas with positive dimensions");
+        throw std::invalid_argument("bgfx requires a window with positive dimensions");
     }
 
     ::bgfx::Init init;
-    // bgfx's HTML5 context expects a canvas selector through its native void* interface.
-    init.swapChain.nwh = web ? const_cast<char*>(handles.canvas) : handles.window;
+    init.swapChain.nwh = handles.window;
     init.swapChain.ndt = handles.display;
     init.platformData.type = handles.system == native_window_system::wayland ? ::bgfx::NativeWindowHandleType::Wayland
                                                                              : ::bgfx::NativeWindowHandleType::Default;
     init.swapChain.width = static_cast<std::uint32_t>(size.width);
     init.swapChain.height = static_cast<std::uint32_t>(size.height);
     init.reset = BGFX_RESET_VSYNC;
-
-    if(web)
-    {
-        init.type = ::bgfx::RendererType::OpenGLES;
-    }
 
     return std::make_unique<context>(init);
 }

@@ -37,7 +37,7 @@ Other controls are `toggle`, `range`, `selection`, `scroll`, `popup`, and single
 click its track to move by one viewport, or use the wheel and Page Up/Down keys.
 The bars stay above content without changing its layout, use the scroll widget's
 text color with transparency, and disappear when the content fits. This behavior
-is shared by desktop and browser renderers.
+is shared by the renderer backends.
 
 Use `scroll->set_scrollbars({.thickness = 14, .minimum_thumb = 30})` to adjust
 scrollbar dimensions; a zero thickness hides them. `range_options` exposes
@@ -372,9 +372,13 @@ Keep zero unless rounded geometry is wanted.
 
 The three explicit compatibility switches are `stretch_flex_basis`,
 `absolute_position_without_insets_excludes_padding`, and
-`absolute_percent_against_inner_size`. All default to false. The
-`experimental_web_flex_basis` switch is also off by default. CentUI sets its own
-style defaults explicitly instead of exposing Yoga's `UseWebDefaults` switch.
+`absolute_percent_against_inner_size`. All default to false.
+
+`recalculate_flex_basis` also defaults to false. It recomputes resolved flex bases
+in each new layout pass instead of reusing cached values, allowing percentage
+bases to track changes in the parent's available size. It does not change the
+meaning of `flex.basis`: that property sets the starting size before flex grow
+and shrink distribute space. CentUI sets its own style defaults explicitly.
 
 `bounds()`, `content_bounds()`, and `metrics()` reflect the last completed
 preparation. Yoga's node ownership, cloning, dirty flags, and callback context

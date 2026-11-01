@@ -24,7 +24,8 @@ struct layout_options
     bool stretch_flex_basis = false;
     bool absolute_position_without_insets_excludes_padding = false;
     bool absolute_percent_against_inner_size = false;
-    bool experimental_web_flex_basis = false;
+    /// Recompute resolved flex bases in each new layout pass instead of reusing cached values.
+    bool recalculate_flex_basis = false;
 
     void validate() const;
 

@@ -2,11 +2,6 @@ include_guard(GLOBAL)
 include(FetchContent)
 
 function(centui_dependencies)
-    if(EMSCRIPTEN)
-        set(CMAKE_DISABLE_FIND_PACKAGE_Threads ON)
-        set(CMAKE_USE_PTHREADS_INIT FALSE)
-    endif()
-
     FetchContent_Declare(yoga
         GIT_REPOSITORY https://github.com/facebook/yoga.git
         GIT_TAG v3.2.1

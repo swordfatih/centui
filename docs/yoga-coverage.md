@@ -33,7 +33,7 @@ matrix describes test intent, not an assertion that the suite has been executed.
 | Overflow | Visible/clip/scroll, overflow result, drawing clips and pointer targets |
 | Measurement | Flexible content constraints, invalid results, callback exception boundary |
 | Baselines | Padding/border offset, font ascenders, reference child, exceptions and retry |
-| Configuration | Root direction, fractional rounding, all compatibility flags, experimental basis recalculation |
+| Configuration | Root direction, fractional rounding, all compatibility flags, flex basis recalculation |
 | Style lifecycle | Composition, whole-value patches, invalidation, unchanged patches, resets, atomic validation |
 
 Existing document, font, input, rendering, and scroll tests remain relevant to
