@@ -58,11 +58,11 @@ Put the tree in a `document`, connect a platform and renderer, and call `ui.fram
 You need CMake 3.28+ and a C++20 compiler. From a checkout:
 
 ```sh
-cmake -S . -B build -DCENTUI_BUILD_TESTS=OFF -DCENTUI_BUILD_SFML=OFF -DCENTUI_BUILD_GLFW=OFF
+cmake -S . -B build -DCENTUI_BUILD_EXAMPLES=ON -DCENTUI_BUILD_SDL=ON -DCENTUI_BUILD_BGFX=ON
 cmake --build build --target centui_example_getting_started
 ```
 
-Run the executable under `build/tests/examples/getting_started/`. [Build options](docs/build.md) covers platform dependencies and adding CentUI to your own project.
+Run the executable under `build/tests/examples/getting_started/` (or its `Debug` subdirectory with a multi-configuration generator). [Build options](docs/build.md) covers platform dependencies and adding CentUI to your own project.
 
 ## Learn by building
 

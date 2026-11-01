@@ -20,7 +20,7 @@ Link `centui::centui` for the core library. Adapter targets link the core transi
 | `CENTUI_BUILD_SFML` | `centui::platform::sfml`, `centui::backend::sfml` |
 | `CENTUI_BUILD_GLFW` | `centui::platform::glfw` |
 
-The current repository defaults all four adapter options, `CENTUI_BUILD_EXAMPLES`, and `CENTUI_BUILD_TESTS` to `ON`. When consuming the library, turn off the parts you do not use before calling `FetchContent_MakeAvailable` or `add_subdirectory`.
+All four adapter options, `CENTUI_BUILD_EXAMPLES`, and `CENTUI_BUILD_TESTS` default to `OFF`. Enable the adapters you need before calling `FetchContent_MakeAvailable` or `add_subdirectory`. When building examples from a checkout, also enable `CENTUI_BUILD_EXAMPLES`; the getting-started counter requires both SDL and bgfx.
 
 `CENTYPO_SYSTEM_FONTS` also defaults to `ON`. Turn it off only when you will register your own fonts.
 
