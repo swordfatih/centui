@@ -267,7 +267,7 @@ struct primary
 struct inputstyle
 {
     float corner_radius = 6;
-    length height = px(38);
+    length min_height = px(38);
     edges padding = edges::all(px(10));
     states_color background_color = solid(0x1D222D);
     centui::edges border_width = centui::edges::all(centui::px(1));
