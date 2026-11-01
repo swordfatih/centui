@@ -186,12 +186,7 @@ void input_widget::paint(painter& output) const
         }
     }
 
-    output.text(
-        output.typography().rasterize(*m_layout, output.scale()),
-        area,
-        output.foreground(),
-        true
-    );
+    output.text(output.typography().rasterize(*m_layout, output.scale()), area, output.foreground(), true);
 
     if(focus_active())
     {

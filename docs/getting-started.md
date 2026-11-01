@@ -1,24 +1,26 @@
 ---
 layout: default
-title: Getting Started
+title: "1. Your first app"
 nav_order: 2
 ---
 
-# Getting Started
+# Your first app
 
-CentUI is a C++20 library with public `.hpp` headers and compiled `.cpp` implementations. You need CMake 3.28 or newer, Ninja, and a compiler and standard library with C++20 support. The build downloads Yoga, FreeType, HarfBuzz, and the enabled window and rendering libraries.
+Build a counter: a label, a button, and a little state. You need CMake 3.28+ and a compiler with C++20 support.
 
-## Use CentUI in your own project
+## Add CentUI to a project
 
-Create a `CMakeLists.txt` next to your application's `main.cpp`:
+Create a directory containing `CMakeLists.txt` and `main.cpp`. This setup selects SDL and bgfx and leaves repository examples and tests out of your application build:
 
 ```cmake
 cmake_minimum_required(VERSION 3.28)
-project(my_app LANGUAGES C CXX)
+project(counter LANGUAGES C CXX)
 
 include(FetchContent)
-
-# Enable the integrations before fetching CentUI.
+set(CENTUI_BUILD_EXAMPLES OFF CACHE BOOL "")
+set(CENTUI_BUILD_TESTS OFF CACHE BOOL "")
+set(CENTUI_BUILD_SFML OFF CACHE BOOL "")
+set(CENTUI_BUILD_GLFW OFF CACHE BOOL "")
 set(CENTUI_BUILD_SDL ON CACHE BOOL "")
 set(CENTUI_BUILD_BGFX ON CACHE BOOL "")
 
@@ -28,69 +30,84 @@ FetchContent_Declare(centui
 )
 FetchContent_MakeAvailable(centui)
 
-add_executable(my_app main.cpp)
-target_link_libraries(my_app PRIVATE centui::centui centui::platform::sdl centui::backend::bgfx)
+add_executable(counter main.cpp)
+target_link_libraries(counter PRIVATE centui::platform::sdl centui::backend::bgfx)
 ```
 
-Use the [README's Hello world](../README.md#hello-world) as `main.cpp`. Configure and build from your application's directory:
+Pin `GIT_TAG` to a commit when you adopt the library. For system dependencies or an existing checkout, see [build options](build.md).
 
-```sh
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake --build build --target my_app
-```
+## Write the app
 
-Use the same supported compiler for your application and CentUI. The linked targets propagate the C++20 requirement and public include directory. Include `<centui/centui.hpp>` for the core API, or individual headers such as `<centui/widgets/button.hpp>`. Replace `GIT_TAG main` with a specific commit to pin your dependency.
-
-The native Hello world program uses system fonts automatically. Font files under `tests/assets/` support the repository's tests; applications do not need them for native system font discovery.
-
-Choose the targets for your integration:
-
-| CMake option | Targets |
-| --- | --- |
-| Core only (default) | `centui::centui` |
-| `CENTUI_BUILD_SDL=ON` | `centui::platform::sdl`, `centui::backend::sdl` |
-| `CENTUI_BUILD_BGFX=ON` | `centui::backend::bgfx` |
-| `CENTUI_BUILD_SFML=ON` | `centui::backend::sfml`, `centui::platform::sfml` |
-| `CENTUI_BUILD_GLFW=ON` | `centui::platform::glfw` |
-
-Examples and tests are off by default. Native dependencies are fetched automatically. Platform packages may also be required for your selected integration; see [Backends and Windows](backends.md).
-
-`CENTUI_BUILD_TESTS=ON` enables unit tests and integration tests for the enabled adapters: SDL, SFML, SDL + bgfx, and GLFW + bgfx. Run `ctest --test-dir build --output-on-failure` to run them together. Integration tests open native windows; use `-L integration` to select them or `-LE integration` to exclude them. CI runs the FetchContent and `add_subdirectory` consumer tests in a separate job.
-
-## Build the first example
-
-From the repository root:
-
-```sh
-cmake -S . -B build -G Ninja -DCENTUI_BUILD_EXAMPLES=ON -DCENTUI_BUILD_SDL=ON -DCENTUI_BUILD_BGFX=ON
-cmake --build build --target centui_example_getting_started
-```
-
-Run `centui_example_getting_started` from `build/tests/examples/getting_started/`. To build the SFML overlay too, configure with `-DCENTUI_BUILD_SFML=ON` and build `centui_example_hud_sfml`.
-
-All optional platforms, renderers, examples, and tests are off by default. Enable only the pieces your application uses.
-
-## Meet the pieces
+Put this in `main.cpp`:
 
 ```cpp
-auto label = centui::text{"Ready"};
-auto root = centui::container{
-    label,
-    centui::button{"Update", {.on_click = [label]() mutable
-    {
-        label->set_text("Updated");
-    }}},
+#include <string>
+
+#include <centui/backends/bgfx.hpp>
+#include <centui/centui.hpp>
+#include <centui/platforms/sdl.hpp>
+
+struct screen
+{
+    centui::length width = centui::percent(100);
+    centui::length height = centui::percent(100);
+    centui::length gap = centui::px(20);
+    centui::alignment align_items = centui::alignment::center;
+    centui::justification justify_content = centui::justification::center;
+    float font_size = 24;
 };
 
-centui::document document{root};
+struct action
+{
+    centui::edges padding = centui::edges::all(centui::px(12));
+    centui::states_color background_color = centui::states_color::all({37, 99, 235, 255});
+};
+
+int main()
+{
+    centui::sdl::platform window{{.title = "Counter", .width = 640, .height = 400}};
+    centui::bgfx::backend renderer{window};
+
+    int count = 0;
+    auto label = centui::text{"Clicked 0 times"};
+
+    auto root = centui::container<screen>{
+        label,
+        centui::button<action>{
+            "Click me",
+            {
+                .on_click = [&count, label]
+                {
+                    label->set_text("Clicked " + std::to_string(++count) + " times");
+                },
+            }
+        },
+    };
+
+    centui::document document{root};
+
+    centui::ui ui{window, renderer};
+
+    while(window.poll_events())
+    {
+        ui.frame(document);
+    }
+}
 ```
 
-`container` arranges its children. `text` paints the label. `button` responds to pointer and keyboard activation. The label variable is a handle to the same widget inside the tree, so the callback can update it. `document` owns the root while it is mounted and prepares layout, input, and drawing. Native builds use system fonts automatically.
+The tree is built once. `label` is a handle to the widget inside it, so the callback changes the existing label. The `screen` and `action` structs describe appearance; they do not own widgets or state.
 
-Create `centui::ui ui{platform, renderer}`, then call `ui.frame(document)` after each successful `platform.poll_events()`. Each frame processes input, calculates elapsed time, advances widgets, and renders. Your application controls the event loop. For drawing over an existing scene, use the separate event and rendering methods. [Backends and Windows](backends.md) shows both arrangements.
+`document` holds the tree. The platform supplies input and window size; the renderer draws it. Keep them alive while the loop runs, with the window constructed before the renderer.
 
-When you want more than text, put arbitrary children inside a `pressable`. The [widgets guide](widgets-and-styles.md) shows that pattern and explains styling.
+## Build and click
 
-Native text uses system fonts by default. Use document style defaults for font
-requests and `document.register_font` for application files or bytes; see
-[native text layout](native-text-layout.md).
+```sh
+cmake -S . -B build
+cmake --build build --target counter
+```
+
+Run `counter` from the build directory. Multi-configuration generators place it under a directory such as `Debug`. Fonts are discovered from your system automatically.
+
+For the slightly more styled repository version, read [getting_started/main.cpp](https://github.com/swordfatih/centui/blob/main/tests/examples/getting_started/main.cpp).
+
+[← Documentation](index.md) · [Next: widgets and styles →](widgets-and-styles.md)

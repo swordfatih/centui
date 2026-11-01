@@ -11,13 +11,13 @@ set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 # ------------------------
 # Options
 # ------------------------
-option(CENTUI_BUILD_EXAMPLES "Build enabled example executables" ON)
-option(CENTUI_BUILD_TESTS "Build unit tests and integrations for enabled adapters" ON)
+option(CENTUI_BUILD_EXAMPLES "Build enabled example executables" OFF)
+option(CENTUI_BUILD_TESTS "Build unit tests and integrations for enabled adapters" OFF)
 
-option(CENTUI_BUILD_BGFX "Build the bgfx backend and shaders" ON)
-option(CENTUI_BUILD_SFML "Build the SFML platform and renderer backend" ON)
-option(CENTUI_BUILD_SDL "Build the SDL platform and renderer backend" ON)
-option(CENTUI_BUILD_GLFW "Build the GLFW platform" ON)
+option(CENTUI_BUILD_BGFX "Build the bgfx backend and shaders" OFF)
+option(CENTUI_BUILD_SFML "Build the SFML platform and renderer backend" OFF)
+option(CENTUI_BUILD_SDL "Build the SDL platform and renderer backend" OFF)
+option(CENTUI_BUILD_GLFW "Build the GLFW platform" OFF)
 
 include(FetchContent)
 
@@ -61,5 +61,4 @@ add_subdirectory(tests/examples)
 # ------------------------
 # Tests
 # ------------------------
-add_subdirectory(tests/unit)
-add_subdirectory(tests/integration)
+add_subdirectory(tests)

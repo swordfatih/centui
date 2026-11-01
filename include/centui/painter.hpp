@@ -46,12 +46,7 @@ public:
 
     void text(std::string_view value);
 
-    void text(
-        centypo::layout layout,
-        rect bounds,
-        centui::color color,
-        bool clip_to_content = false
-    );
+    void text(centypo::layout layout, rect bounds, centui::color color, bool clip_to_content = false);
 
 private:
     friend class document;

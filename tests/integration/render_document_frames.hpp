@@ -1,19 +1,16 @@
-#include <centui/centui.hpp>
+#pragma once
 
-#include CENTUI_PLATFORM_HEADER
-#include CENTUI_BACKEND_HEADER
+#include <centui/centui.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 
-TEST_CASE("Platform and renderer render four document frames", "[integration]")
+namespace centui::tests
 {
-    using Platform = CENTUI_PLATFORM_TYPE;
-    using Renderer = CENTUI_BACKEND_TYPE;
 
-    Platform host{{.title = "CentUI integration test", .width = 160, .height = 120}};
-    Renderer renderer{host};
+template <typename Platform>
+void render_document_frames(Platform& host, centui::renderer& renderer)
+{
     centui::ui integration{host, renderer};
-
     auto root = centui::container{centui::text{"Integration test"}, centui::button{"Button"}};
     root->patch_style({.width = centui::percent(100), .height = centui::percent(100)});
 
@@ -27,3 +24,5 @@ TEST_CASE("Platform and renderer render four document frames", "[integration]")
         REQUIRE(integration.frame(document));
     }
 }
+
+} // namespace centui::tests

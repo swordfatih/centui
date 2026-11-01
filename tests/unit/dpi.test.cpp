@@ -92,8 +92,7 @@ TEST_CASE("Dense glyph clipping uses logical bounds and physical pixel alignment
     data.lines.push_back({0, 1, 5});
     const auto layout =
         centypo::details::layout_access::make(std::make_shared<const centypo::details::layout_data>(std::move(data)));
-    const centui::text_command
-        command{{0.3f, 0, 20, 20}, {255, 255, 255, 255}, layout, {1, 0, 20, 20}};
+    const centui::text_command command{{0.3f, 0, 20, 20}, {255, 255, 255, 255}, layout, {1, 0, 20, 20}};
     std::vector<centui::glyph_quad> quads;
     centui::details::for_each_glyph(
         command,

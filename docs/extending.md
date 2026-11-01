@@ -1,25 +1,30 @@
 ---
 layout: default
-title: Extending CentUI
-nav_order: 4
+title: "6. Custom widgets"
+nav_order: 7
 ---
 
-# Extending CentUI
+# Custom widgets
 
-You can make a widget by deriving from `centui::widget`. A leaf reports its natural size with `measure()` and draws inside its content bounds with `paint()`:
+Most interfaces come from composing existing widgets. Derive from `centui::widget` when you need drawing or interaction specific to your app: a meter, timeline, chart, or viewport.
+
+## Draw a meter
+
+A leaf widget reports its preferred size and paints in local coordinates:
 
 ```cpp
 class meter final : public centui::widget
 {
 public:
-    explicit meter(float value = 0) : m_value(value)
+    explicit meter(centui::style_source appearance = {})
+        : widget(appearance)
     {
     }
 
     void set_value(float value)
     {
         check_mutation();
-        m_value = value;
+        m_value = std::clamp(value, 0.0f, 1.0f);
         invalidate_paint();
     }
 
@@ -37,209 +42,37 @@ protected:
     }
 
 private:
-    float m_value;
+    float m_value = 0;
 };
 
-auto progress = centui::make_widget<meter>(0.25f);
+auto progress = centui::make_widget<meter>();
+progress->set_value(0.25f);
 ```
 
-Call `check_mutation()` before changing widget state. Framework setters propagate their own changes; callers do not repeat invalidation. Custom setters choose the work they require:
+Include `<algorithm>` and `<centui/centui.hpp>` for this snippet. The containing layout decides the final size; `measure()` supplies the widget's natural content size. Styles still control padding, dimensions, and the rest of its appearance.
 
-| Request | Contract |
+## Tell the document what changed
+
+Call `check_mutation()` before changing custom widget state. Then request the work that state needs:
+
+| Change | Request |
 | --- | --- |
-| `invalidate_layout()` | Content metrics, measurement/baseline inputs, or intrinsic requirements changed. Synchronize layout, calculate bounds, refresh geometry, and repaint. This is the conservative option. |
-| `invalidate_geometry()` | Rebuild geometry derived from current allocated bounds, such as paths, caret placement, or reveal calculations. Includes paint invalidation without requesting Yoga calculation. |
-| `invalidate_paint()` | Drawing changed with no geometry preparation required. |
+| Text, preferred size, or measurement inputs | `invalidate_layout()` |
+| Cached paths or geometry derived from current bounds | `invalidate_geometry()` |
+| Colors or other drawing-only state | `invalidate_paint()` |
 
-`measure()`, baseline evaluation (including `baseline()`), and `paint()` must not mutate widgets or request more work. They may retain internal derived caches. Widgets with children are laid out by Yoga rather than by their `measure()` hook. The complete [custom primitive](https://github.com/swordfatih/centui/blob/main/tests/examples/custom_primitive/main.cpp) is a small starting point.
+Built-in setters handle their own invalidation. Keep `measure()` and `paint()` read-only: they must not edit widgets or request another frame. Prepare paths that depend on allocated size in `on_geometry()`.
 
-`paint_overlay()` follows the same read-only painting contract and local content
-coordinates as `paint()`, but runs after children and before the focus outline.
-Override read-only `hit_test_overlay(vec2)` to claim a local content position before
-child hit testing. Overlay drawing and hit testing respect ancestor clipping;
-neither hook runs for a `display::contents` wrapper. The scroll widget uses these
-hooks so its scrollbar thumbs remain visible and receive pointer input above
-interactive content. Overlay state changes require normal paint invalidation and
-participate in the same command cache as other widget drawing.
+## Animate only while needed
 
-Text measurement uses `context.typography.layout(text, options)` directly.
-During painting, `output.typography()` provides the same read-only Centypo engine;
-set alignment in the layout options, then rasterize retained layouts at `output.scale()`
-before passing them to `output.text()`. Drawing uses the prepared glyph positions.
-Widgets retain `centypo::layout` values; engine-prepared aligned and rasterized
-results share its layout cache budget. `layout::aligned()` creates a copy outside
-engine caches. Font collection changes go through the document's
-registration, alias, and discovery methods so dependent widgets are invalidated.
+Call `request_frame()` to receive `on_frame(frame_duration elapsed)`. Update the animated state there, invalidate what changed, and request another frame while the animation is still moving.
 
-`on_geometry()` is the sole geometry preparation hook. It runs after current layout and placement, before painting and host text-input synchronization. It runs on mounting, after layout/placement changes, and after explicit geometry invalidation even when the widget rectangle is unchanged. Explicit requests coalesce and do not retain removed widgets. Requests made while detached or without a valid viewport survive until geometry becomes available. A failed hook and unfinished work remain pending for retry.
+The [custom-widget example](https://github.com/swordfatih/centui/blob/main/tests/examples/custom_widget/main.cpp) adds a target value, smoothing, a gradient, and rounded paths to this meter. It separates geometry preparation from per-frame changes.
 
-Geometry hooks may change child offsets or request intrinsic layout, but must converge. Changed offsets cause another placement pass before dependent geometry and targeting settle. Do not unconditionally reschedule the hook, and do not invoke lifecycle hooks directly from event handlers; share a private helper when immediate hit-test geometry is needed.
+## Draw text and richer shapes
 
-Command caching does not discover dependencies on external state or another widget. A custom widget reading those values must explicitly invalidate when they change. Requesting an animation frame alone does not imply changed layout, geometry, or drawing; invalidate the state changed by the frame callback.
+`painter` provides rectangles, paths, gradients, images, clipping, and prepared text. Use `measure_context::typography` to lay out text, then rasterize through `painter::typography()` at `painter::scale()` for drawing. Keep a `centypo::layout` value when the widget needs to reuse it.
 
-## Baselines
+Read the [dashboard chart](https://github.com/swordfatih/centui/blob/main/tests/examples/dashboard/main.cpp) for a larger custom drawing example. The public [widget](https://github.com/swordfatih/centui/blob/main/include/centui/widget.hpp) and [painter](https://github.com/swordfatih/centui/blob/main/include/centui/painter.hpp) headers describe the remaining hooks when you need them.
 
-Override `baseline()` when a custom widget should align something other than its
-bottom edge with neighboring text:
-
-```cpp
-centui::baseline_function baseline() override
-{
-    return [](centui::size content)
-    {
-        return content.height * 0.75f;
-    };
-}
-```
-
-The callback receives the content size and returns a finite offset from its top,
-in logical units. CentUI adds the resolved top padding and border. Like
-measurement, it runs during layout and must not mutate the widget tree. Callback
-exceptions are captured at the Yoga boundary and rethrown during preparation.
-Returning an empty function uses Yoga's normal baseline selection from children
-or, for a leaf, the bottom edge. `reference_baseline` selects which descendant a
-container uses. Text and input widgets provide a first-line font baseline;
-scrolling input content does not change the input's layout baseline.
-
-## Input and focus
-
-Custom widget constructors should accept `centui::style_source appearance = {}` and forward it to the base `widget` constructor. `make_widget<meter>(..., centui::style_source::composed<meter_style>())` retains named styles so document patches can reach them. A full `centui::style` converts to a complete local replacement. Style recipes reconstruct their definitions during updates, so keep style constructors deterministic and side-effect-free.
-
-Call `set_interactive()` if the widget should receive pointer events, and `set_focusable()` if it can take keyboard focus. Override `on_event(const centui::input_event&)` and return `true` for events you handle. The document owns focus policy and traversal. `request_focus()` returns acceptance for processing; requests during dispatch are deferred and revalidated when committed.
-
-`focused()` reports logical ownership, including while the window is inactive.
-`focus_active()` also requires window activity and modal eligibility. Use
-`on_focus_changed(bool)` for logical ownership and
-`on_focus_activity_changed(bool)` to cancel transient composition or held-key
-state. Activity ends before logical blur, while `focused()` is still true;
-logical acquisition precedes activity acquisition. Mirrors are updated before
-their notifications. A no-op request emits no notifications.
-
-`focus_visible()` adds the document's keyboard indication policy to active focus.
-Mouse presses suppress indication; key presses and text entry enable it. Hover,
-pointer movement, wheel scrolling, releases, and window activation do not change
-that policy. Each document tracks its own mode. Programmatic focus and modal
-restoration inherit the last mode; a new document starts with indication enabled.
-Explicit `document.focus_next()` traversal enables keyboard indication.
-
-The document painter uses `focus_visible()` for the standard outline. Custom
-widgets may use it for their own focus indication, but carets and text sessions
-use `focus_active()`, including after a mouse click. Indication changes invalidate
-paint without changing focus ownership, emitting focus/activity notifications,
-or requesting layout/reveal. The query remains true if a theme sets
-`style.focus.width` to zero; that style only disables the standard outline.
-
-Callbacks may edit widgets or request another focus target. Requests made by a
-notification settle later in the same guarded transaction. A throwing notification
-aborts focus without further notifications and preserves its exception. The shared
-64-transition transaction limit prevents redirect loops: exhaustion cancels
-interaction and text ownership, clears focus, retains valid modal restrictions,
-finishes queued structural edits, and throws `std::logic_error`. The next
-transaction starts with a fresh budget.
-
-Override read-only `focus_bounds()` for a composite focus rectangle in
-document-logical coordinates, inside the widget's paintable area. `reveal()` queues
-those bounds after geometry settles. Protected `request_reveal(rect)` instead
-queues a rectangle relative to the border-box origin, so deferred placement does
-not stale its coordinates. Neither operation acquires focus.
-
-A container that moves descendant content can override `reveal_descendant(rect)`.
-The argument is in document-logical coordinates; return the actual applied
-translation of descendants in those axes, after clamping. Increasing scroll Y by
-20 returns Y = -20. The default returns zero. The hook supports translation only;
-other layout or topology changes go through normal deferred work. Settlement
-walks ancestors nearest-first, refreshes geometry after each hook, and carries
-only the portion surviving each local child clip. Use the container's own viewport,
-without intersecting higher clips before its hook. A zero viewport parks work;
-unreachable nonzero fixed clipping completes best effort. Topology or unexpected
-geometry changes restart from settled bounds, at most eight times per request in
-one transaction. Reveal changes placement without requesting intrinsic measurement.
-
-Custom modal controls call `document.enter_modal(root, initial)` and
-`document.leave_modal(root)`. Roots and restoration targets are observed weakly.
-Nested modal roots must descend from the active root; ordinary containers never
-trap Tab. Keep visibility changes and modal operations within one input callback
-transaction. The built-in popup also preserves detached open intent and registers
-when mounted. The controller centrally unwinds removed, hidden, or disabled roots.
-
-`pressable_widget` already implements ordinary button activation. Derive from it and override `activate()` for a specialized action; call the base method if you also want the registered `on_click` callback. Build composite controls from children when their content should stay reusable.
-
-Containers can call `set_clip_children(true)` or `set_child_offset({x, y})` when they need clipping or scrolling. The [scroll widget](https://github.com/swordfatih/centui/blob/main/src/centui/widgets/scroll.cpp) shows how to clamp an offset and handle wheel and page keys.
-
-## Vector painting
-
-Build reusable geometry with `centui::path`: `move_to`, `line_to`, `curve_to`,
-`close`, `rectangle`, `rounded_rectangle`, and `circle`. Copies share storage
-until one is edited. Keep paths as widget members and rebuild size-dependent
-geometry in `on_geometry()`, using `content_bounds()` for the current dimensions.
-Geometry hooks run after bounds are stored and may request a frame. If a hook
-throws, preparation retries the failed and unfinished requests on its next call.
-
-```cpp
-void paint(centui::painter& output) const override
-{
-    output.fill(
-        m_shape,
-        centui::linear_gradient{
-            {0, 0},
-            {120, 0},
-            {
-                {0, centui::color::from_hex(0x38BDF8)},
-                {1, centui::color::from_hex(0x5EEAD4)}
-            }
-    });
-    output.stroke(m_shape, centui::color::from_hex(0xFFFFFF), 2);
-}
-```
-
-All painter operations use local content coordinates, including paths, text,
-rectangles, and images. `painter::bounds()` starts at `(0, 0)` and reports the
-content size. Widget `bounds()` and `content_bounds()` remain in document
-coordinates for layout and input; do not pass them directly to the painter.
-Brushes accept a solid color, a linear gradient, or a radial gradient. Gradient
-coordinates use the same local space as the path; stops must be nonempty and
-ordered from zero to one. Stroke widths and dimensions must be finite and
-nonnegative; path coordinates may be negative. Strokes use round caps and joins.
-
-Paths and rounded boxes rasterize at the viewport scale into ordinary textured
-quads. Only tiles intersecting the inherited clip and viewport are prepared.
-Each bitmap is at most 512 by 512 physical pixels, including filtering borders;
-the tile grid stays anchored to the shape so scrolling can reuse cached tiles.
-Gradients retain their original coordinates across tiles. Transformed vector
-bounds, including stroke and antialias padding, must stay within +/-4,194,304
-physical pixels; larger coordinates throw `std::length_error` before rasterization.
-This limit protects the rasterizer's coordinate representation, independently
-of the much smaller per-texture limit.
-
-Each document retains a raster cache with a default budget of 16 MiB. Use
-`document.set_paint_cache_budget(bytes)` to change it, or zero to disable cache
-retention. This budget covers retained cache entries, not all live memory:
-prepared draw lists also own bitmap references, and rasterization uses temporary
-storage. Previously prepared lists remain valid after cache eviction or document
-destruction. Copy a draw list if it must outlive the next call to `prepare()`.
-Tiling bounds individual raster surfaces; work still depends on visible tiles,
-path complexity, and overlapping widgets.
-
-Styles support `corner_radius` for backgrounds and borders. It affects painting
-without changing layout; descendants retain rectangular clipping bounds.
-
-## Animation
-
-Call `request_frame()` when a widget needs an update, then override
-`on_frame(centui::frame_duration elapsed)`. Requests coalesce into one callback
-per tick. Request another frame inside the callback to continue animating, and
-call `invalidate_paint()` or `invalidate_layout()` when the displayed state
-changes. Scheduling holds a weak reference, so it does not keep removed widgets
-alive. A request made while detached is delivered after mounting.
-
-`ui.frame(document)` processes polled events, calculates elapsed time, advances
-widgets, and renders. Use `ui.frame(document, elapsed)` to supply your own timing.
-When managing these steps separately, call `document.advance(elapsed)` once per
-iteration before rendering; elapsed is a finite, nonnegative duration in seconds.
-Tree edits made during animation
-callbacks are committed after the tick batch, as they are during input dispatch.
-
-The [custom primitive example](https://github.com/swordfatih/centui/blob/main/tests/examples/custom_primitive/main.cpp)
-demonstrates retained paths, a gradient, and animation driven by a slider. It
-requires SDL and bgfx. The Pulse dashboard uses vector chart lines and a
-gradient area fill.
+[← An existing application](backends.md) · [Next: explore the examples →](examples.md)

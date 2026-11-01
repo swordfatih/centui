@@ -1,51 +1,38 @@
-if(NOT CENTUI_BUILD_TESTS)
-    return()
+if(TARGET centui::backend::sdl)
+    list(APPEND integration_sources sdl_sdl.test.cpp)
+    list(APPEND integration_libraries centui::backend::sdl)
+endif()
+if(TARGET centui::backend::sfml)
+    list(APPEND integration_sources sfml_sfml.test.cpp)
+    list(APPEND integration_libraries centui::backend::sfml)
+endif()
+if(TARGET centui::platform::sdl AND TARGET centui::backend::bgfx)
+    list(APPEND integration_sources sdl_bgfx.test.cpp)
+    list(APPEND integration_libraries centui::platform::sdl centui::backend::bgfx)
+endif()
+if(TARGET centui::platform::glfw AND TARGET centui::backend::bgfx)
+    list(APPEND integration_sources glfw_bgfx.test.cpp)
+    list(APPEND integration_libraries centui::platform::glfw centui::backend::bgfx)
 endif()
 
-function(centui_integration name platform backend platform_target backend_target)
-    if(NOT TARGET ${platform_target} OR NOT TARGET ${backend_target})
-        return()
-    endif()
-
-    set(target centui_integration_${name})
-
-    add_executable(${target} platform_renderer.test.cpp)
-    target_compile_definitions(${target} PRIVATE
+if(integration_sources)
+    centui_test(centui_integration_tests "${integration_sources}" PROPERTIES TIMEOUT 30 LABELS integration)
+    target_link_libraries(centui_integration_tests PRIVATE ${integration_libraries})
+    target_compile_definitions(centui_integration_tests PRIVATE
         CENTUI_FONT_PATH="${PROJECT_SOURCE_DIR}/tests/assets/fonts/Inter-Regular.ttf"
-        CENTUI_PLATFORM_HEADER="centui/platforms/${platform}.hpp"
-        CENTUI_BACKEND_HEADER="centui/backends/${backend}.hpp"
-        CENTUI_PLATFORM_TYPE=centui::${platform}::platform
-        CENTUI_BACKEND_TYPE=centui::${backend}::backend
     )
-    target_link_libraries(${target} PRIVATE
-        ${platform_target}
-        ${backend_target}
-        Catch2::Catch2WithMain
-    )
+endif()
 
-    add_test(NAME integration_${name} COMMAND ${target})
-    set_tests_properties(integration_${name} PROPERTIES TIMEOUT 30 LABELS integration)
-endfunction()
-
-centui_integration(sdl sdl sdl centui::platform::sdl centui::backend::sdl)
-centui_integration(sfml sfml sfml centui::platform::sfml centui::backend::sfml)
-centui_integration(sdl_bgfx sdl bgfx centui::platform::sdl centui::backend::bgfx)
-centui_integration(glfw_bgfx glfw bgfx centui::platform::glfw centui::backend::bgfx)
-
-foreach(adapter sdl glfw)
-    if(TARGET centui::platform::${adapter})
-        add_executable(centui_${adapter}_events_tests ${adapter}_events.test.cpp)
-        target_link_libraries(centui_${adapter}_events_tests PRIVATE centui::platform::${adapter} Catch2::Catch2WithMain)
-        add_test(NAME ${adapter}_events COMMAND centui_${adapter}_events_tests)
-        set_tests_properties(${adapter}_events PROPERTIES TIMEOUT 30)
-    endif()
-endforeach()
-if(TARGET centui_sdl_events_tests)
-    set_tests_properties(sdl_events PROPERTIES ENVIRONMENT "SDL_VIDEO_DRIVER=dummy")
+if(TARGET centui::platform::sdl)
+    centui_test(centui_sdl_events_tests sdl_events.test.cpp
+        PROPERTIES TIMEOUT 30 LABELS integration ENVIRONMENT "SDL_VIDEO_DRIVER=dummy")
+    target_link_libraries(centui_sdl_events_tests PRIVATE centui::platform::sdl)
+endif()
+if(TARGET centui::platform::glfw)
+    centui_test(centui_glfw_events_tests glfw_events.test.cpp PROPERTIES TIMEOUT 30 LABELS integration)
+    target_link_libraries(centui_glfw_events_tests PRIVATE centui::platform::glfw)
 endif()
 if(TARGET centui::backend::bgfx)
-    add_executable(centui_bgfx_draw_tests bgfx_draw.test.cpp)
-    target_link_libraries(centui_bgfx_draw_tests PRIVATE centui::backend::bgfx Catch2::Catch2WithMain)
-    add_test(NAME bgfx_draw COMMAND centui_bgfx_draw_tests)
-    set_tests_properties(bgfx_draw PROPERTIES TIMEOUT 30)
+    centui_test(centui_bgfx_draw_tests bgfx_draw.test.cpp PROPERTIES TIMEOUT 30 LABELS integration)
+    target_link_libraries(centui_bgfx_draw_tests PRIVATE centui::backend::bgfx)
 endif()

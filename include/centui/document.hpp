@@ -228,7 +228,6 @@ private:
         details::visual_state inherited_state
     );
 
-
     [[nodiscard]] bool eligible(const std::shared_ptr<widget>& value) const;
 
     [[nodiscard]] bool focus_eligible(const std::shared_ptr<widget>& value) const;

@@ -1,5 +1,4 @@
-// PULSE / CentUI — dark analytics dashboard
-// Drop into centui/tests/examples/pulse/main.cpp; see README.md.
+// CentUI analytics dashboard.
 #include <cmath>
 #include <cstdint>
 #include <memory>
@@ -454,7 +453,7 @@ int main()
 {
     using namespace ui;
 
-    centui::sdl::platform window{{.title = "PULSE — CentUI Analytics", .width = 1440, .height = 920}};
+    centui::sdl::platform window{{.title = "CentUI / Dashboard", .width = 1440, .height = 920}};
     centui::bgfx::backend renderer{window};
 
     auto selected = std::make_shared<std::string>("Overview");
@@ -464,52 +463,62 @@ int main()
     auto search = std::make_shared<std::string>();
 
     auto sidebar = centui::container<side>{
-        centui::container<row>{centui::text<purple>{"◆"}, centui::text<logo>{"pulse."}},
+        centui::container<row>{centui::text<purple>{"◆"}, centui::text<logo>{"dashboard"}},
         centui::text<faint>{"WORKSPACE"},
         centui::button<nav_active>{
             "◈   Overview",
-            {.on_click =
-                 [selected, toast]() mutable
-             {
-                 *selected = "Overview";
-                 toast->set_text("Viewing Overview");
-             }}
+            {
+                .on_click =
+                    [selected, toast]() mutable
+                {
+                    *selected = "Overview";
+                    toast->set_text("Viewing Overview");
+                },
+            }
         },
         centui::button<nav>{
             "▥   Analytics",
-            {.on_click =
-                 [selected, toast]() mutable
-             {
-                 *selected = "Analytics";
-                 toast->set_text("Analytics selected");
-             }}
+            {
+                .on_click =
+                    [selected, toast]() mutable
+                {
+                    *selected = "Analytics";
+                    toast->set_text("Analytics selected");
+                },
+            }
         },
         centui::button<nav>{
             "◇   Audience",
-            {.on_click =
-                 [selected, toast]() mutable
-             {
-                 *selected = "Audience";
-                 toast->set_text("Audience selected");
-             }}
+            {
+                .on_click =
+                    [selected, toast]() mutable
+                {
+                    *selected = "Audience";
+                    toast->set_text("Audience selected");
+                },
+            }
         },
         centui::button<nav>{
             "▤   Campaigns",
-            {.on_click =
-                 [selected, toast]() mutable
-             {
-                 *selected = "Campaigns";
-                 toast->set_text("Campaigns selected");
-             }}
+            {
+                .on_click =
+                    [selected, toast]() mutable
+                {
+                    *selected = "Campaigns";
+                    toast->set_text("Campaigns selected");
+                },
+            }
         },
         centui::button<nav>{
             "◷   Activity",
-            {.on_click =
-                 [selected, toast]() mutable
-             {
-                 *selected = "Activity";
-                 toast->set_text("Activity selected");
-             }}
+            {
+                .on_click =
+                    [selected, toast]() mutable
+                {
+                    *selected = "Activity";
+                    toast->set_text("Activity selected");
+                },
+            }
         },
         centui::container<spacer>{},
         centui::text<faint>{"PREFERENCES"},
@@ -526,19 +535,23 @@ int main()
         },
         centui::button<nav>{
             "⚙   Settings",
-            {.on_click =
-                 [toast]() mutable
-             {
-                 toast->set_text("Settings selected");
-             }}
+            {
+                .on_click =
+                    [toast]() mutable
+                {
+                    toast->set_text("Settings selected");
+                },
+            }
         },
         centui::button<nav>{
             "?   Help & support",
-            {.on_click =
-                 [toast]() mutable
-             {
-                 toast->set_text("Support: hello@pulse.example");
-             }}
+            {
+                .on_click =
+                    [toast]() mutable
+                {
+                    toast->set_text("Support: hello@dashboard.example");
+                },
+            }
         },
         centui::container<spacer>{},
         centui::container<separator>{},
@@ -554,18 +567,22 @@ int main()
         centui::container<row>{
             centui::button<action>{
                 "↻  Refresh",
-                {.on_click =
-                     [toast]() mutable
-                 {
-                     toast->set_text("Dashboard refreshed successfully");
-                 }}
+                {
+                    .on_click =
+                        [toast]() mutable
+                    {
+                        toast->set_text("Dashboard refreshed successfully");
+                    },
+                }
             },
             centui::button<primary>{
                 "↗  Export report",
-                {.on_click = [toast]() mutable
-                 {
-                     toast->set_text("Report export is a demo action");
-                 }}
+                {
+                    .on_click = [toast]() mutable
+                    {
+                        toast->set_text("Report export is a demo action");
+                    },
+                }
             }
         }
     };
@@ -574,11 +591,13 @@ int main()
         centui::text<title>{"Performance overview"},
         centui::button<action>{
             "◷  Last 30 days   ▾",
-            {.on_click = [period, short_period]() mutable
-             {
-                 *short_period = !*short_period;
-                 period->set_text(*short_period ? "Last 7 days" : "Last 30 days");
-             }}
+            {
+                .on_click = [period, short_period]() mutable
+                {
+                    *short_period = !*short_period;
+                    period->set_text(*short_period ? "Last 7 days" : "Last 30 days");
+                },
+            }
         }
     };
 
@@ -642,11 +661,13 @@ int main()
                 centui::text<title>{"Recent transactions"},
                 centui::button<action>{
                     "View all  →",
-                    {.on_click =
-                         [toast]() mutable
-                     {
-                         toast->set_text("Transactions: showing the latest four");
-                     }}
+                    {
+                        .on_click =
+                            [toast]() mutable
+                        {
+                            toast->set_text("Transactions: showing the latest four");
+                        },
+                    }
                 }
             },
             centui::container<spread>{
@@ -665,28 +686,34 @@ int main()
             centui::text<muted>{"Manage your workspace"},
             centui::input<inputstyle>{
                 "Search workspace",
-                {.on_change =
-                     [search, toast](std::string_view value) mutable
-                 {
-                     *search = value;
-                     toast->set_text(value.empty() ? "Search cleared" : "Searching: " + std::string(value));
-                 }}
+                {
+                    .on_change =
+                        [search, toast](std::string_view value) mutable
+                    {
+                        *search = value;
+                        toast->set_text(value.empty() ? "Search cleared" : "Searching: " + std::string(value));
+                    },
+                }
             },
             centui::button<primary>{
                 "+  New campaign",
-                {.on_click =
-                     [toast]() mutable
-                 {
-                     toast->set_text("New campaign clicked");
-                 }}
+                {
+                    .on_click =
+                        [toast]() mutable
+                    {
+                        toast->set_text("New campaign clicked");
+                    },
+                }
             },
             centui::button<action>{
                 "↗  Open analytics",
-                {.on_click =
-                     [toast]() mutable
-                 {
-                     toast->set_text("Analytics selected");
-                 }}
+                {
+                    .on_click =
+                        [toast]() mutable
+                    {
+                        toast->set_text("Analytics selected");
+                    },
+                }
             },
             centui::container<separator>{},
             centui::text<green>{"●  Everything looks good"},

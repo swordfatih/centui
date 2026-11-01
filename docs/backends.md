@@ -1,74 +1,72 @@
 ---
 layout: default
-title: Backends and Windows
-nav_order: 5
+title: "5. An existing application"
+nav_order: 6
 ---
 
-# Backends and Windows
+# An existing application
 
-CentUI keeps window input and drawing separate. A platform reports the window size, translates native events, and provides services such as clipboard access. A renderer draws the document's rectangles, images, and prepared text. `centui::ui` joins them for one document.
+Your app can keep its window, scene, and event loop. CentUI needs a platform for input and window services, and a renderer to draw the interface.
 
-## Supported combinations
+## Pick a pairing
 
-| Platform | SDL 2D renderer | SFML renderer | bgfx renderer |
-| --- | --- | --- | --- |
-| SDL | [hud_sdl](https://github.com/swordfatih/centui/blob/main/tests/examples/hud_sdl/main.cpp) | — | [getting_started](https://github.com/swordfatih/centui/blob/main/tests/examples/getting_started/main.cpp) |
-| SFML | — | [hud_sfml](https://github.com/swordfatih/centui/blob/main/tests/examples/hud_sfml/main.cpp) | — |
-| GLFW | — | — | [hud_glfw](https://github.com/swordfatih/centui/blob/main/tests/examples/hud_glfw/main.cpp) |
+| Platform | Renderer | Enable |
+| --- | --- | --- |
+| SDL | SDL 2D | `CENTUI_BUILD_SDL` |
+| SDL | bgfx | `CENTUI_BUILD_SDL`, `CENTUI_BUILD_BGFX` |
+| SFML | SFML | `CENTUI_BUILD_SFML` |
+| GLFW | bgfx | `CENTUI_BUILD_GLFW`, `CENTUI_BUILD_BGFX` |
 
-Each linked example shows a supported pairing. A dash means CentUI does not provide that combination.
+The [build reference](build.md#choose-your-adapters) lists their CMake targets.
 
-`CENTUI_BUILD_SDL=ON` builds both the SDL platform and SDL renderer. `CENTUI_BUILD_SFML=ON` likewise builds both SFML adapters.
+## Let CentUI draw a whole window
 
-For a window owned by CentUI's SDL adapter and drawn through bgfx:
+This is the arrangement used in the first app:
 
 ```cpp
-centui::sdl::platform platform{{.title = "My app", .width = 800, .height = 600}};
-centui::bgfx::backend renderer{platform};
-centui::ui ui{platform, renderer};
+centui::sdl::platform window{{.title = "My app", .width = 800, .height = 600}};
+centui::bgfx::backend renderer{window};
 
-while(platform.poll_events())
+centui::ui ui{window, renderer};
+
+while(window.poll_events())
 {
     ui.frame(document);
 }
 ```
 
-Build the platform before the renderer so the renderer releases its graphics resources first. The [getting_started example](https://github.com/swordfatih/centui/blob/main/tests/examples/getting_started/main.cpp) contains the full program.
+`frame()` processes the polled input, advances time, and renders. Create the window before the renderer so it outlives the renderer's graphics resources.
 
-SDL and GLFW polling pumps native events globally while retaining input for each
-CentUI adapter. Poll each adapter before processing its events. SDL's optional
-native-event callback observes all events handled by that poll.
+For SDL's 2D renderer, use `centui::sdl::backend`. For GLFW with bgfx, use `centui::glfw::platform` in place of the SDL platform.
 
-For SDL's own 2D renderer, include `<centui/backends/sdl.hpp>` and construct `centui::sdl::backend renderer{platform}`. It supports the same `ui.frame(document)` loop. You can also borrow an existing `SDL_Renderer` with `centui::sdl::backend renderer{native_renderer, platform}`. Draw your SDL scene before `ui.render(document)` to put the interface on top. The [hud_sdl example](https://github.com/swordfatih/centui/blob/main/tests/examples/hud_sdl/main.cpp) shows this setup.
+## Draw over an SFML scene
 
-`ui.frame(document)` processes the events from the last platform poll, calculates elapsed time, advances widgets, and begins, renders, and ends the backend frame. It returns false if the backend cannot begin rendering. Call it once after each event poll. To supply your own timing, use `ui.frame(document, elapsed)`, where elapsed is a finite, nonnegative `centui::frame_duration` in seconds. Your application owns the loop and keeps the platform, renderer, document, and UI alive between frames.
-
-For an existing scene, continue using `ui.process_events()`, `document.advance()`, and `ui.render()` separately so the application can manage clearing, drawing, and presentation. The renderer-only `ui{renderer}` also supports `frame()`.
-
-GLFW can host the same bgfx backend: include `<centui/platforms/glfw.hpp>`, then construct `centui::glfw::platform window{options}` and `centui::bgfx::backend renderer{window}`. Use `centui::glfw::platform window{existing_glfw_window}` to borrow a window. The adapter chains callbacks already installed on that window without using GLFW's user pointer; install new callbacks before constructing the adapter. If your application calls `glfwPollEvents()` itself, pass `window.take_events()` to `ui.process_events()`. GLFW supplies committed text but does not expose the composition and candidate-window services used by CentUI's richer text input. See [hud_glfw](https://github.com/swordfatih/centui/blob/main/tests/examples/hud_glfw/main.cpp).
-
-## Draw over an existing SFML window
+With an existing `sf::RenderWindow window` and a CentUI `document`, wrap the window and keep presentation in your loop:
 
 ```cpp
-sf::RenderWindow window{sf::VideoMode{{800, 600}}, "My app"};
 centui::sfml::platform platform{window};
 centui::sfml::backend renderer{platform};
+
 centui::ui ui{platform, renderer};
 
 while(window.isOpen())
 {
     while(const auto event = window.pollEvent())
     {
-        ui.process_event(document, *event);
         if(event->is<sf::Event::Closed>())
         {
             window.close();
+            break;
         }
+
+        ui.process_event(document, *event);
     }
+
     if(!window.isOpen())
     {
         break;
     }
+
     window.clear();
     // Draw your scene here.
     ui.render(document);
@@ -76,10 +74,14 @@ while(window.isOpen())
 }
 ```
 
-The SFML adapters borrow the window; your application still owns its event loop and frame. Draw the scene before `ui.render()` so the interface appears on top. The [hud_sfml example](https://github.com/swordfatih/centui/blob/main/tests/examples/hud_sfml/main.cpp) draws the green circle from SFML's introductory program under a CentUI panel.
+The [scene-overlay example](https://github.com/swordfatih/centui/blob/main/tests/examples/overlay/main.cpp) includes resizing and controls that change a circle in the scene. The adapters borrow the window; keep it alive until they are destroyed.
 
-## Another renderer or host
+## Own the frame timing
 
-Implement `centui::renderer::viewport()`, `begin_frame()`, `draw(const centui::draw_list&)`, and `end_frame()` to use another graphics API. Return false from `begin_frame()` when a frame cannot be rendered. A backend that does not present a window can return true and leave `end_frame()` empty. The document prepares commands; your backend sends them to the graphics device. [custom_backend](https://github.com/swordfatih/centui/blob/main/tests/examples/custom_backend/main.cpp) logs the commands without opening a window.
+`ui.render(document)` draws without advancing animation. In a loop like the one above, call `document.advance(elapsed)` with your elapsed `centui::frame_duration` when using animated widgets. If CentUI owns the whole frame, `ui.frame(document, elapsed)` accepts the same timing directly.
 
-A custom `centui::platform` supplies native event translation, a viewport, and host services. Coordinates in widget layout and input are logical units; the viewport's scale relates them to framebuffer pixels. `centui::ui` can also work with just a renderer when your application supplies translated input itself.
+SDL and GLFW adapters can also borrow existing windows. When your app already calls `glfwPollEvents()`, pass the adapter's `take_events()` result to `ui.process_events()` instead of polling a second time. Install GLFW callbacks before wrapping the window so the adapter can chain them.
+
+For another graphics API, implement the small [renderer interface](https://github.com/swordfatih/centui/blob/main/include/centui/render.hpp). Its input is a prepared draw list. Widget drawing stays independent of the graphics API.
+
+[← Text and fonts](text.md) · [Next: custom widgets →](extending.md)

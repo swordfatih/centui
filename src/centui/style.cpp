@@ -162,16 +162,25 @@ invalidation style::changes_from(const style& previous) const noexcept
 details::style_effects details::classify_style(const style& next, const style& previous) noexcept
 {
     style_effects effects;
-#define CENTUI_STYLE_PROPERTY(name, affects_layout, affects_interaction, inherited) \
-    if(next.name != previous.name)                                                  \
-    {                                                                               \
-        effects.paint = true;                                                       \
-        effects.layout |= affects_layout;                                           \
-        effects.interaction |= affects_interaction;                                 \
-        effects.inherited_metrics |= inherited;                                     \
-    }
-#include <centui/details/style_properties.inc>
-#undef CENTUI_STYLE_PROPERTY
+    effects.paint = next != previous;
+    effects.inherited_metrics =
+        next.font_size != previous.font_size || next.font != previous.font || next.paragraph != previous.paragraph;
+    effects.interaction = next.visibility != previous.visibility || next.overflow != previous.overflow ||
+                          next.display != previous.display;
+    effects.layout = effects.inherited_metrics || effects.interaction || next.padding != previous.padding ||
+                     next.margin != previous.margin || next.inset != previous.inset || next.gap != previous.gap ||
+                     next.position != previous.position || next.width != previous.width ||
+                     next.height != previous.height || next.flex_direction != previous.flex_direction ||
+                     next.align_items != previous.align_items || next.justify_content != previous.justify_content ||
+                     next.border_width != previous.border_width || next.flex != previous.flex ||
+                     next.min_width != previous.min_width || next.min_height != previous.min_height ||
+                     next.max_width != previous.max_width || next.max_height != previous.max_height ||
+                     next.aspect_ratio != previous.aspect_ratio || next.flex_wrap != previous.flex_wrap ||
+                     next.align_self != previous.align_self || next.align_content != previous.align_content ||
+                     next.row_gap != previous.row_gap || next.column_gap != previous.column_gap ||
+                     next.layout_direction != previous.layout_direction || next.box_sizing != previous.box_sizing ||
+                     next.reference_baseline != previous.reference_baseline ||
+                     next.forms_containing_block != previous.forms_containing_block;
     return effects;
 }
 
@@ -184,32 +193,143 @@ style style_patch::apply(style candidate) const
 
 void style_patch::apply_to(style& candidate) const
 {
-#define CENTUI_STYLE_PROPERTY(name, ...) \
-    if(name)                             \
-    {                                    \
-        candidate.name = *name;          \
-    }
-#include <centui/details/style_properties.inc>
-#undef CENTUI_STYLE_PROPERTY
+    const auto apply = [](auto& target, const auto& value)
+    {
+        if(value)
+        {
+            target = *value;
+        }
+    };
+    apply(candidate.padding, padding);
+    apply(candidate.margin, margin);
+    apply(candidate.inset, inset);
+    apply(candidate.gap, gap);
+    apply(candidate.position, position);
+    apply(candidate.width, width);
+    apply(candidate.height, height);
+    apply(candidate.flex_direction, flex_direction);
+    apply(candidate.align_items, align_items);
+    apply(candidate.justify_content, justify_content);
+    apply(candidate.background_color, background_color);
+    apply(candidate.text_color, text_color);
+    apply(candidate.font_size, font_size);
+    apply(candidate.font, font);
+    apply(candidate.text_align, text_align);
+    apply(candidate.paragraph, paragraph);
+    apply(candidate.visibility, visibility);
+    apply(candidate.overflow, overflow);
+    apply(candidate.border_width, border_width);
+    apply(candidate.border_color, border_color);
+    apply(candidate.flex, flex);
+    apply(candidate.min_width, min_width);
+    apply(candidate.min_height, min_height);
+    apply(candidate.max_width, max_width);
+    apply(candidate.max_height, max_height);
+    apply(candidate.aspect_ratio, aspect_ratio);
+    apply(candidate.flex_wrap, flex_wrap);
+    apply(candidate.align_self, align_self);
+    apply(candidate.align_content, align_content);
+    apply(candidate.row_gap, row_gap);
+    apply(candidate.column_gap, column_gap);
+    apply(candidate.layout_direction, layout_direction);
+    apply(candidate.box_sizing, box_sizing);
+    apply(candidate.display, display);
+    apply(candidate.reference_baseline, reference_baseline);
+    apply(candidate.forms_containing_block, forms_containing_block);
+    apply(candidate.corner_radius, corner_radius);
+    apply(candidate.focus, focus);
 }
 
 void style_patch::merge(const style_patch& patch)
 {
-#define CENTUI_STYLE_PROPERTY(name, ...) \
-    if(patch.name)                       \
-    {                                    \
-        name = patch.name;               \
-    }
-#include <centui/details/style_properties.inc>
-#undef CENTUI_STYLE_PROPERTY
+    const auto merge = [](auto& target, const auto& value)
+    {
+        if(value)
+        {
+            target = value;
+        }
+    };
+    merge(padding, patch.padding);
+    merge(margin, patch.margin);
+    merge(inset, patch.inset);
+    merge(gap, patch.gap);
+    merge(position, patch.position);
+    merge(width, patch.width);
+    merge(height, patch.height);
+    merge(flex_direction, patch.flex_direction);
+    merge(align_items, patch.align_items);
+    merge(justify_content, patch.justify_content);
+    merge(background_color, patch.background_color);
+    merge(text_color, patch.text_color);
+    merge(font_size, patch.font_size);
+    merge(font, patch.font);
+    merge(text_align, patch.text_align);
+    merge(paragraph, patch.paragraph);
+    merge(visibility, patch.visibility);
+    merge(overflow, patch.overflow);
+    merge(border_width, patch.border_width);
+    merge(border_color, patch.border_color);
+    merge(flex, patch.flex);
+    merge(min_width, patch.min_width);
+    merge(min_height, patch.min_height);
+    merge(max_width, patch.max_width);
+    merge(max_height, patch.max_height);
+    merge(aspect_ratio, patch.aspect_ratio);
+    merge(flex_wrap, patch.flex_wrap);
+    merge(align_self, patch.align_self);
+    merge(align_content, patch.align_content);
+    merge(row_gap, patch.row_gap);
+    merge(column_gap, patch.column_gap);
+    merge(layout_direction, patch.layout_direction);
+    merge(box_sizing, patch.box_sizing);
+    merge(display, patch.display);
+    merge(reference_baseline, patch.reference_baseline);
+    merge(forms_containing_block, patch.forms_containing_block);
+    merge(corner_radius, patch.corner_radius);
+    merge(focus, patch.focus);
 }
 
 style_patch style_patch::replacement(const style& value)
 {
     style_patch result;
-#define CENTUI_STYLE_PROPERTY(name, ...) result.name.emplace(value.name);
-#include <centui/details/style_properties.inc>
-#undef CENTUI_STYLE_PROPERTY
+    result.padding.emplace(value.padding);
+    result.margin.emplace(value.margin);
+    result.inset.emplace(value.inset);
+    result.gap.emplace(value.gap);
+    result.position.emplace(value.position);
+    result.width.emplace(value.width);
+    result.height.emplace(value.height);
+    result.flex_direction.emplace(value.flex_direction);
+    result.align_items.emplace(value.align_items);
+    result.justify_content.emplace(value.justify_content);
+    result.background_color.emplace(value.background_color);
+    result.text_color.emplace(value.text_color);
+    result.font_size.emplace(value.font_size);
+    result.font.emplace(value.font);
+    result.text_align.emplace(value.text_align);
+    result.paragraph.emplace(value.paragraph);
+    result.visibility.emplace(value.visibility);
+    result.overflow.emplace(value.overflow);
+    result.border_width.emplace(value.border_width);
+    result.border_color.emplace(value.border_color);
+    result.flex.emplace(value.flex);
+    result.min_width.emplace(value.min_width);
+    result.min_height.emplace(value.min_height);
+    result.max_width.emplace(value.max_width);
+    result.max_height.emplace(value.max_height);
+    result.aspect_ratio.emplace(value.aspect_ratio);
+    result.flex_wrap.emplace(value.flex_wrap);
+    result.align_self.emplace(value.align_self);
+    result.align_content.emplace(value.align_content);
+    result.row_gap.emplace(value.row_gap);
+    result.column_gap.emplace(value.column_gap);
+    result.layout_direction.emplace(value.layout_direction);
+    result.box_sizing.emplace(value.box_sizing);
+    result.display.emplace(value.display);
+    result.reference_baseline.emplace(value.reference_baseline);
+    result.forms_containing_block.emplace(value.forms_containing_block);
+    result.corner_radius.emplace(value.corner_radius);
+    result.focus.emplace(value.focus);
     return result;
 }
 

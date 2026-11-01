@@ -220,14 +220,158 @@ public:
     template <typename Source>
     static void merge(style& target, const Source& source)
     {
-#define CENTUI_STYLE_PROPERTY(name, ...)                \
-    if constexpr(requires { source.name; })             \
-    {                                                   \
-        details::merge_value(target.name, source.name); \
-    }
-
-#include <centui/details/style_properties.inc>
-#undef CENTUI_STYLE_PROPERTY
+        if constexpr(requires { source.padding; })
+        {
+            details::merge_value(target.padding, source.padding);
+        }
+        if constexpr(requires { source.margin; })
+        {
+            details::merge_value(target.margin, source.margin);
+        }
+        if constexpr(requires { source.inset; })
+        {
+            details::merge_value(target.inset, source.inset);
+        }
+        if constexpr(requires { source.gap; })
+        {
+            details::merge_value(target.gap, source.gap);
+        }
+        if constexpr(requires { source.position; })
+        {
+            details::merge_value(target.position, source.position);
+        }
+        if constexpr(requires { source.width; })
+        {
+            details::merge_value(target.width, source.width);
+        }
+        if constexpr(requires { source.height; })
+        {
+            details::merge_value(target.height, source.height);
+        }
+        if constexpr(requires { source.flex_direction; })
+        {
+            details::merge_value(target.flex_direction, source.flex_direction);
+        }
+        if constexpr(requires { source.align_items; })
+        {
+            details::merge_value(target.align_items, source.align_items);
+        }
+        if constexpr(requires { source.justify_content; })
+        {
+            details::merge_value(target.justify_content, source.justify_content);
+        }
+        if constexpr(requires { source.background_color; })
+        {
+            details::merge_value(target.background_color, source.background_color);
+        }
+        if constexpr(requires { source.text_color; })
+        {
+            details::merge_value(target.text_color, source.text_color);
+        }
+        if constexpr(requires { source.font_size; })
+        {
+            details::merge_value(target.font_size, source.font_size);
+        }
+        if constexpr(requires { source.font; })
+        {
+            details::merge_value(target.font, source.font);
+        }
+        if constexpr(requires { source.text_align; })
+        {
+            details::merge_value(target.text_align, source.text_align);
+        }
+        if constexpr(requires { source.paragraph; })
+        {
+            details::merge_value(target.paragraph, source.paragraph);
+        }
+        if constexpr(requires { source.visibility; })
+        {
+            details::merge_value(target.visibility, source.visibility);
+        }
+        if constexpr(requires { source.overflow; })
+        {
+            details::merge_value(target.overflow, source.overflow);
+        }
+        if constexpr(requires { source.border_width; })
+        {
+            details::merge_value(target.border_width, source.border_width);
+        }
+        if constexpr(requires { source.border_color; })
+        {
+            details::merge_value(target.border_color, source.border_color);
+        }
+        if constexpr(requires { source.flex; })
+        {
+            details::merge_value(target.flex, source.flex);
+        }
+        if constexpr(requires { source.min_width; })
+        {
+            details::merge_value(target.min_width, source.min_width);
+        }
+        if constexpr(requires { source.min_height; })
+        {
+            details::merge_value(target.min_height, source.min_height);
+        }
+        if constexpr(requires { source.max_width; })
+        {
+            details::merge_value(target.max_width, source.max_width);
+        }
+        if constexpr(requires { source.max_height; })
+        {
+            details::merge_value(target.max_height, source.max_height);
+        }
+        if constexpr(requires { source.aspect_ratio; })
+        {
+            details::merge_value(target.aspect_ratio, source.aspect_ratio);
+        }
+        if constexpr(requires { source.flex_wrap; })
+        {
+            details::merge_value(target.flex_wrap, source.flex_wrap);
+        }
+        if constexpr(requires { source.align_self; })
+        {
+            details::merge_value(target.align_self, source.align_self);
+        }
+        if constexpr(requires { source.align_content; })
+        {
+            details::merge_value(target.align_content, source.align_content);
+        }
+        if constexpr(requires { source.row_gap; })
+        {
+            details::merge_value(target.row_gap, source.row_gap);
+        }
+        if constexpr(requires { source.column_gap; })
+        {
+            details::merge_value(target.column_gap, source.column_gap);
+        }
+        if constexpr(requires { source.layout_direction; })
+        {
+            details::merge_value(target.layout_direction, source.layout_direction);
+        }
+        if constexpr(requires { source.box_sizing; })
+        {
+            details::merge_value(target.box_sizing, source.box_sizing);
+        }
+        if constexpr(requires { source.display; })
+        {
+            details::merge_value(target.display, source.display);
+        }
+        if constexpr(requires { source.reference_baseline; })
+        {
+            details::merge_value(target.reference_baseline, source.reference_baseline);
+        }
+        if constexpr(requires { source.forms_containing_block; })
+        {
+            details::merge_value(target.forms_containing_block, source.forms_containing_block);
+        }
+        if constexpr(requires { source.corner_radius; })
+        {
+            details::merge_value(target.corner_radius, source.corner_radius);
+        }
+        if constexpr(requires { source.focus; })
+        {
+            details::merge_value(target.focus, source.focus);
+        }
     }
 };
 
@@ -235,9 +379,44 @@ public:
 /// Use undefined() to clear a length; an engaged empty optional clears font or aspect ratio.
 struct style_patch
 {
-#define CENTUI_STYLE_PROPERTY(name, ...) std::optional<decltype(style::name)> name = std::nullopt;
-#include <centui/details/style_properties.inc>
-#undef CENTUI_STYLE_PROPERTY
+    std::optional<edges> padding;
+    std::optional<edges> margin;
+    std::optional<edges> inset;
+    std::optional<length> gap;
+    std::optional<centui::position> position;
+    std::optional<length> width;
+    std::optional<length> height;
+    std::optional<direction> flex_direction;
+    std::optional<alignment> align_items;
+    std::optional<justification> justify_content;
+    std::optional<states_color> background_color;
+    std::optional<states_color> text_color;
+    std::optional<float> font_size;
+    std::optional<std::optional<centypo::font>> font;
+    std::optional<centypo::text_alignment> text_align;
+    std::optional<std::optional<centypo::text_options>> paragraph;
+    std::optional<centui::visibility> visibility;
+    std::optional<centui::overflow> overflow;
+    std::optional<edges> border_width;
+    std::optional<states_color> border_color;
+    std::optional<centui::flex> flex;
+    std::optional<length> min_width;
+    std::optional<length> min_height;
+    std::optional<length> max_width;
+    std::optional<length> max_height;
+    std::optional<std::optional<float>> aspect_ratio;
+    std::optional<wrapping> flex_wrap;
+    std::optional<alignment> align_self;
+    std::optional<alignment> align_content;
+    std::optional<length> row_gap;
+    std::optional<length> column_gap;
+    std::optional<centui::layout_direction> layout_direction;
+    std::optional<centui::box_sizing> box_sizing;
+    std::optional<centui::display> display;
+    std::optional<bool> reference_baseline;
+    std::optional<bool> forms_containing_block;
+    std::optional<float> corner_radius;
+    std::optional<centui::focus> focus;
 
     [[nodiscard]] style apply(style candidate) const;
 

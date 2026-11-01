@@ -141,11 +141,7 @@ void selection_widget::paint(painter& output) const
             output.rectangle(row, tint);
         }
 
-        output.text(
-            output.typography().rasterize(m_text[index], output.scale()),
-            row,
-            output.foreground()
-        );
+        output.text(output.typography().rasterize(m_text[index], output.scale()), row, output.foreground());
     }
 }
 

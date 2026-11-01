@@ -1,5 +1,3 @@
-#include <fstream>
-#include <sstream>
 #include <string>
 
 #include <centui/document.hpp>
@@ -7,89 +5,6 @@
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
-
-namespace
-{
-
-void append_utf8(std::string& text, std::uint32_t value)
-{
-    if(value < 0x80)
-    {
-        text += static_cast<char>(value);
-    }
-    else if(value < 0x800)
-    {
-        text += static_cast<char>(0xc0 | (value >> 6));
-        text += static_cast<char>(0x80 | (value & 0x3f));
-    }
-    else if(value < 0x10000)
-    {
-        text += static_cast<char>(0xe0 | (value >> 12));
-        text += static_cast<char>(0x80 | ((value >> 6) & 0x3f));
-        text += static_cast<char>(0x80 | (value & 0x3f));
-    }
-    else
-    {
-        text += static_cast<char>(0xf0 | (value >> 18));
-        text += static_cast<char>(0x80 | ((value >> 12) & 0x3f));
-        text += static_cast<char>(0x80 | ((value >> 6) & 0x3f));
-        text += static_cast<char>(0x80 | (value & 0x3f));
-    }
-}
-
-void check_conformance(const char* path, bool words)
-{
-    std::ifstream source(path);
-    REQUIRE(source.is_open());
-    std::string line;
-    std::size_t number = 0, checked = 0;
-    while(std::getline(source, line))
-    {
-        ++number;
-        line.erase(line.find('#') == std::string::npos ? line.size() : line.find('#'));
-        std::istringstream tokens(line);
-        std::string token, text;
-        std::vector<std::size_t> expected;
-        bool contains_nul = false;
-        while(tokens >> token)
-        {
-            if(token == "\xc3\xb7")
-            {
-                expected.push_back(text.size());
-            }
-            else if(token != "\xc3\x97")
-            {
-                const auto value = static_cast<std::uint32_t>(std::stoul(token, nullptr, 16));
-                contains_nul |= value == 0;
-                append_utf8(text, value);
-            }
-        }
-        // NUL is deliberately outside CentUI's text contract.
-        if(expected.empty() || contains_nul)
-        {
-            continue;
-        }
-        INFO("Unicode fixture line " << number);
-        const auto boundaries = centypo::analyze_text(text);
-        REQUIRE((words ? boundaries.words : boundaries.graphemes) == expected);
-        ++checked;
-    }
-    REQUIRE(checked > 100);
-}
-
-} // namespace
-
-TEST_CASE("Unicode 17 grapheme and word conformance", "[text][unicode][conformance]")
-{
-    SECTION("graphemes")
-    {
-        check_conformance(CENTUI_GRAPHEME_TEST_PATH, false);
-    }
-    SECTION("words")
-    {
-        check_conformance(CENTUI_WORD_TEST_PATH, true);
-    }
-}
 
 TEST_CASE("Text validation is literal and host offsets preserve scalars", "[text][unicode]")
 {

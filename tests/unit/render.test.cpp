@@ -24,8 +24,12 @@ TEST_CASE("Glyph clipping preserves placement and texture coordinates", "[render
     data.lines.push_back({0, 1, 10});
     const auto layout =
         centypo::details::layout_access::make(std::make_shared<const centypo::details::layout_data>(std::move(data)));
-    const centui::text_command
-        command{{10, 20, 20, 10}, {10, 20, 30, 128}, layout.aligned(20, centypo::text_alignment::center), {15, 22, 10, 6}};
+    const centui::text_command command{
+        {10, 20, 20, 10},
+        {10, 20, 30, 128},
+        layout.aligned(20, centypo::text_alignment::center),
+        {15, 22, 10, 6}
+    };
     std::vector<centui::glyph_quad> quads;
     centui::details::for_each_glyph(
         command,

@@ -142,12 +142,7 @@ void painter::text(std::string_view value)
     }
 }
 
-void painter::text(
-    centypo::layout layout,
-    rect bounds,
-    centui::color color,
-    bool clip_to_content
-)
+void painter::text(centypo::layout layout, rect bounds, centui::color color, bool clip_to_content)
 {
     bounds.x += m_bounds.x;
     bounds.y += m_bounds.y;

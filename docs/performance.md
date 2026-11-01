@@ -1,122 +1,41 @@
-# Preparation and resource caches
+---
+layout: default
+title: Performance
+parent: Reference
+nav_order: 2
+---
 
-CentUI retains Yoga nodes across append/remove operations. Removed layout entries
-are destroyed at edit commit, including when the viewport is minimized. Geometry
-application uses Yoga's new-layout flag, while ancestor movement and scrolling
-force placement updates. Layout synchronization follows dirty ancestor paths and
-skips clean sibling subtrees. Direct child flags may be scanned along those paths;
-this is not a strict O(depth) guarantee. A synchronized node is one whose native
-inputs are processed, not a clean child flag inspected while traversing.
+# Performance
 
-Yoga still calculates from the root to resolve flex, wrapping, percentage and
-baseline dependencies. Every node reporting new layout is processed, including
-dependent siblings. Inherited font/text metrics conservatively synchronize a
-subtree; default font replacement retains a document-wide measurement fallback.
-Layout-option replacement may rebuild native entries. Failed measurement,
-baseline evaluation or synchronization retains pending layout for a conservative
-full measurement retry.
+Start with a clear widget tree and update only the values that changed. CentUI retains layout state and caches text and drawing resources; you do not need to rebuild the document for each frame.
 
-`on_geometry()` rebuilds geometry from current allocated bounds. An explicit
-`invalidate_geometry()` coalesces the hook and invalidates its paint subtree,
-without Yoga calculation or unrelated geometry callbacks. Layout and placement
-conservatively schedule geometry hooks across the tree, including fixed-size
-widgets whose content metrics or child extents changed. Hooks must converge;
-offset changes settle through another placement pass. Geometry requests live on
-widgets, so scanning the mounted tree does not retain removed widgets or dispatch
-requests into their previous document. `pending_changes().paint` includes pending
-geometry and placement preparation. Zero-sized surfaces retain that work.
+## Measure a real workload
 
-Custom widgets use `invalidate_layout()` for content/measurement/baseline changes,
-`invalidate_geometry()` for derived geometry (paint included), and
-`invalidate_paint()` for drawing alone. Framework setters do their own propagation.
-Measurement, baseline evaluation, and painting may retain derived caches but may
-not mutate or request work. External state dependencies require explicit
-invalidation. A frame request only schedules a callback; the callback invalidates
-what it changes. See [Extending CentUI](extending.md).
+Watch `document.statistics()` while scrolling, editing text, resizing, or updating your app's data. It reports layout work, painting, and command-cache use. Backend `cache_statistics()` reports texture-cache activity. Compare these counters with actual frame time before changing cache settings.
 
-## Optional paint boundaries
+Repeatedly assigning an unchanged built-in value should not require a manual invalidation. A custom widget that reads external state must invalidate when that state changes; the framework cannot discover that dependency.
 
-Call `panel->set_paint_boundary(true)` to reuse a panel's prepared commands while
-another region changes. This is useful for static panels beside animated controls.
-It is disabled by default on every widget. Custom widget setters must call
-`invalidate_paint()`, `invalidate_geometry()` or `invalidate_layout()` when their output changes.
+## Reuse a quiet panel
 
-Cache validity requires unchanged subtree drawing, inherited appearance and
-interaction state, allocated geometry/effective clipping, raster scale and resource
-content identity. Local appearance, explicit geometry requests, and hover/focus/
-press transitions increment source/descendant revisions and containing ancestor
-revisions. Unrelated sibling boundaries remain reusable, including beneath nested
-boundaries. Allocated bounds, placement, topology and raster-scale changes
-conservatively clear all command entries. It still copies and submits every
-visible quad. No offscreen render targets are introduced.
+When a static panel sits beside frequently changing content, try a paint boundary:
 
-Logical viewport resizing calculates Yoga with new constraints without inherently
-reapplying unchanged native inputs. A scale-only change with the same logical size
-refreshes raster commands and host coordinates without intrinsic measurement or
-geometry callbacks. Logical text caches remain reusable, while glyph images use
-the new raster scale. Explicit Yoga point-scale configuration remains independent.
-Retained pointer positions preserve the existing physical-position adjustment on
-scale changes; newly delivered pointer events use adapter-provided logical units.
+```cpp
+panel->set_paint_boundary(true);
+```
 
-Failed painting leaves the published draw list intact and paint pending. Completed
-subtree cache entries remain valid under the same dependency contract on retry.
-Eviction and budget changes affect storage, not widget content or layout; live
-draw lists retain immutable resources.
+This can reuse prepared drawing commands while that subtree's appearance and geometry remain unchanged. Resizing, scrolling, inherited style changes, and resource changes can invalidate the reuse. It does not eliminate submitting the visible drawing commands to the renderer.
 
-`document.set_command_cache_budget(bytes)` controls retained command storage
-(4 MiB by default, zero disables admission). The budget counts command payloads;
-container overhead, the final draw list, and referenced image resources are extra.
-Nested boundaries may duplicate commands and should be used sparingly.
-`document.statistics()` reports cumulative layout allocations, native input
-synchronizations (`layout_nodes_synchronized`), actual measurement invocations
-(`measurement_calls`), root calculation attempts (`layout_calculations`), actual
-geometry hook invocations (`geometry_callbacks`, including failures/retries), paint
-visits, command-cache hits, and currently retained command bytes. Requests alone
-do not increment counters. Idle preparation and equal effective mutations do no
-synchronization, measurement, calculation or paint work.
+Measure again before applying boundaries to more widgets.
 
-Build with `-DCENTUI_BUILD_EXAMPLES=ON` and run `centui_example_benchmark` from `build/tests/examples/benchmark/` for a static
-panel beside an invalidating widget, with and without boundaries. This synthetic
-CPU preparation benchmark is not a GPU or application frame-time measurement.
-Use representative scrolling, resize, text-input, and topology workloads before
-enabling boundaries broadly.
+## Set budgets when memory matters
 
-## GPU texture caches
+| Resource | Control |
+| --- | --- |
+| Prepared drawing commands | `document.set_command_cache_budget(bytes)` |
+| Retained paint rasters | `document.set_paint_cache_budget(bytes)` |
+| Text analysis, layout, and glyph images | `document.set_text_cache_budgets(budgets)` |
+| Renderer textures | `renderer.set_cache_budget(bytes)` |
 
-SDL, SFML, and bgfx expose `set_cache_budget(bytes)` (32 MiB default), the existing
-`set_cache_limit(images)`, and cumulative `cache_statistics()`. Accounting uses
-RGBA upload bytes, excluding driver allocation overhead. Eviction happens at the
-next draw, removes expired resources first, then least-recently-used resources
-that are absent from the incoming list. Active-list resources can exceed the
-budget; this prevents eviction and repeated upload during the same draw.
-`clear_cache()` explicitly releases resources. Backend-native destruction handles
-queued graphics work; callers must obey the existing renderer/thread lifetime rules.
+Retained layouts and active drawing can keep resources alive beyond cache eviction. Cache budgets are not a cap on total process or GPU memory. Tune them against a representative workload, and keep the defaults until measurement gives you a reason to change them.
 
-The bgfx renderer batches adjacent quads that share a texture and sampling mode,
-preserving drawing order. If transient buffers are full, it uses dedicated buffers
-for the remaining batches instead of dropping commands.
-
-## Validation
-
-CI builds all adapters and examples on Linux, Windows, and macOS. Optional native
-integration tests (`CENTUI_BUILD_TESTS`, with the corresponding adapters enabled) render text/buttons and exit
-after four frames. Linux uses Xvfb and software GL. Core sanitizer coverage is
-separate from graphics testing.
-
-Consumer CI configures an independent application using FetchContent SOURCE_DIR,
-FetchContent Git (cloning the checked-out revision), and add_subdirectory. It links
-only `centui::centui` and executes a prepared-drawing check. Installed
-`find_package(centui)` packages are not currently provided.
-
-Layout, input, and frame scheduling now have separate internal state owners. The
-scheduler owns request coalescing. Document
-continues to own phase guards, deferred edits, and exception ordering. Further subsystem API narrowing and GPU batching/atlases remain separate improvements.
-
-
-The native text service exposes `set_cache_budgets` and `statistics` for separate
-analysis/shaping, logical-layout and glyph-image budgets. Zero disables admission.
-Statistics report shape/hit counts, cache reservations, retained consumer storage
-and font snapshots. Opaque native allocator usage is not represented as an exact
-measured total. See
-[native text layout](native-text-layout.md) and the
-[execution record](native-text-layout-progress.md).
+[← Reference](reference.md) · [Custom widget invalidation](extending.md#tell-the-document-what-changed)

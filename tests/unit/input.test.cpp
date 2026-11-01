@@ -39,10 +39,14 @@ TEST_CASE("Standalone input header exposes edit and submit callbacks", "[widget]
 TEST_CASE("Multiline Tab edits text while single-line and modified Tab navigate", "[widget][input][focus]")
 {
     std::string observed;
-    auto multiline = centui::input{"ABC", {.multiline = true, .on_change = [&](std::string_view value)
-                                         {
-                                             observed = value;
-                                         }}};
+    auto multiline = centui::input{
+        "ABC",
+        {.multiline = true,
+         .on_change = [&](std::string_view value)
+         {
+             observed = value;
+         }}
+    };
     auto single = centui::input{"single"};
     centui::document document{centui::container{multiline, single}};
     document.set_system_font_discovery(false);

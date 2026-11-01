@@ -12,6 +12,8 @@ details in `.cpp` files.
   distinguish validation, preparation, state changes, and the result.
 - Break long parameter and argument lists onto separate lines. Review constructor
   initializers, lambdas, and nested widget trees after formatting.
+- Put callback option braces on separate lines and keep a trailing comma after
+  each callback initializer.
 - Group public operations before private helpers and state. Use short type aliases
   when a container or resource type obscures the declaration.
 - Add brief Doxygen comments to public types and non-obvious contracts. Explain

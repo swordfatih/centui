@@ -1,77 +1,37 @@
 # Centypo
 
-A C++20 text engine. Fonts, shaping, layout, editing and glyph rasterization work
-without a UI toolkit or GPU renderer.
+A C++20 text engine for layout, hit testing, editing, and glyph rasterization. It can be used independently of CentUI and does not require a window or graphics API.
+
+## Lay out some text
 
 ```cpp
 #include <centypo/centypo.hpp>
 
 centypo::engine typography;
-auto text = typography.layout("Hello, world", {.size = 18, .width = 320});
 
+auto text = typography.layout("Hello, world", {.size = 18, .width = 320});
 auto bounds = text.bounds();
-auto cursor = text.hit_test({42, 10});
-auto caret = text.caret_bounds(cursor);
+auto position = text.hit_test({42, 10});
+auto caret = text.caret_bounds(position);
 auto selection = text.selection_bounds(0, 5);
 ```
 
-`layout` is an immutable value. Copies share storage internally; retaining a
-layout keeps its fonts alive after cache eviction, font refresh or destruction
-of the engine. Default-constructed and moved-from layouts are empty values.
-The engine is movable and owns its font collection and bounded caches. Use each
-engine on one application thread.
+System fonts are discovered automatically. Use `register_font` for an application font. Strings are literal UTF-8; positions use byte offsets and visual affinity.
 
-Text is literal UTF-8. Invalid encoding and embedded NUL are rejected. Positions
-use byte offsets and visual affinity. Layouts expose read-only glyph, line and
-caret spans; those views remain valid while the corresponding layout is retained.
+Retain a `centypo::layout` value to reuse the result. It keeps the fonts it needs alive. Use each engine on one application thread.
 
-System fonts are enabled by default. Register application fonts from a path or
-byte span; registration snapshots the data. No fonts are embedded in the library.
+## Prepare it for drawing
 
 ```cpp
-centypo::engine typography({.system_fonts = false});
-typography.register_font(std::filesystem::path{"application.ttf"});
-auto text = typography.layout("Explicit font");
-auto raster = typography.rasterize(text, 2); // Two pixels per logical unit.
+auto raster = typography.rasterize(text, 2);
 ```
 
-Logical layout allocates no glyph images. Rasterization preserves logical
-geometry and provides grayscale or straight-RGBA bitmap resources through each
-glyph. Drawing, tint, clipping and host input integration belong to the consumer.
-Repeated rasterization of the same layout and scale reuses prepared storage.
-Engine-prepared aligned and rasterized results share the layout cache budget; raster admission
-also respects the image budget and reserves space for retained pixels.
-`layout::aligned()` creates an independently owned copy outside engine caches.
+The scale controls pixels per logical unit. Rasterization supplies glyph images while preserving the layout's logical geometry; your renderer draws, tints, and clips them.
 
-`centypo::editor` owns committed text, directional selection, provisional
-composition and undo/redo. It has no widget, window or clipboard dependency.
+`centypo::editor` provides text, selection, composition, and undo/redo without a widget or clipboard dependency.
 
-## Build
+## Add it to your project
 
-Centypo is built as part of this repository through the `centypo::centypo` target.
+Add this repository through FetchContent or `add_subdirectory`, then link `centypo::centypo`. Public headers are under `include/centypo`. Its text dependencies are fetched automatically. Linux system font discovery requires Fontconfig development headers; `CENTYPO_SYSTEM_FONTS=OFF` selects explicit font registration.
 
-```sh
-cmake -S . -B build
-cmake --build build
-```
-
-Public headers live in `include/centypo`, alongside `include/centui`.
-Consumers can add this repository and link `centypo::centypo` directly.
-FreeType, HarfBuzz, SheenBidi and libunibreak are private
-dependencies, fetched at pinned revisions. Standard FetchContent source overrides
-allow vendored dependencies. Linux discovery requires Fontconfig development
-headers; `CENTYPO_SYSTEM_FONTS=OFF` disables native discovery.
-
-Native discovery lives in `src/centypo/system`. Its CMake file selects one
-implementation of the private `font_provider` API for Windows, Apple, Android,
-or Fontconfig. The base provider returns empty results for unsupported operations;
-disabled discovery instantiates it directly.
-
-```sh
-cmake -S . -B build -DCENTUI_BUILD_TESTS=ON
-cmake --build build
-ctest --test-dir build --output-on-failure
-```
-
-Run these test commands from the repository root. Centypo tests live in
-`tests/unit` and use the shared font fixture under `tests/assets`.
+For use inside CentUI, start with [Text and fonts](../../docs/text.md). Exact types and operations are documented in the [public headers](../../include/centypo).

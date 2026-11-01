@@ -1,119 +1,59 @@
-#include <format>
-#include <memory>
+#include <string>
 
 #include <centui/backends/bgfx.hpp>
 #include <centui/centui.hpp>
 #include <centui/platforms/sdl.hpp>
 
-namespace
-{
-
 struct screen
 {
     centui::length width = centui::percent(100);
     centui::length height = centui::percent(100);
+    centui::length gap = centui::px(20);
     centui::alignment align_items = centui::alignment::center;
     centui::justification justify_content = centui::justification::center;
+    float font_size = 24;
+    centui::states_color text_color = centui::states_color::all({226, 232, 240, 255});
     centui::states_color background_color = centui::states_color::all({15, 23, 42, 255});
-};
-
-struct card
-{
-    float corner_radius = 18;
-    centui::length width = centui::percent(90);
-    centui::length max_width = centui::px(380);
-    centui::edges padding = centui::edges::all(centui::px(28));
-    centui::length gap = centui::px(18);
-    centui::states_color background_color = centui::states_color::all({30, 41, 59, 255});
-};
-
-struct title
-{
-    float font_size = 30;
-};
-
-struct caption
-{
-    centui::states_color text_color = centui::states_color::all({148, 163, 184, 255});
-};
-
-struct counter
-{
-    float font_size = 56;
-    centypo::text_alignment text_align = centypo::text_alignment::center;
-    centui::states_color text_color = centui::states_color::all({94, 234, 212, 255});
 };
 
 struct action
 {
-    float corner_radius = 8;
-    centui::flex flex = centui::flex::all(1, 1, centui::px(0));
-    centui::length height = centui::px(46);
     centui::edges padding = centui::edges::all(centui::px(12));
-    centypo::text_alignment text_align = centypo::text_alignment::center;
-
-    struct
-    {
-        centui::color normal{37, 99, 235, 255};
-        centui::color hover{59, 130, 246, 255};
-        centui::color pressed{29, 78, 216, 255};
-        centui::color focused{59, 130, 246, 255};
-    } background_color;
+    float corner_radius = 8;
+    centui::states_color background_color{
+        .normal = {37, 99, 235, 255},
+        .hover = {59, 130, 246, 255},
+        .pressed = {29, 78, 216, 255},
+    };
 };
-
-struct actions
-{
-    centui::direction flex_direction = centui::direction::row;
-    centui::length column_gap = centui::px(12);
-};
-
-} // namespace
 
 int main()
 {
-    centui::sdl::platform platform{{.title = "CentUI / Getting started", .width = 720, .height = 520}};
-    centui::bgfx::backend renderer{platform};
+    centui::sdl::platform window{{.title = "CentUI / Getting started", .width = 640, .height = 400}};
+    centui::bgfx::backend renderer{window};
 
-    auto count = std::make_shared<int>(0);
-    auto label = centui::text<counter>{"0"};
-
-    const auto increment = [count, label]() mutable
-    {
-        label->set_text(std::format("{}", ++*count));
-    };
+    int count = 0;
+    auto label = centui::text{"Clicked 0 times"};
 
     auto root = centui::container<screen>{
-        centui::container<card>{
-            centui::text<caption>{"YOUR FIRST CENTUI APP"},
-            centui::text<title>{"Hello, world."},
-            centui::text<caption>{"A little state. A live label. One button."},
-            label,
-            centui::container<actions>{
-                centui::button<action>{
-                    "Click me",
-                    {
-                        .on_click = increment,
-                    }
+        centui::text{"Hello, CentUI."},
+        label,
+        centui::button<action>{
+            "Click me",
+            {
+                .on_click = [&count, label]
+                {
+                    label->set_text("Clicked " + std::to_string(++count) + " times");
                 },
-                centui::button<action>{
-                    "Start over",
-                    {
-                        .on_click = [count, label]() mutable
-                        {
-                            *count = 0;
-                            label->set_text("0");
-                        },
-                    }
-                },
-            },
+            }
         },
     };
 
     centui::document document{root};
 
-    centui::ui ui{platform, renderer};
+    centui::ui ui{window, renderer};
 
-    while(platform.poll_events())
+    while(window.poll_events())
     {
         ui.frame(document);
     }
