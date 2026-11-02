@@ -3,6 +3,61 @@
 namespace centui
 {
 
+void document::for_each_pointer(const std::function<void()>& operation)
+{
+    struct restore
+    {
+        pointer_id& slot;
+        pointer_id previous;
+
+        ~restore()
+        {
+            slot = previous;
+        }
+    } guard{m_data->input.active_pointer, m_data->input.active_pointer};
+
+    for(auto& [id, pointer]: m_data->input.pointers)
+    {
+        m_data->input.active_pointer = id;
+        operation();
+    }
+}
+
+void document::track_service(request_id request, const std::shared_ptr<widget>& target)
+{
+    std::erase_if(
+        m_data->input.requests,
+        [](const auto& entry)
+        {
+            return entry.second.expired();
+        }
+    );
+    if(request != 0)
+    {
+        m_data->input.requests[request] = target;
+    }
+}
+
+void document::process_service_result(const service_result& result)
+{
+    dispatch_guarded(
+        [&]
+        {
+            const auto found = m_data->input.requests.find(result.request);
+            if(found == m_data->input.requests.end())
+            {
+                return;
+            }
+            const auto target = found->second.lock();
+            m_data->input.requests.erase(found);
+            if(eligible(target))
+            {
+                target->on_service_result(result);
+            }
+        }
+    );
+}
+
 void document::process_event(const input_event& event, centui::viewport viewport)
 {
     process_events(std::span{std::addressof(event), std::size_t{1}}, viewport);
@@ -29,6 +84,12 @@ void document::process_events(std::span<const input_event> events, centui::viewp
                 m_data->active_input = std::cref(event);
                 dispatch(event);
                 settle_input(viewport);
+                if(event.device == pointer_device::touch && (event.type == input_event_type::pointer_released ||
+                                                             event.type == input_event_type::pointer_cancelled))
+                {
+                    m_data->input.pointers.erase(event.pointer);
+                    m_data->input.active_pointer = 0;
+                }
             }
         }
     );
@@ -94,14 +155,16 @@ void document::sync_host()
         return;
     }
     const auto area = active ? focused->text_input_area() : std::nullopt;
+    const auto session =
+        area ? std::optional{text_input_session{*area, focused->multiline_text_input()}} : std::nullopt;
 
-    if(area != m_data->input.text_input_area)
+    if(session != m_data->input.text_session)
     {
-        m_data->input.text_input_area = area;
+        m_data->input.text_session = session;
 
-        if(m_data->input.host && m_data->input.host->text_input)
+        if(m_data->input.host && m_data->input.host->set_text_input)
         {
-            m_data->input.host->text_input(area);
+            m_data->input.host->set_text_input(session);
         }
     }
 }
@@ -186,11 +249,22 @@ bool document::route_event(std::shared_ptr<widget> target, const input_event& ev
 
 void document::set_hover(std::shared_ptr<widget> value)
 {
-    if(auto old = m_data->input.hover.lock(); old != value)
+    if(!m_data->input.pointer().hover_capable)
     {
+        value.reset();
+    }
+    if(auto old = m_data->input.pointer().hover.lock(); old != value)
+    {
+        m_data->input.pointer().hover = value;
         if(old)
         {
-            old->m_hovered = false;
+            old->m_hovered = std::ranges::any_of(
+                m_data->input.pointers,
+                [&](const auto& entry)
+                {
+                    return entry.second.hover.lock() == old;
+                }
+            );
             old->invalidate_paint();
         }
 
@@ -199,67 +273,111 @@ void document::set_hover(std::shared_ptr<widget> value)
             value->m_hovered = true;
             value->invalidate_paint();
         }
-
-        m_data->input.hover = value;
     }
 }
 
 void document::cancel_capture()
 {
-    auto captured = m_data->input.capture.lock();
-    m_data->input.capture.reset();
+    auto captured = m_data->input.pointer().capture.lock();
+    m_data->input.pointer().capture.reset();
+    m_data->input.pointer().scrolling = false;
 
     if(captured)
     {
         captured->m_pressed = false;
         captured->invalidate_paint();
-        captured->on_event({.type = input_event_type::pointer_cancelled, .button = m_data->input.capture_button});
+        captured->on_event(
+            {.type = input_event_type::pointer_cancelled,
+             .button = m_data->input.pointer().capture_button,
+             .pointer = m_data->input.active_pointer,
+             .device = m_data->input.pointer().device,
+             .hover_capable = m_data->input.pointer().hover_capable}
+        );
+    }
+}
+
+void document::cancel_captures()
+{
+    std::exception_ptr failure;
+    for_each_pointer(
+        [&]
+        {
+            m_data->input.pointer().pointer_known = false;
+            set_hover({});
+            try
+            {
+                cancel_capture();
+            }
+            catch(...)
+            {
+                if(!failure)
+                {
+                    failure = std::current_exception();
+                }
+            }
+        }
+    );
+    if(failure)
+    {
+        std::rethrow_exception(failure);
     }
 }
 
 void document::clear_input()
 {
-    set_hover({});
-    cancel_capture();
+    cancel_captures();
     m_data->focus->clear();
 }
 
 void document::synchronize_input()
 {
-    if(!eligible(m_data->input.hover.lock()))
-    {
-        set_hover({});
-    }
-
-    if(!eligible(m_data->input.capture.lock()))
-    {
-        cancel_capture();
-    }
-
     m_data->focus->reconcile();
-
-    if(m_data->input.hit_dirty && !m_data->context->layout_dirty && !m_data->context->placement_dirty &&
-       !m_data->context->geometry_dirty)
-    {
-        m_data->input.hit_dirty = false;
-        const bool inside = m_data->input.pointer_known && m_data->focus->active() && m_data->input.pointer_x >= 0 &&
-                            m_data->input.pointer_y >= 0 &&
-                            m_data->input.pointer_x < m_data->viewport.logical_width() &&
-                            m_data->input.pointer_y < m_data->viewport.logical_height();
-        auto target = inside ? hit(m_data->input.pointer_x, m_data->input.pointer_y) : nullptr;
-        set_hover(target);
-
-        if(auto captured = m_data->input.capture.lock())
+    const bool refresh = m_data->input.hit_dirty;
+    m_data->input.hit_dirty = false;
+    for_each_pointer(
+        [&]
         {
-            const bool pressed = captured == target;
-
-            if(captured->m_pressed != pressed)
+            if(!eligible(m_data->input.pointer().hover.lock()))
             {
-                captured->m_pressed = pressed;
-                captured->invalidate_paint();
+                set_hover({});
+            }
+
+            if(!eligible(m_data->input.pointer().capture.lock()))
+            {
+                cancel_capture();
+            }
+
+            if(refresh && !m_data->context->layout_dirty && !m_data->context->placement_dirty &&
+               !m_data->context->geometry_dirty)
+            {
+                const bool inside = m_data->input.pointer().pointer_known && m_data->focus->active() &&
+                                    m_data->input.pointer().pointer_x >= 0 && m_data->input.pointer().pointer_y >= 0 &&
+                                    m_data->input.pointer().pointer_x < m_data->viewport.logical_width() &&
+                                    m_data->input.pointer().pointer_y < m_data->viewport.logical_height();
+                auto target =
+                    inside ? hit(m_data->input.pointer().pointer_x, m_data->input.pointer().pointer_y) : nullptr;
+                set_hover(target);
+
+                if(auto captured = m_data->input.pointer().capture.lock())
+                {
+                    const bool pressed = captured == target;
+
+                    if(captured->m_pressed != pressed)
+                    {
+                        captured->m_pressed = pressed;
+                        captured->invalidate_paint();
+                    }
+                }
             }
         }
-    }
+    );
+    std::erase_if(
+        m_data->input.requests,
+        [&](const auto& entry)
+        {
+            return !eligible(entry.second.lock());
+        }
+    );
 }
 
 void document::dispatch(const input_event& event)
@@ -286,16 +404,24 @@ void document::dispatch(const input_event& event)
         return;
     }
 
+    if(event.type != input_event_type::focus_lost && event.type != input_event_type::focus_gained)
+    {
+        m_data->input.active_pointer = event.pointer;
+        auto& pointer = m_data->input.pointer();
+        pointer.device = event.device;
+        pointer.hover_capable = event.hover_capable && event.device != pointer_device::touch;
+    }
+
     m_data->input.hit_dirty = true;
 
     switch(event.type)
     {
     case input_event_type::focus_lost:
     {
-        m_data->input.pointer_known = false;
+        m_data->input.pointer().pointer_known = false;
         set_hover({});
         m_data->focus->activate(false);
-        cancel_capture();
+        cancel_captures();
         sync_host();
 
         return;
@@ -310,10 +436,10 @@ void document::dispatch(const input_event& event)
 
     case input_event_type::pointer_left:
     {
-        m_data->input.pointer_known = false;
+        m_data->input.pointer().pointer_known = false;
         set_hover({});
 
-        if(auto captured = m_data->input.capture.lock())
+        if(auto captured = m_data->input.pointer().capture.lock())
         {
             captured->m_pressed = false;
             captured->invalidate_paint();
@@ -324,7 +450,7 @@ void document::dispatch(const input_event& event)
 
     case input_event_type::pointer_cancelled:
     {
-        m_data->input.pointer_known = false;
+        m_data->input.pointer().pointer_known = false;
         set_hover({});
         cancel_capture();
 
@@ -342,9 +468,9 @@ void document::dispatch(const input_event& event)
         m_data->focus->set_show_focus_indication(false);
     }
 
-    m_data->input.pointer_known = true;
-    m_data->input.pointer_x = event.x;
-    m_data->input.pointer_y = event.y;
+    m_data->input.pointer().pointer_known = true;
+    m_data->input.pointer().pointer_x = event.x;
+    m_data->input.pointer().pointer_y = event.y;
     const bool in_viewport = event.x >= 0 && event.y >= 0 && event.x < m_data->viewport.logical_width() &&
                              event.y < m_data->viewport.logical_height();
     auto target = in_viewport ? hit(event.x, event.y) : nullptr;
@@ -359,7 +485,44 @@ void document::dispatch(const input_event& event)
 
     if(event.type == input_event_type::pointer_moved)
     {
-        auto active = m_data->input.capture.lock();
+        auto active = m_data->input.pointer().capture.lock();
+
+        if(active && event.device == pointer_device::touch && !m_data->input.pointer().overlay_gesture)
+        {
+            auto& pointer = m_data->input.pointer();
+            const auto origin = pointer.scrolling ? pointer.previous : pointer.down;
+            const vec2 delta{origin.x - event.x, origin.y - event.y};
+            const auto dx = event.x - pointer.down.x;
+            const auto dy = event.y - pointer.down.y;
+            pointer.previous = {event.x, event.y};
+            if(pointer.scrolling || dx * dx + dy * dy >= 36.0f)
+            {
+                auto scroll = event;
+                scroll.type = input_event_type::wheel;
+                scroll.delta_x = delta.x;
+                scroll.delta_y = delta.y;
+                if(pointer.scrolling)
+                {
+                    route_event(active, scroll);
+                    return;
+                }
+                for(auto candidate = active; candidate && m_data->focus->allowed(candidate);
+                    candidate = candidate->m_parent.lock())
+                {
+                    if(eligible(candidate) && candidate->can_scroll(delta))
+                    {
+                        cancel_capture();
+                        if(eligible(candidate))
+                        {
+                            pointer.capture = candidate;
+                            pointer.scrolling = true;
+                            candidate->on_event(scroll);
+                        }
+                        return;
+                    }
+                }
+            }
+        }
 
         if(active)
         {
@@ -388,16 +551,30 @@ void document::dispatch(const input_event& event)
 
     if(event.type == input_event_type::pointer_pressed)
     {
-        // One gesture at a time; extra presses cannot steal its capture.
-        if(!m_data->input.capture.expired())
+        // Each pointer keeps its capture; a widget accepts one gesture at a time.
+        if(!m_data->input.pointer().capture.expired())
         {
             return;
         }
 
         if(target)
         {
-            m_data->input.capture = target;
-            m_data->input.capture_button = event.button;
+            if(std::ranges::any_of(
+                   m_data->input.pointers,
+                   [&](const auto& entry)
+                   {
+                       return entry.second.capture.lock() == target;
+                   }
+               ))
+            {
+                return;
+            }
+            m_data->input.pointer().capture = target;
+            m_data->input.pointer().capture_button = event.button;
+            m_data->input.pointer().down = {event.x, event.y};
+            m_data->input.pointer().previous = {event.x, event.y};
+            m_data->input.pointer().overlay_gesture =
+                target->hit_test_overlay({event.x - target->m_content.x, event.y - target->m_content.y});
             target->m_pressed = true;
             target->invalidate_paint();
 
@@ -408,7 +585,7 @@ void document::dispatch(const input_event& event)
                 synchronize_input();
             }
             // Focus callbacks may disable the target and cancel the gesture.
-            if(m_data->input.capture.lock() == target)
+            if(m_data->input.pointer().capture.lock() == target)
             {
                 target->on_event(event);
             }
@@ -416,20 +593,23 @@ void document::dispatch(const input_event& event)
     }
     else if(event.type == input_event_type::pointer_released)
     {
-        if(event.button != m_data->input.capture_button)
+        if(event.button != m_data->input.pointer().capture_button)
         {
             return;
         }
 
-        auto captured = m_data->input.capture.lock();
+        auto captured = m_data->input.pointer().capture.lock();
         // User code may mutate the tree or throw; capture is already ended.
-        m_data->input.capture.reset();
+        m_data->input.pointer().capture.reset();
+        m_data->input.pointer().scrolling = false;
 
         if(captured)
         {
             captured->m_pressed = false;
             captured->invalidate_paint();
-            captured->on_event(event);
+            auto release = event;
+            release.target_inside = captured == target;
+            captured->on_event(release);
         }
     }
 }

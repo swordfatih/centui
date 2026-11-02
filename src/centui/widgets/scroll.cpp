@@ -3,6 +3,12 @@
 namespace centui
 {
 
+bool scroll_widget::can_scroll(vec2 delta) const
+{
+    return (delta.x < 0 && m_offset.x > 0) || (delta.x > 0 && m_offset.x < m_limit.x) ||
+           (delta.y < 0 && m_offset.y > 0) || (delta.y > 0 && m_offset.y < m_limit.y);
+}
+
 namespace
 {
 

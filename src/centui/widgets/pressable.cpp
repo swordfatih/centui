@@ -31,7 +31,7 @@ void pressable_widget::activate()
 
 void pressable_widget::on_focus_activity_changed(bool active)
 {
-    if(!active)
+    if(!active && !pressed())
     {
         m_armed = false;
     }
@@ -62,7 +62,7 @@ bool pressable_widget::on_event(const input_event& event)
     {
         const auto box = bounds();
         const bool clicked = std::exchange(m_armed, false) && event.button == mouse_button::primary &&
-                             effectively_enabled() && hovered() && event.x >= box.x && event.y >= box.y &&
+                             effectively_enabled() && event.target_inside && event.x >= box.x && event.y >= box.y &&
                              event.x < box.x + box.width && event.y < box.y + box.height;
 
         if(clicked)

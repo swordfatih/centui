@@ -80,19 +80,7 @@ class backend final : public centui::renderer
 public:
     explicit backend(const centui::viewport& target, std::uint16_t view_id = 0);
 
-    template <typename Platform>
-        requires std::derived_from<Platform, centui::platform> && requires(Platform& host) { host.native_handles(); }
-    explicit backend(Platform& host, std::uint16_t view_id = 0)
-        : backend(
-              [&host]
-              {
-                  return host.viewport();
-              },
-              create_context(host.native_handles(), host.viewport()),
-              view_id
-          )
-    {
-    }
+    explicit backend(centui::platform& host, std::uint16_t view_id = 0);
 
     ~backend() override = default;
 
@@ -123,27 +111,33 @@ public:
     [[nodiscard]] centui::details::texture_cache_statistics cache_statistics() const;
 
     void draw(const draw_list& list) override;
+    void on_surface_event(const surface_event& event) override;
 
 private:
     struct context
     {
-        explicit context(const ::bgfx::Init& init);
+        context(render_surface target, centui::viewport size);
 
         ~context();
 
         context(const context&) = delete;
 
         context& operator=(const context&) = delete;
+
+        // Retains named surface storage until after bgfx shuts down.
+        render_surface target;
     };
 
     using texture_handle = details::owned_handle<::bgfx::TextureHandle>;
     using image_cache = centui::details::texture_cache<texture_handle>;
 
-    static std::unique_ptr<context> create_context(native_window_handles handles, centui::viewport size);
+    static std::unique_ptr<context> create_context(centui::platform& host);
 
     backend(std::function<centui::viewport()> surface, std::unique_ptr<context> owner, std::uint16_t view_id);
 
     void begin(std::uint16_t width, std::uint16_t height, float scale);
+    void initialize_resources();
+    void release_resources();
 
     void submit(std::span<const draw_quad> commands);
 
@@ -151,6 +145,8 @@ private:
 
     // Declared first so bgfx outlives every resource destroyed below.
     std::unique_ptr<context> m_context;
+    std::optional<std::reference_wrapper<centui::platform>> m_host;
+    bool m_surface_available = true;
     std::function<centui::viewport()> m_surface;
     centui::viewport m_backbuffer;
     std::uint16_t m_view_id;

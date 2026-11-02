@@ -14,7 +14,7 @@ Text uses system fonts by default. Start there, then choose a family or register
 struct article
 {
     float font_size = 18;
-    centypo::font font{{"serif"}};
+    centypo::font font{"serif"};
     centypo::text_options paragraph{
         .wrap = centypo::text_wrap::word_grapheme,
         .line_spacing = 4,
@@ -28,16 +28,18 @@ auto body = centui::text<article>{
 
 The generic families `sans-serif`, `serif`, and `monospace` resolve through system font discovery. Set text styles on a container when its descendants should share them. A width constraint gives wrapping something to wrap against.
 
+Pass family names in preference order, such as `centypo::font{"Arial", "Inter"}`.
+
 ## Use an application font
 
 Register your file before the first frame:
 
 ```cpp
 document.register_font(std::filesystem::path{"assets/MyFont.ttf"});
-document.set_font_alias("sans-serif", {"My Font"});
+document.set_style({.font = centypo::font{"My Font"}});
 ```
 
-Use the font's family name in the alias. The path belongs to your application: a relative path is resolved from its working directory. Registering a byte span is also supported. Font changes go through the document so affected widgets update.
+Use the family name stored inside the font file, which can differ from its filename. The path belongs to your application: a relative path is resolved from its working directory. Registering a byte span is also supported. Font changes go through the document so affected widgets update.
 
 ## Keep a preview short
 

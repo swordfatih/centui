@@ -7,11 +7,13 @@ platform::platform(const window_options& options)
     : m_owned(create_window(options)),
       m_window(*m_owned)
 {
+    set_initial_focus(m_window.hasFocus());
 }
 
 platform::platform(::sf::RenderWindow& window)
     : m_window(window)
 {
+    set_initial_focus(m_window.hasFocus());
 }
 
 ::sf::RenderWindow& platform::native_window() const noexcept
@@ -47,11 +49,6 @@ std::shared_ptr<const host_services> platform::services() const noexcept
     return m_services;
 }
 
-std::span<const input_event> platform::events() const noexcept
-{
-    return m_events;
-}
-
 bool platform::poll_events()
 {
     return poll_events({});
@@ -59,7 +56,6 @@ bool platform::poll_events()
 
 bool platform::poll_events(const std::function<void(const ::sf::Event&)>& on_event)
 {
-    m_events.clear();
 
     while(const auto event = m_window.pollEvent())
     {
@@ -68,10 +64,7 @@ bool platform::poll_events(const std::function<void(const ::sf::Event&)>& on_eve
             on_event(*event);
         }
 
-        if(auto translated = translate(*event))
-        {
-            m_events.push_back(std::move(*translated));
-        }
+        ingest(*event);
 
         if(event->is<::sf::Event::Closed>())
         {
@@ -84,6 +77,7 @@ bool platform::poll_events(const std::function<void(const ::sf::Event&)>& on_eve
         }
     }
 
+    refresh_state();
     return m_window.isOpen();
 }
 
@@ -126,6 +120,21 @@ std::optional<input_event> platform::translate(const ::sf::Event& event)
                         .text = std::string{utf8.begin(), utf8.end()},
                     };
                 }
+            }
+            else if constexpr(std::is_same_v<Event, ::sf::Event::TouchBegan> ||
+                              std::is_same_v<Event, ::sf::Event::TouchMoved> ||
+                              std::is_same_v<Event, ::sf::Event::TouchEnded>)
+            {
+                return input_event{
+                    .type = std::is_same_v<Event, ::sf::Event::TouchBegan>   ? input_event_type::pointer_pressed
+                            : std::is_same_v<Event, ::sf::Event::TouchEnded> ? input_event_type::pointer_released
+                                                                             : input_event_type::pointer_moved,
+                    .x = native.position.x / scale,
+                    .y = native.position.y / scale,
+                    .pointer = static_cast<pointer_id>(native.finger) + 1,
+                    .device = pointer_device::touch,
+                    .hover_capable = false
+                };
             }
             else if constexpr(std::is_same_v<Event, ::sf::Event::MouseMoved>)
             {
@@ -188,6 +197,19 @@ std::optional<input_event> platform::translate(const ::sf::Event& event)
     );
 }
 
+void platform::ingest(const ::sf::Event& event)
+{
+    if(event.is<::sf::Event::Closed>())
+    {
+        set_activity(application_activity::closing);
+    }
+    if(auto translated = translate(event))
+    {
+        enqueue(*translated);
+    }
+    refresh_state();
+}
+
 std::unique_ptr<::sf::RenderWindow> platform::create_window(const window_options& options)
 {
     if(options.width <= 0 || options.height <= 0)
@@ -206,18 +228,18 @@ std::unique_ptr<::sf::RenderWindow> platform::create_window(const window_options
 
 std::shared_ptr<const host_services> platform::make_services()
 {
-    auto services = std::make_shared<host_services>();
-    services->read_clipboard = []
+    const auto read = []
     {
         const auto utf8 = ::sf::Clipboard::getString().toUtf8();
 
         return std::string{utf8.begin(), utf8.end()};
     };
-    services->write_clipboard = [](std::string_view value)
+    const auto write = [](std::string_view value)
     {
         ::sf::Clipboard::setString(::sf::String::fromUtf8(value.begin(), value.end()));
     };
-    services->text_input = [](std::optional<rect> area)
+    auto services = clipboard_services(read, write);
+    services->set_text_input = [](std::optional<text_input_session> area)
     {
         ::sf::Keyboard::setVirtualKeyboardVisible(area.has_value());
     };

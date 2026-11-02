@@ -99,7 +99,9 @@ int main()
         },
     };
 
-    centui::document document{root};
+    centui::document document{root, {.system_font_discovery = false}};
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
+    document.set_style({.font = centypo::font{"Inter"}});
 
     while(window.isOpen())
     {

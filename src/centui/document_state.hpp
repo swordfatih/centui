@@ -74,16 +74,35 @@ struct document::frame_scheduler
 
 struct document::input_state
 {
-    std::weak_ptr<widget> hover;
-    std::weak_ptr<widget> capture;
-    mouse_button capture_button = mouse_button::primary;
-    bool pointer_known = false;
+    struct pointer_state
+    {
+        std::weak_ptr<widget> hover;
+        std::weak_ptr<widget> capture;
+        mouse_button capture_button = mouse_button::primary;
+        pointer_device device = pointer_device::mouse;
+        bool hover_capable = true;
+        bool pointer_known = false;
+        float pointer_x = 0;
+        float pointer_y = 0;
+        vec2 down{};
+        vec2 previous{};
+        bool scrolling = false;
+        bool overlay_gesture = false;
+    };
+
+    std::map<pointer_id, pointer_state> pointers;
+    pointer_id active_pointer = 0;
+
+    pointer_state& pointer()
+    {
+        return pointers[active_pointer];
+    }
+
     bool hit_dirty = true;
-    float pointer_x = 0;
-    float pointer_y = 0;
 
     std::shared_ptr<const host_services> host;
-    std::optional<rect> text_input_area;
+    std::optional<text_input_session> text_session;
+    std::map<request_id, std::weak_ptr<widget>> requests;
 };
 
 struct document::data

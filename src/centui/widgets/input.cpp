@@ -48,6 +48,7 @@ void input_widget::set_selection(centypo::text_position anchor, centypo::text_po
     {
         return;
     }
+    ++m_edit_revision;
 
     m_preferred_x.reset();
     m_reveal_caret = true;
@@ -216,12 +217,32 @@ void input_widget::on_focus_activity_changed(bool active)
 {
     if(!active)
     {
+        m_pending_request = 0;
         m_dragging = false;
         if(m_editor.cancel_composition())
         {
             changed_layout();
         }
     }
+}
+
+bool input_widget::multiline_text_input() const
+{
+    return m_multiline;
+}
+
+void input_widget::on_service_result(const service_result& result)
+{
+    if(result.request != m_pending_request)
+    {
+        return;
+    }
+    m_pending_request = 0;
+    if(result.status != service_status::success || !focus_active() || m_edit_revision != m_request_revision)
+    {
+        return;
+    }
+    replace_selection(m_cut_request ? std::string{} : result.text);
 }
 
 bool input_widget::on_event(const input_event& event)
@@ -315,10 +336,13 @@ bool input_widget::on_event(const input_event& event)
         {
             if(begin != end && host().write_clipboard)
             {
-                host().write_clipboard(value().substr(begin, end - begin));
+                const auto id = host().write_clipboard(std::string{value().substr(begin, end - begin)});
                 if(event.code == key::x)
                 {
-                    replace_selection({});
+                    m_pending_request = id;
+                    m_request_revision = m_edit_revision;
+                    m_cut_request = true;
+                    track_service(id);
                 }
             }
             return true;
@@ -327,7 +351,10 @@ bool input_widget::on_event(const input_event& event)
         {
             if(host().read_clipboard)
             {
-                replace_selection(host().read_clipboard());
+                m_pending_request = host().read_clipboard();
+                m_request_revision = m_edit_revision;
+                m_cut_request = false;
+                track_service(m_pending_request);
             }
             return true;
         }
@@ -488,6 +515,7 @@ void input_widget::prepare_text(const centypo::engine& service, float width) con
 
 void input_widget::changed_layout()
 {
+    ++m_edit_revision;
     m_layout.reset();
     m_reveal_caret = true;
     m_preferred_x.reset();

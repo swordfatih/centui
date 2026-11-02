@@ -126,6 +126,13 @@ protected:
     /// \brief Handles an input event and returns whether it was consumed.
     virtual bool on_event(const input_event&);
 
+    virtual void on_service_result(const service_result&);
+    void track_service(request_id request);
+
+    /// \brief Whether this widget can consume a content scroll in the given direction.
+    [[nodiscard]] virtual bool can_scroll(vec2 delta) const;
+    [[nodiscard]] virtual bool multiline_text_input() const;
+
     virtual void on_focus_changed(bool);
 
     virtual void on_focus_activity_changed(bool active);

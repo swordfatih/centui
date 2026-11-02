@@ -206,9 +206,20 @@ void document::update_layout(centui::viewport viewport)
                                           viewport.logical_height() != m_data->viewport.logical_height();
         if(viewport.scale != m_data->viewport.scale)
         {
-            m_data->input.pointer_x *= m_data->viewport.scale / viewport.scale;
-            m_data->input.pointer_y *= m_data->viewport.scale / viewport.scale;
-            m_data->input.text_input_area.reset();
+            for_each_pointer(
+                [&]
+                {
+                    auto& pointer = m_data->input.pointer();
+                    const auto ratio = m_data->viewport.scale / viewport.scale;
+                    pointer.pointer_x *= ratio;
+                    pointer.pointer_y *= ratio;
+                    pointer.down.x *= ratio;
+                    pointer.down.y *= ratio;
+                    pointer.previous.x *= ratio;
+                    pointer.previous.y *= ratio;
+                }
+            );
+            m_data->input.text_session.reset();
             details::invalidation_access::invalidate_document(*m_data->context, details::change::raster);
         }
         m_data->viewport = viewport;

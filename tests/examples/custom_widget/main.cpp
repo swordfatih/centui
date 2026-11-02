@@ -130,7 +130,9 @@ int main()
     screen.justify_content = centui::justification::center;
     screen.background_color = centui::states_color::all(centui::color::from_hex(0x0F172A));
     root->set_style(screen);
-    centui::document document{root};
+    centui::document document{root, {.system_font_discovery = false}};
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
+    document.set_style({.font = centypo::font{"Inter"}});
 
     centui::ui ui{window, renderer};
 

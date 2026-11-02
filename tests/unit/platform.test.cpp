@@ -28,9 +28,9 @@ public:
         return polls++ == 0;
     }
 
-    std::span<const centui::input_event> events() const noexcept override
+    void queue(centui::input_event event)
     {
-        return pending;
+        enqueue(event);
     }
 
     centui::viewport viewport() const override
@@ -100,9 +100,9 @@ class service_probe final : public centui::widget
 public:
     using widget::request_frame;
 
-    std::string clipboard() const
+    centui::request_id clipboard() const
     {
-        return host().read_clipboard ? host().read_clipboard() : std::string{};
+        return host().read_clipboard ? host().read_clipboard() : 0;
     }
 
     int ticks = 0;
@@ -123,7 +123,7 @@ TEST_CASE("Native forwarding borrows host state without taking over its event lo
     test_platform host;
     host.host->read_clipboard = []
     {
-        return std::string{"attached"};
+        return centui::request_id{17};
     };
     test_renderer renderer;
     centui::ui ui{host, renderer};
@@ -148,7 +148,7 @@ TEST_CASE("Native forwarding borrows host state without taking over its event lo
     REQUIRE(renderer.draws == 1);
     REQUIRE(renderer.surface == host.viewport());
     REQUIRE(root->bounds().width == 200);
-    REQUIRE(probe->clipboard() == "attached");
+    REQUIRE(probe->clipboard() == 17);
 }
 
 TEST_CASE("UI frames process polled events and advance widgets before drawing", "[platform][animation]")
@@ -156,12 +156,10 @@ TEST_CASE("UI frames process polled events and advance widgets before drawing", 
     test_platform host;
     host.host->read_clipboard = []
     {
-        return std::string{"attached"};
+        return centui::request_id{17};
     };
-    host.pending = {
-        {.type = centui::input_event_type::pointer_pressed, .x = 5, .y = 5},
-        {.type = centui::input_event_type::pointer_released, .x = 5, .y = 5},
-    };
+    host.queue({.type = centui::input_event_type::pointer_pressed, .x = 5, .y = 5});
+    host.queue({.type = centui::input_event_type::pointer_released, .x = 5, .y = 5});
 
     test_renderer renderer;
     centui::ui ui{host, renderer};
@@ -191,7 +189,7 @@ TEST_CASE("UI frames process polled events and advance widgets before drawing", 
         REQUIRE(clicked);
         REQUIRE(probe->ticks == 1);
         REQUIRE(probe->elapsed == centui::frame_duration{0.25f});
-        REQUIRE(probe->clipboard() == "attached");
+        REQUIRE(probe->clipboard() == 17);
     };
 
     REQUIRE(ui.frame(document, centui::frame_duration{0.25f}));

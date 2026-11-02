@@ -119,6 +119,9 @@ public:
     /// \brief Dispatches portable events in order, then applies deferred tree changes.
     void process_events(std::span<const input_event> events, centui::viewport viewport);
 
+    /// \brief Delivers a queued result only to the widget that requested it.
+    void process_service_result(const service_result& result);
+
     [[nodiscard]] handle<> focused_widget() const;
 
     /// Traverses eligible controls in tree order, wrapping within the active modal or document.
@@ -244,6 +247,9 @@ private:
     void set_hover(std::shared_ptr<widget> value);
 
     void cancel_capture();
+    void cancel_captures();
+    void for_each_pointer(const std::function<void()>& operation);
+    void track_service(request_id request, const std::shared_ptr<widget>& target);
 
     void clear_input();
 

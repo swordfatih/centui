@@ -51,6 +51,10 @@ bool backend::begin_frame()
 
 bool backend::begin_frame(color clear)
 {
+    if(!m_surface_available)
+    {
+        return false;
+    }
     if(!m_window)
     {
         throw std::logic_error("Frame presentation requires a window-backed renderer");
@@ -68,6 +72,10 @@ bool backend::begin_frame(color clear)
 
 void backend::end_frame()
 {
+    if(!m_surface_available)
+    {
+        return;
+    }
     if(!m_window)
     {
         throw std::logic_error("Frame presentation requires a window-backed renderer");
@@ -98,6 +106,10 @@ void backend::set_cache_limit(std::size_t images)
 
 void backend::draw(const draw_list& list)
 {
+    if(!m_surface_available)
+    {
+        return;
+    }
     const auto size = list.viewport;
 
     if(size.width <= 0 || size.height <= 0)
@@ -129,6 +141,15 @@ void backend::draw(const draw_list& list)
             item.uv,
             item.image ? std::optional{std::cref(texture(item.image, item.sampling))} : std::nullopt
         );
+    }
+}
+
+void backend::on_surface_event(const surface_event& event)
+{
+    if(event.change != surface_change::metrics)
+    {
+        clear_cache();
+        m_surface_available = event.change != surface_change::unavailable;
     }
 }
 

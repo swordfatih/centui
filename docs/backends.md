@@ -35,7 +35,7 @@ while(window.poll_events())
 }
 ```
 
-`frame()` processes the polled input, advances time, and renders. Create the window before the renderer so it outlives the renderer's graphics resources.
+`frame()` consumes queued events once, advances animation, and renders. Create the window before the renderer so it outlives the renderer's graphics resources.
 
 For SDL's 2D renderer, use `centui::sdl::backend`. For GLFW with bgfx, use `centui::glfw::platform` in place of the SDL platform.
 
@@ -83,5 +83,19 @@ The [scene-overlay example](https://github.com/swordfatih/centui/blob/main/tests
 SDL and GLFW adapters can also borrow existing windows. When your app already calls `glfwPollEvents()`, pass the adapter's `take_events()` result to `ui.process_events()` instead of polling a second time. Install GLFW callbacks before wrapping the window so the adapter can chain them.
 
 For another graphics API, implement the small [renderer interface](https://github.com/swordfatih/centui/blob/main/include/centui/render.hpp). Its input is a prepared draw list. Widget drawing stays independent of the graphics API.
+
+## Platform differences
+
+Choose an adapter that provides the input features your app needs:
+
+| Adapter | Pointer input | Text input |
+| --- | --- | --- |
+| SDL | Mouse, touch, pen | Text, composition, virtual keyboard |
+| SFML | Mouse, touch | Text, virtual-keyboard visibility |
+| GLFW | Mouse | Text |
+
+`ui.frame()` handles queued clipboard results and reported activity and surface changes. In an application-owned loop, keep forwarding events through `ui.process_event()` or `ui.process_events()`, including when you skip drawing.
+
+For a custom adapter, start with [platform.hpp](https://github.com/swordfatih/centui/blob/main/include/centui/platform.hpp). The [public headers](reference.md#public-api) define the event, service, and surface contracts.
 
 [← Text and fonts](text.md) · [Next: custom widgets →](extending.md)

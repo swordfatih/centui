@@ -70,23 +70,38 @@ std::uint32_t pack_color(color value)
 namespace centui::bgfx
 {
 
-std::unique_ptr<backend::context> backend::create_context(native_window_handles handles, centui::viewport size)
+std::unique_ptr<backend::context> backend::create_context(centui::platform& host)
 {
-    if(!handles.window || size.width <= 0 || size.height <= 0)
+    auto target = host.surface();
+
+    if(!target)
     {
-        throw std::invalid_argument("bgfx requires a window with positive dimensions");
+        throw std::invalid_argument("Platform does not expose a rendering surface");
     }
 
-    ::bgfx::Init init;
-    init.swapChain.nwh = handles.window;
-    init.swapChain.ndt = handles.display;
-    init.platformData.type = handles.system == native_window_system::wayland ? ::bgfx::NativeWindowHandleType::Wayland
-                                                                             : ::bgfx::NativeWindowHandleType::Default;
-    init.swapChain.width = static_cast<std::uint32_t>(size.width);
-    init.swapChain.height = static_cast<std::uint32_t>(size.height);
-    init.reset = BGFX_RESET_VSYNC;
+    return std::make_unique<context>(std::move(*target), host.viewport());
+}
 
-    return std::make_unique<context>(init);
+backend::backend(centui::platform& host, std::uint16_t view_id)
+    : m_host(host),
+      m_surface(
+          [&host]
+          {
+              return host.viewport();
+          }
+      ),
+      m_view_id(view_id)
+{
+    m_backbuffer = host.viewport();
+    if(host.state().active && host.state().drawable)
+    {
+        m_context = create_context(host);
+        initialize_resources();
+    }
+    else
+    {
+        m_surface_available = false;
+    }
 }
 
 backend::backend(const centui::viewport& target, std::uint16_t view_id)
@@ -101,8 +116,50 @@ backend::backend(const centui::viewport& target, std::uint16_t view_id)
 {
 }
 
-backend::context::context(const ::bgfx::Init& init)
+backend::context::context(render_surface surface, centui::viewport size)
+    : target(std::move(surface))
 {
+    if(size.width <= 0 || size.height <= 0 || size.width > std::numeric_limits<std::uint16_t>::max() ||
+       size.height > std::numeric_limits<std::uint16_t>::max())
+    {
+        throw std::invalid_argument("bgfx requires positive surface dimensions within its view limits");
+    }
+
+    ::bgfx::Init init;
+    std::visit(
+        [&init](auto& connection)
+        {
+            using connection_type = std::remove_cvref_t<decltype(connection)>;
+
+            if constexpr(std::is_same_v<connection_type, native_surface>)
+            {
+                if(!connection.handle || (connection.type == surface_handle_type::wayland && !connection.display))
+                {
+                    throw std::invalid_argument("bgfx requires valid native surface handles");
+                }
+
+                init.swapChain.nwh = connection.handle;
+                init.swapChain.ndt = connection.display;
+                init.platformData.type = connection.type == surface_handle_type::wayland
+                                             ? ::bgfx::NativeWindowHandleType::Wayland
+                                             : ::bgfx::NativeWindowHandleType::Default;
+            }
+            else
+            {
+                if(connection.name.empty() || connection.name.find('\0') != std::string::npos)
+                {
+                    throw std::invalid_argument("bgfx requires a nonempty surface name without embedded NUL");
+                }
+
+                init.swapChain.nwh = connection.name.data();
+            }
+        },
+        target
+    );
+    init.swapChain.width = static_cast<std::uint32_t>(size.width);
+    init.swapChain.height = static_cast<std::uint32_t>(size.height);
+    init.reset = BGFX_RESET_VSYNC;
+
     if(!::bgfx::init(init))
     {
         throw std::runtime_error("Failed to initialize bgfx");
@@ -120,6 +177,11 @@ backend::backend(std::function<centui::viewport()> surface, std::unique_ptr<cont
       m_view_id(view_id)
 {
     m_backbuffer = viewport();
+    initialize_resources();
+}
+
+void backend::initialize_resources()
+{
     m_vertex_layout.begin()
         .add(::bgfx::Attrib::Position, 3, ::bgfx::AttribType::Float)
         .add(::bgfx::Attrib::TexCoord0, 2, ::bgfx::AttribType::Float)
@@ -148,6 +210,16 @@ bool backend::begin_frame()
 
 bool backend::begin_frame(color clear)
 {
+    if(!m_surface_available && m_host)
+    {
+        // The surface may have become drawable before the platform recorded its
+        // first metrics snapshot, so initialization cannot depend on an event.
+        on_surface_event({surface_change::metrics, m_host->get().state()});
+    }
+    if(!m_surface_available)
+    {
+        return false;
+    }
     if(!m_context)
     {
         throw std::logic_error("Frame lifecycle requires a backend constructed from a platform");
@@ -192,6 +264,10 @@ bool backend::begin_frame(color clear)
 
 void backend::end_frame()
 {
+    if(!m_surface_available)
+    {
+        return;
+    }
     if(!m_context)
     {
         throw std::logic_error("Frame lifecycle requires a backend constructed from a platform");
@@ -243,6 +319,10 @@ void backend::set_cache_limit(std::size_t images)
 
 void backend::draw(const draw_list& list)
 {
+    if(!m_surface_available)
+    {
+        return;
+    }
     const auto size = list.viewport;
 
     if(size.width <= 0 || size.height <= 0)
@@ -271,6 +351,61 @@ void backend::draw(const draw_list& list)
         }
         submit(std::span{list.commands}.subspan(first, end - first));
         first = end;
+    }
+}
+
+void backend::release_resources()
+{
+    m_glyphs.clear();
+    m_sampler = details::owned_handle<::bgfx::UniformHandle>{};
+    m_text_program = details::owned_handle<::bgfx::ProgramHandle>{};
+    m_program = details::owned_handle<::bgfx::ProgramHandle>{};
+}
+
+void backend::on_surface_event(const surface_event& event)
+{
+    if(event.change == surface_change::metrics)
+    {
+        if(m_surface_available || !event.state.drawable || !event.state.active)
+        {
+            return;
+        }
+    }
+    if(event.change == surface_change::unavailable)
+    {
+        if(m_surface_available)
+        {
+            release_resources();
+            m_context.reset();
+        }
+        m_surface_available = false;
+        return;
+    }
+    if(m_surface_available || m_context)
+    {
+        release_resources();
+        m_context.reset();
+    }
+    m_surface_available = false;
+    if(!event.state.drawable || !event.state.active)
+    {
+        return;
+    }
+    try
+    {
+        if(m_host)
+        {
+            m_context = create_context(m_host->get());
+        }
+        initialize_resources();
+        m_backbuffer = viewport();
+        m_surface_available = true;
+    }
+    catch(...)
+    {
+        release_resources();
+        m_context.reset();
+        throw;
     }
 }
 

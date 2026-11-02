@@ -126,9 +126,9 @@ TEST_CASE("Input activity loss cancels composition while retaining logical focus
     };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     auto services = std::make_shared<centui::host_services>();
-    services->text_input = [&](auto area)
+    services->set_text_input = [&](auto area)
     {
-        host_area = area;
+        host_area = area ? std::optional{area->area} : std::nullopt;
     };
     document.set_host_services(services);
 
@@ -170,9 +170,9 @@ TEST_CASE("Mouse-focused input retains its caret and host session with no focus 
     };
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     auto services = std::make_shared<centui::host_services>();
-    services->text_input = [&](auto area)
+    services->set_text_input = [&](auto area)
     {
-        host_area = area;
+        host_area = area ? std::optional{area->area} : std::nullopt;
     };
     document.set_host_services(services);
 

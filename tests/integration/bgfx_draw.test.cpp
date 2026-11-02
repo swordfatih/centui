@@ -2,6 +2,73 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+namespace
+{
+
+class surface_platform final : public centui::platform
+{
+public:
+    bool poll_events() override
+    {
+        return true;
+    }
+
+    centui::viewport viewport() const override
+    {
+        return size;
+    }
+
+    std::shared_ptr<const centui::host_services> services() const noexcept override
+    {
+        return {};
+    }
+
+    std::optional<centui::render_surface> surface() const override
+    {
+        return target;
+    }
+
+    std::optional<centui::render_surface> target;
+    centui::viewport size{64, 64};
+};
+
+} // namespace
+
+TEST_CASE("bgfx rejects unavailable or invalid surfaces before graphics initialization", "[renderer][bgfx]")
+{
+    surface_platform platform;
+    REQUIRE_THROWS_AS(centui::bgfx::backend{platform}, std::invalid_argument);
+
+    platform.target = centui::native_surface{};
+    REQUIRE_THROWS_AS(centui::bgfx::backend{platform}, std::invalid_argument);
+
+    int handle = 0;
+    platform.target = centui::native_surface{&handle, nullptr, centui::surface_handle_type::wayland};
+    REQUIRE_THROWS_AS(centui::bgfx::backend{platform}, std::invalid_argument);
+
+    platform.target = centui::named_surface{};
+    REQUIRE_THROWS_AS(centui::bgfx::backend{platform}, std::invalid_argument);
+
+    platform.target = centui::named_surface{std::string{"surface\0name", 12}};
+    REQUIRE_THROWS_AS(centui::bgfx::backend{platform}, std::invalid_argument);
+
+    platform.target = centui::native_surface{&handle};
+    platform.size = {0, 64};
+    {
+        centui::bgfx::backend deferred{platform};
+        REQUIRE_FALSE(deferred.begin_frame());
+        platform.size = {64, 64};
+        REQUIRE(platform.take_events().empty());
+        // Reaching surface validation proves the deferred backend retries
+        // initialization even without a queued metrics change.
+        platform.target = centui::native_surface{};
+        REQUIRE_THROWS_AS(deferred.begin_frame(), std::invalid_argument);
+        REQUIRE_THROWS_AS(deferred.begin_frame(), std::invalid_argument);
+    }
+    platform.size = {65536, 64};
+    REQUIRE_THROWS_AS(centui::bgfx::backend{platform}, std::invalid_argument);
+}
+
 TEST_CASE("bgfx batches quads and submits beyond transient buffer capacity", "[renderer][bgfx]")
 {
     // Run the no-op renderer on this thread, without a native window.

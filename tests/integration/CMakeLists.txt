@@ -1,26 +1,24 @@
-if(TARGET centui::backend::sdl)
-    list(APPEND integration_sources sdl_sdl.test.cpp)
-    list(APPEND integration_libraries centui::backend::sdl)
-endif()
-if(TARGET centui::backend::sfml)
-    list(APPEND integration_sources sfml_sfml.test.cpp)
-    list(APPEND integration_libraries centui::backend::sfml)
-endif()
-if(TARGET centui::platform::sdl AND TARGET centui::backend::bgfx)
-    list(APPEND integration_sources sdl_bgfx.test.cpp)
-    list(APPEND integration_libraries centui::platform::sdl centui::backend::bgfx)
-endif()
-if(TARGET centui::platform::glfw AND TARGET centui::backend::bgfx)
-    list(APPEND integration_sources glfw_bgfx.test.cpp)
-    list(APPEND integration_libraries centui::platform::glfw centui::backend::bgfx)
-endif()
-
-if(integration_sources)
-    centui_test(centui_integration_tests "${integration_sources}" PROPERTIES TIMEOUT 30 LABELS integration)
-    target_link_libraries(centui_integration_tests PRIVATE ${integration_libraries})
-    target_compile_definitions(centui_integration_tests PRIVATE
+function(centui_render_test target source)
+    # Static window libraries can export colliding native protocol symbols.
+    # Each executable exercises one supported pairing independently.
+    centui_test(${target} "${source}" PROPERTIES TIMEOUT 30 LABELS integration)
+    target_link_libraries(${target} PRIVATE ${ARGN})
+    target_compile_definitions(${target} PRIVATE
         CENTUI_FONT_PATH="${PROJECT_SOURCE_DIR}/tests/assets/fonts/Inter-Regular.ttf"
     )
+endfunction()
+
+if(TARGET centui::backend::sdl)
+    centui_render_test(centui_sdl_renderer_tests sdl_sdl.test.cpp centui::backend::sdl)
+endif()
+if(TARGET centui::backend::sfml)
+    centui_render_test(centui_sfml_renderer_tests sfml_sfml.test.cpp centui::backend::sfml)
+endif()
+if(TARGET centui::platform::sdl AND TARGET centui::backend::bgfx)
+    centui_render_test(centui_sdl_bgfx_tests sdl_bgfx.test.cpp centui::platform::sdl centui::backend::bgfx)
+endif()
+if(TARGET centui::platform::glfw AND TARGET centui::backend::bgfx)
+    centui_render_test(centui_glfw_bgfx_tests glfw_bgfx.test.cpp centui::platform::glfw centui::backend::bgfx)
 endif()
 
 if(TARGET centui::platform::sdl)

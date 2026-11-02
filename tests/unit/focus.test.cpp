@@ -124,9 +124,9 @@ TEST_CASE("Window activity stops host ownership and suppresses active drawing", 
     };
     doc.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     auto host = std::make_shared<centui::host_services>();
-    host->text_input = [&](auto area)
+    host->set_text_input = [&](auto area)
     {
-        calls.push_back(area);
+        calls.push_back(area ? std::optional{area->area} : std::nullopt);
     };
     doc.set_host_services(host);
     (void)doc.prepare({100, 100});
@@ -356,9 +356,9 @@ TEST_CASE("Focus notification failures clean up each stage and retain the origin
             };
             doc.register_font(std::filesystem::path{CENTUI_FONT_PATH});
             auto host = std::make_shared<centui::host_services>();
-            host->text_input = [&](auto area)
+            host->set_text_input = [&](auto area)
             {
-                host_area = area;
+                host_area = area ? std::optional{area->area} : std::nullopt;
             };
             doc.set_host_services(host);
             (void)doc.prepare({100, 100});

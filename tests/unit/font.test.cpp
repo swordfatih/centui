@@ -5,6 +5,24 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+TEST_CASE("Font constructors accept family arguments and own their names", "[font]")
+{
+    std::string primary = "Arial";
+    const std::string_view fallback = "Inter";
+    const centypo::font single{"Arial"};
+    const centypo::font multiple{primary, fallback, "sans-serif"};
+    primary = "changed";
+    REQUIRE(single.families == std::vector<std::string>{"Arial"});
+    REQUIRE(multiple.families == std::vector<std::string>{"Arial", "Inter", "sans-serif"});
+    REQUIRE(single.weight == 400);
+    REQUIRE(single.slant == centypo::font_slant::normal);
+    const centypo::font copy{multiple};
+    REQUIRE(copy == multiple);
+    const centypo::font weighted{std::vector<std::string>{"Inter"}, 700, centypo::font_slant::italic};
+    REQUIRE(weighted.weight == 700);
+    REQUIRE(weighted.slant == centypo::font_slant::italic);
+}
+
 TEST_CASE("Font requests have ordinary defaults and validate before publication", "[font]")
 {
     const centypo::font request;
@@ -38,8 +56,8 @@ TEST_CASE("Explicit aliases resolve registered fonts and preserve fractional mea
     service_document.set_font_alias("monospace", {"Inter"});
     auto& service = service_document.typography();
     const auto sans = service.layout("Hello", {.size = 19.5f});
-    const auto serif = service.layout("Hello", {.size = 19.5f, .width = 500, .font = {{"serif"}}});
-    const auto mono = service.layout("Hello", {.size = 19.5f, .width = 500, .font = {{"monospace"}}});
+    const auto serif = service.layout("Hello", {.size = 19.5f, .width = 500, .font = centypo::font{"serif"}});
+    const auto mono = service.layout("Hello", {.size = 19.5f, .width = 500, .font = centypo::font{"monospace"}});
     REQUIRE(sans.glyphs().front().font_id() == serif.glyphs().front().font_id());
     REQUIRE(sans.glyphs().front().font_id() == mono.glyphs().front().font_id());
     REQUIRE(sans.bounds().width > service.layout("Hello", {.size = 19}).bounds().width);
@@ -131,7 +149,7 @@ TEST_CASE("Byte registration snapshots caller storage and retained layouts outli
         document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
         document.register_font({reinterpret_cast<const std::byte*>(bytes.data()), bytes.size()});
         std::fill(bytes.begin(), bytes.end(), 0);
-        retained = document.typography().layout("Retained", {.size = 20, .width = 500, .font = {{"Inter"}}});
+        retained = document.typography().layout("Retained", {.size = 20, .width = 500, .font = centypo::font{"Inter"}});
     }
     centui::document other_document{centui::document_options{.system_font_discovery = false}};
     other_document.register_font(std::filesystem::path{CENTUI_FONT_PATH});

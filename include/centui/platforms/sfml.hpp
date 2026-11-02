@@ -48,18 +48,18 @@ public:
 
     [[nodiscard]] std::shared_ptr<const host_services> services() const noexcept override;
 
-    [[nodiscard]] std::span<const input_event> events() const noexcept override;
-
     [[nodiscard]] bool poll_events() override;
 
     [[nodiscard]] bool poll_events(const std::function<void(const ::sf::Event&)>& on_event);
 
     [[nodiscard]] std::optional<input_event> translate(const ::sf::Event& event);
 
+    void ingest(const ::sf::Event& event);
+
 private:
     static std::unique_ptr<::sf::RenderWindow> create_window(const window_options& options);
 
-    static std::shared_ptr<const host_services> make_services();
+    std::shared_ptr<const host_services> make_services();
 
     static modifiers modifiers_now();
 
@@ -74,7 +74,6 @@ private:
 
     float m_scale = 1;
     std::set<::sf::Keyboard::Scancode> m_pressed;
-    std::vector<input_event> m_events;
 };
 
 } // namespace centui::sfml

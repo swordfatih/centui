@@ -7,6 +7,7 @@
 #include <functional>
 #include <initializer_list>
 #include <limits>
+#include <map>
 #include <memory>
 #include <optional>
 #include <span>
@@ -81,18 +82,20 @@ public:
 
     [[nodiscard]] std::optional<input_event> translate(const SDL_Event& event);
 
-    [[nodiscard]] std::span<const input_event> events() const noexcept override;
+    void ingest(const SDL_Event& event);
 
     [[nodiscard]] centui::viewport viewport() const override;
 
     [[nodiscard]] SDL_Window& native_window() const noexcept;
 
-    [[nodiscard]] centui::native_window_handles native_handles() const;
+    [[nodiscard]] std::optional<render_surface> surface() const override;
 
 private:
     static detail::window_ptr create_window(const window_options& options);
 
     void initialize_services();
+    void update_metrics();
+    static bool SDLCALL event_watch(void* userdata, SDL_Event* event);
 
     static modifiers translate_modifiers(SDL_Keymod value);
 
@@ -110,13 +113,13 @@ private:
     std::shared_ptr<std::reference_wrapper<SDL_Window>> m_lifetime =
         std::make_shared<std::reference_wrapper<SDL_Window>>(m_window);
 
-    std::vector<input_event> m_input_events;
-    std::vector<input_event> m_pending_events;
     bool m_running = true;
     static inline std::unordered_map<SDL_Window*, platform*> m_adapters;
     std::shared_ptr<host_services> m_services;
     bool m_mouse_captured = false;
     std::uint8_t m_capture_button = 0;
+    std::map<std::pair<SDL_TouchID, SDL_FingerID>, pointer_id> m_touches;
+    pointer_id m_next_touch = 1;
 };
 
 } // namespace centui::sdl

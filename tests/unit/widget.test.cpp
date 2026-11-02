@@ -219,20 +219,12 @@ TEST_CASE("Composite extension rejects self attachment and ancestor cycles", "[w
     REQUIRE(document.children(child).empty());
 }
 
-#if defined(_MSC_VER) && !defined(__clang__)
-// MSVC selects copy/move initialization instead of the initializer-list constructor (CWG 2137).
-// https://developercommunity.visualstudio.com/t/initializer_list-constructor-not-used/10887142
-// An unexpected pass fails the test run so this exception can be removed when MSVC fixes it.
-#define CENTUI_SINGLE_CONTAINER_TAGS "[widget][container][!shouldfail]"
-#else
-#define CENTUI_SINGLE_CONTAINER_TAGS "[widget][container]"
-#endif
-
-TEST_CASE("A single same-type container is nested while ordinary copies alias", CENTUI_SINGLE_CONTAINER_TAGS)
+TEST_CASE("Explicitly attached containers nest while ordinary copies alias", "[widget][container]")
 {
     centui::container<> child;
     auto alias = child;
-    centui::container<> parent{child};
+    centui::container<> parent;
+    parent->append(child);
     REQUIRE(alias == child);
     REQUIRE_FALSE(parent == child);
 
@@ -248,10 +240,14 @@ TEST_CASE("A single same-type container is nested while ordinary copies alias", 
     REQUIRE(document.parent(child) == centui::handle<>{parent});
 }
 
-TEST_CASE("Nested temporary containers preserve every level and typed leaf", CENTUI_SINGLE_CONTAINER_TAGS)
+TEST_CASE("Explicitly attached containers preserve every level and typed leaf", "[widget][container]")
 {
     auto leaf = centui::make_widget<custom_leaf>(29);
-    auto root = centui::container<>{centui::container<>{centui::container<>{leaf}}};
+    auto inner = centui::container<>{leaf};
+    auto middle = centui::container<>{};
+    middle->append(inner);
+    auto root = centui::container<>{};
+    root->append(middle);
     centui::document document{
         root,
         {
@@ -275,8 +271,6 @@ TEST_CASE("Nested temporary containers preserve every level and typed leaf", CEN
     leaf->set_value(31);
     REQUIRE(leaf->value() == 31);
 }
-
-#undef CENTUI_SINGLE_CONTAINER_TAGS
 
 TEST_CASE("Document destruction detaches a surviving custom subtree", "[widget][lifetime]")
 {

@@ -3,6 +3,13 @@
 namespace centypo
 {
 
+font::font(std::vector<std::string> requested, int requested_weight, font_slant requested_slant)
+    : families(std::move(requested)),
+      weight(requested_weight),
+      slant(requested_slant)
+{
+}
+
 struct engine::data
 {
     explicit data(engine_options options)

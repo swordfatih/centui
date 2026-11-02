@@ -59,7 +59,8 @@ TEST_CASE("Centypo layouts retain immutable geometry and fonts", "[centypo]")
         REQUIRE(typography.revision() == revision);
 
         const std::byte invalid[]{std::byte{1}};
-        REQUIRE_THROWS(typography.register_font(invalid));
+        // Native font discovery catches this base type to skip unusable fonts.
+        REQUIRE_THROWS_AS(typography.register_font(invalid), std::exception);
         REQUIRE(typography.revision() == revision);
 
         typography.refresh_fonts();

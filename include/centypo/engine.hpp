@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -60,6 +61,18 @@ enum class font_slant
 /// Ordered family request; the engine owns loaded bytes and native faces.
 struct font
 {
+    font() = default;
+
+    template <typename Family, typename... Families>
+        requires std::constructible_from<std::string, Family&&> &&
+                 (std::constructible_from<std::string, Families &&> && ...)
+    explicit font(Family&& family, Families&&... fallback)
+        : families{std::string(std::forward<Family>(family)), std::string(std::forward<Families>(fallback))...}
+    {
+    }
+
+    explicit font(std::vector<std::string> families, int weight = 400, font_slant slant = font_slant::normal);
+
     std::vector<std::string> families = {"sans-serif"};
     int weight = 400;
     font_slant slant = font_slant::normal;

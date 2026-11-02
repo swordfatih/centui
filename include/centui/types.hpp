@@ -1,11 +1,13 @@
 #pragma once
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <variant>
 
 #include <centypo/types.hpp>
 
@@ -133,6 +135,15 @@ enum class mouse_button
     other
 };
 
+using pointer_id = std::uint64_t;
+
+enum class pointer_device
+{
+    mouse,
+    touch,
+    pen
+};
+
 /// \brief A portable input event; pointer coordinates use logical units.
 struct input_event
 {
@@ -148,6 +159,12 @@ struct input_event
     std::string text{};
     std::size_t selection_start = 0;
     std::size_t selection_length = 0;
+    pointer_id pointer = 0;
+    pointer_device device = pointer_device::mouse;
+    bool hover_capable = true;
+    std::chrono::nanoseconds timestamp{};
+    // Supplied by document routing for releases, including clipping and occlusion.
+    bool target_inside = true;
 };
 
 /// \brief An axis-aligned rectangle in logical units.
@@ -163,12 +180,142 @@ struct size
 /// \brief A position or offset in logical units.
 using vec2 = centypo::vec2;
 
-/// \brief Optional clipboard and text-input integration supplied by a platform.
+struct safe_area_insets
+{
+    float top = 0;
+    float right = 0;
+    float bottom = 0;
+    float left = 0;
+
+    bool operator==(const safe_area_insets&) const = default;
+};
+
+/// \brief Surface metrics in logical units, except viewport's framebuffer dimensions.
+struct platform_state
+{
+    centui::viewport viewport;
+    safe_area_insets safe_area;
+    std::optional<rect> keyboard_occlusion;
+    bool focused = true;
+    bool active = true;
+    bool drawable = true;
+    bool closing = false;
+    std::uint64_t surface_generation = 1;
+
+    bool operator==(const platform_state&) const = default;
+};
+
+struct pointer_event
+{
+    input_event_type type = input_event_type::pointer_moved;
+    pointer_id pointer = 0;
+    pointer_device device = pointer_device::mouse;
+    float x = 0;
+    float y = 0;
+    mouse_button button = mouse_button::primary;
+    modifiers mods{};
+    float delta_x = 0;
+    float delta_y = 0;
+    bool hover_capable = true;
+    std::chrono::nanoseconds timestamp{};
+};
+
+struct key_event
+{
+    key code = key::unknown;
+    bool pressed = true;
+    modifiers mods{};
+    bool repeat = false;
+};
+
+struct text_event
+{
+    std::string text;
+};
+
+struct composition_event
+{
+    std::string text;
+    std::size_t selection_start = 0;
+    std::size_t selection_length = 0;
+};
+
+struct focus_event
+{
+    bool focused;
+};
+
+enum class application_activity
+{
+    active,
+    suspended,
+    closing
+};
+
+struct lifecycle_event
+{
+    application_activity activity;
+};
+
+enum class surface_change
+{
+    metrics,
+    unavailable,
+    available,
+    resources_invalidated
+};
+
+struct surface_event
+{
+    surface_change change;
+    platform_state state;
+};
+
+using request_id = std::uint64_t;
+
+enum class service_status
+{
+    success,
+    cancelled,
+    denied,
+    failed,
+    unsupported
+};
+
+struct service_result
+{
+    request_id request = 0;
+    service_status status = service_status::success;
+    std::string text;
+};
+
+using platform_event = std::variant<
+    pointer_event,
+    key_event,
+    text_event,
+    composition_event,
+    focus_event,
+    lifecycle_event,
+    surface_event,
+    service_result>;
+
+[[nodiscard]] platform_event make_platform_event(const input_event& event);
+[[nodiscard]] std::optional<input_event> make_input_event(const platform_event& event);
+
+struct text_input_session
+{
+    rect area;
+    bool multiline = false;
+
+    bool operator==(const text_input_session&) const = default;
+};
+
+/// \brief Requests return IDs; completions are delivered through the platform event queue.
 struct host_services
 {
-    std::function<std::string()> read_clipboard;
-    std::function<void(std::string_view)> write_clipboard;
-    std::function<void(std::optional<rect>)> text_input;
+    std::function<request_id()> read_clipboard;
+    std::function<request_id(std::string)> write_clipboard;
+    std::function<void(std::optional<text_input_session>)> set_text_input;
 };
 
 enum class visibility

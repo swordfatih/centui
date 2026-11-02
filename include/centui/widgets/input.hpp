@@ -68,6 +68,8 @@ protected:
     void on_focus_activity_changed(bool value) override;
 
     bool on_event(const input_event& event) override;
+    void on_service_result(const service_result& result) override;
+    bool multiline_text_input() const override;
 
 private:
     centypo::text_position hit(float x, float y) const;
@@ -96,6 +98,10 @@ private:
     centui::callback<> m_on_submit;
 
     mutable std::optional<centypo::layout> m_layout;
+    std::uint64_t m_edit_revision = 0;
+    std::uint64_t m_request_revision = 0;
+    request_id m_pending_request = 0;
+    bool m_cut_request = false;
 };
 
 /// \brief A text input handle with compile-time style composition.

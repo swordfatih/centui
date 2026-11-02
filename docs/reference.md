@@ -27,5 +27,6 @@ The headers contain the exact types, defaults, and contracts. Start at the area 
 | Built-in controls | [widgets](https://github.com/swordfatih/centui/tree/main/include/centui/widgets) |
 | Handles and ownership | [handle.hpp](https://github.com/swordfatih/centui/blob/main/include/centui/handle.hpp) |
 | Event loops and frame control | [ui.hpp](https://github.com/swordfatih/centui/blob/main/include/centui/ui.hpp) |
+| Input, platform events, and host services | [types.hpp](https://github.com/swordfatih/centui/blob/main/include/centui/types.hpp) |
 | Custom drawing | [widget.hpp](https://github.com/swordfatih/centui/blob/main/include/centui/widget.hpp), [painter.hpp](https://github.com/swordfatih/centui/blob/main/include/centui/painter.hpp) |
 | Host and graphics integration | [platform.hpp](https://github.com/swordfatih/centui/blob/main/include/centui/platform.hpp), [render.hpp](https://github.com/swordfatih/centui/blob/main/include/centui/render.hpp) |

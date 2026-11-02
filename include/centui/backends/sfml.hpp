@@ -65,8 +65,10 @@ public:
     [[nodiscard]] centui::details::texture_cache_statistics cache_statistics() const;
 
     void draw(const draw_list& list) override;
+    void on_surface_event(const surface_event& event) override;
 
 private:
+    bool m_surface_available = true;
     const ::sf::Texture& texture(
         const std::shared_ptr<const bitmap>& bitmap,
         image_sampling sampling = image_sampling::nearest

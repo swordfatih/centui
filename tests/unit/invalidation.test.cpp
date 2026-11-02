@@ -409,9 +409,9 @@ TEST_CASE("Input caret selection and wheel scrolling refresh host bounds without
     document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
 
     auto services = std::make_shared<centui::host_services>();
-    services->text_input = [&](std::optional<centui::rect> area)
+    services->set_text_input = [&](std::optional<centui::text_input_session> area)
     {
-        host_area = area;
+        host_area = area ? std::optional{area->area} : std::nullopt;
     };
     document.set_host_services(services);
     (void)document.prepare({200, 100});

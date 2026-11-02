@@ -287,14 +287,19 @@ void focus_controller::enter(const std::shared_ptr<widget>& root, const std::sha
 void focus_controller::cancel_outside()
 {
     m_owner.m_data->input.hit_dirty = true;
-    if(!allowed(m_owner.m_data->input.capture.lock()))
-    {
-        m_owner.cancel_capture();
-    }
-    if(!allowed(m_owner.m_data->input.hover.lock()))
-    {
-        m_owner.set_hover({});
-    }
+    m_owner.for_each_pointer(
+        [&]
+        {
+            if(!allowed(m_owner.m_data->input.pointer().capture.lock()))
+            {
+                m_owner.cancel_capture();
+            }
+            if(!allowed(m_owner.m_data->input.pointer().hover.lock()))
+            {
+                m_owner.set_hover({});
+            }
+        }
+    );
 }
 
 void focus_controller::unwind(std::size_t index)
@@ -441,7 +446,7 @@ void focus_controller::abort(bool cancel_interaction) noexcept
         catch(...)
         {
         }
-        if(cancel_interaction && m_owner.m_data->input.capture.lock() != value)
+        if(cancel_interaction && m_owner.m_data->input.pointer().capture.lock() != value)
         {
             // Cancellation is not a focus notification and must never activate a control.
             try
@@ -471,19 +476,19 @@ void focus_controller::abort(bool cancel_interaction) noexcept
         }
         try
         {
-            m_owner.cancel_capture();
+            m_owner.cancel_captures();
         }
         catch(...)
         {
         }
     }
-    m_owner.m_data->input.text_input_area.reset();
+    m_owner.m_data->input.text_session.reset();
     try
     {
         const auto& host = m_owner.m_data->input.host;
-        if(host && host->text_input)
+        if(host && host->set_text_input)
         {
-            host->text_input(std::nullopt);
+            host->set_text_input(std::nullopt);
         }
     }
     catch(...)

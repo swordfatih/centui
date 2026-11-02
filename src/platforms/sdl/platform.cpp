@@ -73,9 +73,8 @@ void platform::initialize_services()
     {
         throw std::logic_error("An SDL window already has a CentUI adapter");
     }
-    m_services = std::make_shared<host_services>();
     const std::weak_ptr<std::reference_wrapper<SDL_Window>> weak_window = m_lifetime;
-    m_services->read_clipboard = [weak_window]
+    const auto read = [weak_window]
     {
         if(weak_window.expired())
         {
@@ -83,10 +82,13 @@ void platform::initialize_services()
         }
 
         const auto text = std::shared_ptr<char>{SDL_GetClipboardText(), SDL_free};
-
-        return text ? std::string{text.get()} : std::string{};
+        if(!text)
+        {
+            throw std::runtime_error(SDL_GetError());
+        }
+        return std::string{text.get()};
     };
-    m_services->write_clipboard = [weak_window](std::string_view text)
+    const auto write = [weak_window](std::string_view text)
     {
         if(!weak_window.expired())
         {
@@ -98,8 +100,11 @@ void platform::initialize_services()
             }
         }
     };
-    m_services->text_input = [weak_window](std::optional<rect> area)
+    m_services = clipboard_services(read, write);
+    m_services->set_text_input =
+        [weak_window, multiline = std::optional<bool>{}](std::optional<text_input_session> session) mutable
     {
+        const auto area = session ? std::optional{session->area} : std::nullopt;
         const auto window = weak_window.lock();
 
         if(!window)
@@ -110,13 +115,28 @@ void platform::initialize_services()
         if(!area)
         {
             SDL_StopTextInput(std::addressof(window->get()));
+            multiline.reset();
 
             return;
         }
 
-        if(!SDL_TextInputActive(std::addressof(window->get())) && !SDL_StartTextInput(std::addressof(window->get())))
+        if(!SDL_TextInputActive(std::addressof(window->get())) || multiline != session->multiline)
         {
-            throw std::runtime_error(SDL_GetError());
+            const auto properties = SDL_CreateProperties();
+            if(!properties)
+            {
+                throw std::runtime_error(SDL_GetError());
+            }
+            const bool configured =
+                SDL_SetBooleanProperty(properties, SDL_PROP_TEXTINPUT_MULTILINE_BOOLEAN, session->multiline);
+            const bool started =
+                configured && SDL_StartTextInputWithProperties(std::addressof(window->get()), properties);
+            SDL_DestroyProperties(properties);
+            if(!started)
+            {
+                throw std::runtime_error(SDL_GetError());
+            }
+            multiline = session->multiline;
         }
 
         int window_width = 0;
@@ -141,10 +161,18 @@ void platform::initialize_services()
         }
     };
     m_adapters.emplace(&m_window, this);
+    set_initial_focus((SDL_GetWindowFlags(&m_window) & SDL_WINDOW_INPUT_FOCUS) != 0);
+    update_metrics();
+    if(!SDL_AddEventWatch(event_watch, this))
+    {
+        m_adapters.erase(&m_window);
+        throw std::runtime_error(SDL_GetError());
+    }
 }
 
 platform::~platform()
 {
+    SDL_RemoveEventWatch(event_watch, this);
     m_adapters.erase(&m_window);
     release_mouse_capture();
 }
@@ -173,8 +201,15 @@ bool platform::poll_events(const std::function<void(const SDL_Event&)>& on_event
             for(auto& [window, adapter]: m_adapters)
             {
                 adapter->m_running = false;
+                adapter->set_activity(application_activity::closing);
             }
             continue;
+        }
+        if(event.type == SDL_EVENT_TERMINATING || event.type == SDL_EVENT_WILL_ENTER_BACKGROUND ||
+           event.type == SDL_EVENT_DID_ENTER_BACKGROUND || event.type == SDL_EVENT_WILL_ENTER_FOREGROUND ||
+           event.type == SDL_EVENT_DID_ENTER_FOREGROUND)
+        {
+            continue; // The event watch delivers lifecycle changes even when polling is suspended.
         }
         const auto found = m_adapters.find(SDL_GetWindowFromEvent(&event));
         if(found == m_adapters.end())
@@ -186,17 +221,185 @@ bool platform::poll_events(const std::function<void(const SDL_Event&)>& on_event
         {
             adapter.m_running = false;
         }
-        if(auto translated = adapter.translate(event))
+        adapter.ingest(event);
+    }
+    update_metrics();
+    refresh_state();
+    return m_running && !state().closing;
+}
+
+bool SDLCALL platform::event_watch(void* userdata, SDL_Event* event)
+{
+    auto& self = *static_cast<platform*>(userdata);
+    // SDL can invoke watches on a native thread. Only the thread-safe mailbox is touched here.
+    try
+    {
+        if(event->type == SDL_EVENT_WILL_ENTER_BACKGROUND)
         {
-            adapter.m_pending_events.push_back(std::move(*translated));
+            self.enqueue(lifecycle_event{application_activity::suspended});
+        }
+        else if(event->type == SDL_EVENT_DID_ENTER_FOREGROUND)
+        {
+            self.enqueue(lifecycle_event{application_activity::active});
+        }
+        else if(event->type == SDL_EVENT_TERMINATING)
+        {
+            self.enqueue(lifecycle_event{application_activity::closing});
         }
     }
-    m_input_events = std::exchange(m_pending_events, {});
-    return m_running;
+    catch(...)
+    {
+        // Exceptions must not cross SDL's C callback boundary.
+    }
+    return true;
+}
+
+void platform::update_metrics()
+{
+    SDL_Rect safe{};
+    int width = 0;
+    int height = 0;
+    const auto target = viewport();
+    if(SDL_GetWindowSafeArea(&m_window, &safe) && SDL_GetWindowSize(&m_window, &width, &height) && width > 0 &&
+       height > 0)
+    {
+        const auto x = target.logical_width() / width;
+        const auto y = target.logical_height() / height;
+        set_safe_area({safe.y * y, (width - safe.x - safe.w) * x, (height - safe.y - safe.h) * y, safe.x * x});
+    }
+}
+
+void platform::ingest(const SDL_Event& event)
+{
+    if(event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_TERMINATING)
+    {
+        m_running = false;
+        set_activity(application_activity::closing);
+        return;
+    }
+    if(event.type == SDL_EVENT_WILL_ENTER_BACKGROUND || event.type == SDL_EVENT_DID_ENTER_BACKGROUND)
+    {
+        set_activity(application_activity::suspended);
+        return;
+    }
+    if(event.type == SDL_EVENT_DID_ENTER_FOREGROUND)
+    {
+        set_activity(application_activity::active);
+        return;
+    }
+    if(SDL_GetWindowFromEvent(&event) != &m_window)
+    {
+        return;
+    }
+    if(event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED)
+    {
+        m_running = false;
+        set_activity(application_activity::closing);
+    }
+    else if(event.type == SDL_EVENT_RENDER_DEVICE_LOST)
+    {
+        set_surface_available(false);
+        // The renderer is unrecoverable, but the window can host a new one.
+        // Do not wait for a reset notification from the destroyed renderer.
+        set_surface_available(true);
+    }
+    else if(event.type == SDL_EVENT_RENDER_DEVICE_RESET || event.type == SDL_EVENT_RENDER_TARGETS_RESET)
+    {
+        if(!surface_available())
+        {
+            set_surface_available(true);
+        }
+        else
+        {
+            invalidate_resources();
+        }
+    }
+    if(auto translated = translate(event))
+    {
+        enqueue(*translated);
+    }
+    update_metrics();
 }
 
 std::optional<input_event> platform::translate(const SDL_Event& event)
 {
+    if(event.type == SDL_EVENT_PEN_MOTION || event.type == SDL_EVENT_PEN_DOWN || event.type == SDL_EVENT_PEN_UP)
+    {
+        const bool motion = event.type == SDL_EVENT_PEN_MOTION;
+        const auto window = motion ? event.pmotion.windowID : event.ptouch.windowID;
+        if(window != SDL_GetWindowID(&m_window))
+        {
+            return std::nullopt;
+        }
+        const auto position =
+            to_logical_position(motion ? event.pmotion.x : event.ptouch.x, motion ? event.pmotion.y : event.ptouch.y);
+        if(!position)
+        {
+            return std::nullopt;
+        }
+        const auto id = motion ? event.pmotion.which : event.ptouch.which;
+        return input_event{
+            .type = motion                             ? input_event_type::pointer_moved
+                    : event.type == SDL_EVENT_PEN_DOWN ? input_event_type::pointer_pressed
+                                                       : input_event_type::pointer_released,
+            .x = position->first,
+            .y = position->second,
+            .pointer = (pointer_id{1} << 63) | id,
+            .device = pointer_device::pen,
+            .timestamp = std::chrono::nanoseconds{motion ? event.pmotion.timestamp : event.ptouch.timestamp}
+        };
+    }
+    if(event.type == SDL_EVENT_PEN_PROXIMITY_OUT && event.pproximity.windowID == SDL_GetWindowID(&m_window))
+    {
+        return input_event{
+            .type = input_event_type::pointer_cancelled,
+            .pointer = (pointer_id{1} << 63) | event.pproximity.which,
+            .device = pointer_device::pen
+        };
+    }
+    if(event.type == SDL_EVENT_FINGER_DOWN || event.type == SDL_EVENT_FINGER_MOTION ||
+       event.type == SDL_EVENT_FINGER_UP || event.type == SDL_EVENT_FINGER_CANCELED)
+    {
+        if(event.tfinger.windowID != SDL_GetWindowID(&m_window))
+        {
+            return std::nullopt;
+        }
+        const auto key = std::pair{event.tfinger.touchID, event.tfinger.fingerID};
+        auto found = m_touches.find(key);
+        if(found == m_touches.end())
+        {
+            if(event.type != SDL_EVENT_FINGER_DOWN)
+            {
+                return std::nullopt;
+            }
+            found = m_touches.emplace(key, m_next_touch++).first;
+        }
+        const auto id = found->second;
+        if(event.type == SDL_EVENT_FINGER_UP || event.type == SDL_EVENT_FINGER_CANCELED)
+        {
+            m_touches.erase(found);
+        }
+        const auto target = viewport();
+        return input_event{
+            .type = event.type == SDL_EVENT_FINGER_DOWN       ? input_event_type::pointer_pressed
+                    : event.type == SDL_EVENT_FINGER_UP       ? input_event_type::pointer_released
+                    : event.type == SDL_EVENT_FINGER_CANCELED ? input_event_type::pointer_cancelled
+                                                              : input_event_type::pointer_moved,
+            .x = event.tfinger.x * target.logical_width(),
+            .y = event.tfinger.y * target.logical_height(),
+            .pointer = id,
+            .device = pointer_device::touch,
+            .hover_capable = false,
+            .timestamp = std::chrono::nanoseconds{event.tfinger.timestamp}
+        };
+    }
+    if((event.type == SDL_EVENT_MOUSE_MOTION &&
+        (event.motion.which == SDL_TOUCH_MOUSEID || event.motion.which == SDL_PEN_MOUSEID)) ||
+       ((event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) &&
+        (event.button.which == SDL_TOUCH_MOUSEID || event.button.which == SDL_PEN_MOUSEID)))
+    {
+        return std::nullopt;
+    }
     if(event.type == SDL_EVENT_QUIT)
     {
         return std::nullopt;
@@ -336,11 +539,6 @@ std::optional<input_event> platform::translate(const SDL_Event& event)
     return std::nullopt;
 }
 
-std::span<const input_event> platform::events() const noexcept
-{
-    return m_input_events;
-}
-
 centui::viewport platform::viewport() const
 {
     int width = 0;
@@ -360,7 +558,7 @@ SDL_Window& platform::native_window() const noexcept
     return m_window;
 }
 
-centui::native_window_handles platform::native_handles() const
+std::optional<render_surface> platform::surface() const
 {
     const auto properties = SDL_GetWindowProperties(std::addressof(m_window));
 
@@ -369,19 +567,25 @@ centui::native_window_handles platform::native_handles() const
         throw std::runtime_error(SDL_GetError());
     }
 
+    if(const auto canvas = SDL_GetStringProperty(properties, SDL_PROP_WINDOW_EMSCRIPTEN_CANVAS_ID_STRING, nullptr);
+       canvas && *canvas)
+    {
+        return named_surface{canvas};
+    }
+
     if(const auto window = SDL_GetPointerProperty(properties, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr))
     {
-        return {window, nullptr, native_window_system::win32};
+        return native_surface{window};
     }
 
     if(const auto window = SDL_GetPointerProperty(properties, SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, nullptr))
     {
-        return {window, nullptr, native_window_system::cocoa};
+        return native_surface{window};
     }
 
     if(const auto window = SDL_GetPointerProperty(properties, SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER, nullptr))
     {
-        return {window, nullptr, native_window_system::android};
+        return native_surface{window};
     }
 
     if(const auto window = SDL_GetPointerProperty(properties, SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, nullptr))
@@ -393,7 +597,7 @@ centui::native_window_handles platform::native_handles() const
             throw std::runtime_error("SDL did not expose the Wayland display");
         }
 
-        return {window, display, native_window_system::wayland};
+        return native_surface{window, display, surface_handle_type::wayland};
     }
 
     const auto window = SDL_GetNumberProperty(properties, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0);
@@ -407,10 +611,10 @@ centui::native_window_handles platform::native_handles() const
             throw std::runtime_error("SDL did not expose the X11 display");
         }
 
-        return {reinterpret_cast<void*>(static_cast<std::uintptr_t>(window)), display, native_window_system::x11};
+        return native_surface{reinterpret_cast<void*>(static_cast<std::uintptr_t>(window)), display};
     }
 
-    throw std::runtime_error("SDL video driver has no supported native window properties");
+    return std::nullopt;
 }
 
 modifiers platform::translate_modifiers(SDL_Keymod value)

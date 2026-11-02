@@ -39,6 +39,7 @@ public:
     [[nodiscard]] scrollbar_options scrollbars() const noexcept;
 
 protected:
+    bool can_scroll(vec2 delta) const override;
     vec2 reveal_descendant(rect target) override;
 
     void on_geometry() override;

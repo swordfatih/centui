@@ -84,7 +84,9 @@ int main()
         },
     };
 
-    centui::document document{root};
+    centui::document document{root, {.system_font_discovery = false}};
+    document.register_font(std::filesystem::path{"assets/fonts/Inter-Regular.ttf"});
+    document.set_style({.font = centypo::font{"Inter"}});
 
     centui::ui ui{window, renderer};
 
@@ -106,7 +108,7 @@ cmake -S . -B build
 cmake --build build --target counter
 ```
 
-Run `counter` from the build directory. Multi-configuration generators place it under a directory such as `Debug`. Fonts are discovered from your system automatically.
+Copy `Inter-Regular.ttf` and its license from the repository's `tests/assets/fonts` into `assets/fonts` under the directory you run the app from. Run `counter` from that directory. Multi-configuration generators place the executable under a directory such as `Debug`. The app explicitly registers Inter, so it uses the same font regardless of installed system fonts.
 
 For the slightly more styled repository version, read [getting_started/main.cpp](https://github.com/swordfatih/centui/blob/main/tests/examples/getting_started/main.cpp).
 

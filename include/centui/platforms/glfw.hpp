@@ -65,10 +65,7 @@ public:
 
     [[nodiscard]] bool poll_events() override;
 
-    [[nodiscard]] std::span<const input_event> events() const noexcept override;
-
-    // Use this after an application-owned glfwPollEvents() call.
-    [[nodiscard]] std::vector<input_event> take_events();
+    [[nodiscard]] std::vector<platform_event> take_events() override;
 
     [[nodiscard]] centui::viewport viewport() const override;
 
@@ -76,7 +73,7 @@ public:
 
     [[nodiscard]] GLFWwindow& native_window() const noexcept;
 
-    [[nodiscard]] centui::native_window_handles native_handles() const;
+    [[nodiscard]] std::optional<render_surface> surface() const override;
 
 private:
     static std::unique_ptr<GLFWwindow, detail::window_deleter> create_window(const window_options& options);
@@ -145,9 +142,8 @@ private:
     std::shared_ptr<int> m_lifetime = std::make_shared<int>(0);
 
     std::shared_ptr<host_services> m_services;
-    std::vector<input_event> m_events;
-    std::vector<input_event> m_pending_events;
     std::exception_ptr m_callback_error;
+    bool m_closing = false;
     GLFWkeyfun m_previous_key = nullptr;
     GLFWcharfun m_previous_char = nullptr;
     GLFWcursorposfun m_previous_cursor = nullptr;

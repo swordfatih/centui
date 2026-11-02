@@ -286,6 +286,29 @@ std::optional<rect> widget::text_input_area() const
     return std::nullopt;
 }
 
+bool widget::can_scroll(vec2) const
+{
+    return false;
+}
+
+bool widget::multiline_text_input() const
+{
+    return false;
+}
+
+void widget::on_service_result(const service_result&)
+{
+}
+
+void widget::track_service(request_id request)
+{
+    check_mutation();
+    if(const auto context = m_document.lock())
+    {
+        context->owner.track_service(request, shared_from_this());
+    }
+}
+
 vec2 widget::child_offset() const noexcept
 {
     return m_child_offset;

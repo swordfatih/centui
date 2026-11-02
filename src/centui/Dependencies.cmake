@@ -10,6 +10,12 @@ function(centui_dependencies)
     )
     FetchContent_MakeAvailable(yoga)
 
+    if(APPLE)
+        # Yoga's -fno-rtti with exceptions can break std::exception matching in
+        # the linked application: https://github.com/llvm/llvm-project/issues/66117
+        target_compile_options(yogacore PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-frtti>)
+    endif()
+
     # LunaSVG 3.5.0 bundles PlutoVG 1.3.1 and its embedded raster decoder.
     set(LUNASVG_BUILD_EXAMPLES OFF)
     set(PLUTOVG_BUILD_EXAMPLES OFF)

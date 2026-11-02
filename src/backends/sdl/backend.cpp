@@ -33,6 +33,7 @@ backend::renderer_ptr backend::create_renderer(platform& host)
 backend::backend(platform& host)
     : m_owned(create_renderer(host)),
       m_renderer(*m_owned),
+      m_owns_renderer(true),
       m_platform(host)
 {
 }
@@ -73,7 +74,7 @@ centui::viewport backend::viewport() const
     int width = 0;
     int height = 0;
 
-    if(!SDL_GetRenderOutputSize(&m_renderer, &width, &height))
+    if(!SDL_GetRenderOutputSize(&m_renderer.get(), &width, &height))
     {
         throw std::runtime_error(SDL_GetError());
     }
@@ -88,6 +89,10 @@ bool backend::begin_frame()
 
 bool backend::begin_frame(color clear)
 {
+    if(!m_surface_available)
+    {
+        return false;
+    }
     const auto size = viewport();
 
     if(size.width <= 0 || size.height <= 0)
@@ -95,7 +100,8 @@ bool backend::begin_frame(color clear)
         return false;
     }
 
-    if(!SDL_SetRenderDrawColor(&m_renderer, clear.r, clear.g, clear.b, clear.a) || !SDL_RenderClear(&m_renderer))
+    if(!SDL_SetRenderDrawColor(&m_renderer.get(), clear.r, clear.g, clear.b, clear.a) ||
+       !SDL_RenderClear(&m_renderer.get()))
     {
         throw std::runtime_error(SDL_GetError());
     }
@@ -105,7 +111,11 @@ bool backend::begin_frame(color clear)
 
 void backend::end_frame()
 {
-    if(!SDL_RenderPresent(&m_renderer))
+    if(!m_surface_available)
+    {
+        return;
+    }
+    if(!SDL_RenderPresent(&m_renderer.get()))
     {
         throw std::runtime_error(SDL_GetError());
     }
@@ -133,6 +143,10 @@ void backend::set_cache_limit(std::size_t images)
 
 void backend::draw(const draw_list& list)
 {
+    if(!m_surface_available)
+    {
+        return;
+    }
     const auto size = list.viewport;
 
     if(size.width <= 0 || size.height <= 0)
@@ -144,8 +158,8 @@ void backend::draw(const draw_list& list)
 
     SDL_BlendMode previous_blend;
 
-    if(!SDL_GetRenderDrawBlendMode(&m_renderer, &previous_blend) ||
-       !SDL_SetRenderDrawBlendMode(&m_renderer, SDL_BLENDMODE_BLEND))
+    if(!SDL_GetRenderDrawBlendMode(&m_renderer.get(), &previous_blend) ||
+       !SDL_SetRenderDrawBlendMode(&m_renderer.get(), SDL_BLENDMODE_BLEND))
     {
         throw std::runtime_error(SDL_GetError());
     }
@@ -173,6 +187,35 @@ void backend::draw(const draw_list& list)
     }
 }
 
+void backend::on_surface_event(const surface_event& event)
+{
+    if(event.change == surface_change::metrics)
+    {
+        if(!m_surface_available && event.state.drawable && m_owns_renderer)
+        {
+            m_owned = create_renderer(m_platform->get());
+            m_renderer = *m_owned;
+            m_surface_available = true;
+        }
+        return;
+    }
+    clear_cache();
+    if(event.change == surface_change::unavailable)
+    {
+        m_surface_available = false;
+        m_owned.reset();
+    }
+    else if(event.state.drawable)
+    {
+        if(m_owns_renderer && !m_owned)
+        {
+            m_owned = create_renderer(m_platform->get());
+            m_renderer = *m_owned;
+        }
+        m_surface_available = true;
+    }
+}
+
 SDL_Texture& backend::texture(const std::shared_ptr<const bitmap>& image, image_sampling sampling)
 {
     const std::weak_ptr<const bitmap> key{image};
@@ -196,9 +239,13 @@ SDL_Texture& backend::texture(const std::shared_ptr<const bitmap>& image, image_
         throw std::length_error("Image row exceeds SDL texture pitch");
     }
 
-    std::unique_ptr<SDL_Texture, detail::texture_deleter> result{
-        SDL_CreateTexture(&m_renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, image->width, image->height)
-    };
+    std::unique_ptr<SDL_Texture, detail::texture_deleter> result{SDL_CreateTexture(
+        &m_renderer.get(),
+        SDL_PIXELFORMAT_RGBA32,
+        SDL_TEXTUREACCESS_STATIC,
+        image->width,
+        image->height
+    )};
 
     if(!result || !SDL_UpdateTexture(result.get(), nullptr, pixels.data(), image->width * 4) ||
        !SDL_SetTextureBlendMode(result.get(), SDL_BLENDMODE_BLEND) ||
@@ -242,7 +289,7 @@ void backend::quad(
     static constexpr std::array indices{0, 1, 2, 0, 2, 3};
 
     if(!SDL_RenderGeometry(
-           &m_renderer,
+           &m_renderer.get(),
            image ? &image->get() : nullptr,
            vertices.data(),
            static_cast<int>(vertices.size()),

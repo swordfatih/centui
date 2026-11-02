@@ -427,7 +427,7 @@ void theme_style(document& document, bool dark, const style_patch& light)
 
 void apply_theme(document& document, bool dark)
 {
-    document.set_style({.text_color = solid(dark ? 0xE5E7EE : 0x202638)});
+    document.set_style({.text_color = solid(dark ? 0xE5E7EE : 0x202638), .font = centypo::font{"Inter"}});
     theme_style<screen>(document, dark, {.background_color = solid(0xF3F5FA)});
     theme_style<side>(document, dark, {.background_color = solid(0xFFFFFF), .border_color = solid(0xDDE2EC)});
     theme_style<panel, stat>(document, dark, {.background_color = solid(0xFFFFFF), .border_color = solid(0xDDE2EC)});
@@ -728,7 +728,8 @@ int main()
         }
     }};
 
-    centui::document document{root};
+    centui::document document{root, {.system_font_discovery = false}};
+    document.register_font(std::filesystem::path{CENTUI_FONT_PATH});
     apply_theme(document, true);
 
     centui::ui ui{window, renderer};

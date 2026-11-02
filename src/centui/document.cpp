@@ -229,13 +229,14 @@ void document::set_host_services(std::shared_ptr<const host_services> services)
         return;
     }
 
-    if(m_data->input.host && m_data->input.host->text_input)
+    if(m_data->input.host && m_data->input.host->set_text_input)
     {
-        m_data->input.host->text_input(std::nullopt);
+        m_data->input.host->set_text_input(std::nullopt);
     }
 
     m_data->input.host = std::move(services);
-    m_data->input.text_input_area.reset();
+    m_data->input.requests.clear();
+    m_data->input.text_session.reset();
     sync_host();
 }
 

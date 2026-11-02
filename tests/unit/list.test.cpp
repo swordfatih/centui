@@ -345,7 +345,9 @@ TEST_CASE("Lists reject invalid dimensions and missing or attached rows", "[widg
     REQUIRE_THROWS_AS(document.prepare({200, 100}), std::logic_error);
 
     auto child = centui::container{};
-    auto parent = centui::container{child};
+    auto parent = centui::container{};
+    parent->append(child);
+    REQUIRE(child->parent() == centui::handle<>{parent});
 
     auto attached = centui::list{
         [child](std::size_t)

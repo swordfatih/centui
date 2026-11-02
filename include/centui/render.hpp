@@ -82,6 +82,11 @@ public:
     virtual void draw(const draw_list&) = 0;
 
     virtual void end_frame() = 0;
+
+    /// \brief Receives surface availability, generation, and resource-reset notifications.
+    virtual void on_surface_event(const surface_event&)
+    {
+    }
 };
 
 [[nodiscard]] rect intersection(rect a, rect b) noexcept;
